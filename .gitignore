@@ -1,0 +1,38 @@
+# Dependências
+node_modules/
+
+# Ambiente
+.env
+.env.local
+.env.production
+
+# Logs
+logs/
+*.log
+
+# Certificados (NUNCA commitar certificados reais)
+src/config/certificates/*.crt
+src/config/certificates/*.key
+src/config/certificates/*.pem
+!src/config/certificates/.gitkeep
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+dist/
+build/
+
+# Testes
+coverage/
+
+# Temporários
+tmp/
+temp/

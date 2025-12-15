@@ -1,0 +1,11 @@
+# Certificados ICP-Brasil
+# ========================
+# Este diretório deve conter:
+# - transport.crt  - Certificado de transporte
+# - transport.key  - Chave privada do transporte
+# - signing.crt    - Certificado de assinatura
+# - signing.key    - Chave privada de assinatura
+# - ca-bundle.crt  - Cadeia de certificados CA
+#
+# ATENÇÃO: NUNCA commite certificados reais!
+# Os arquivos .crt e .key estão no .gitignore
