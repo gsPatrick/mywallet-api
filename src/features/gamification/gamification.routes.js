@@ -5,7 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const controller = require('./gamification.controller');
-const authMiddleware = require('../../middlewares/authMiddleware');
+const { authMiddleware } = require('../../middlewares/authMiddleware');
 
 // All routes require authentication
 router.use(authMiddleware);
