@@ -39,19 +39,19 @@ app.use(cors({
   credentials: true
 }));
 
-// Rate Limiting - Proteção contra DDoS
-const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutos
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
-  message: {
-    error: 'Muitas requisições. Tente novamente em alguns minutos.',
-    code: 'RATE_LIMIT_EXCEEDED'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-  validate: { xForwardedForHeader: false }
-});
-app.use(limiter);
+// Rate Limiting - DESABILITADO para desenvolvimento
+// const limiter = rateLimit({
+//   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+//   max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
+//   message: {
+//     error: 'Muitas requisições. Tente novamente em alguns minutos.',
+//     code: 'RATE_LIMIT_EXCEEDED'
+//   },
+//   standardHeaders: true,
+//   legacyHeaders: false,
+//   validate: { xForwardedForHeader: false }
+// });
+// app.use(limiter);
 
 // ===========================================
 // MIDDLEWARES DE PARSING
