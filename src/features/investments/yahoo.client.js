@@ -7,27 +7,22 @@ const yahooFinance = require('yahoo-finance2').default;
 const NodeCache = require('node-cache');
 const { logger } = require('../../config/logger');
 
-// Cache de 15 minutos para não bloquear o IP
+// Cache de 15 minutos
 const cache = new NodeCache({ stdTTL: 900 });
-
-// Configurações para suprimir avisos do console da lib
-// Configurações para suprimir avisos do console da lib
-// yahooFinance.suppressNotices(['yahooSurvey']); // Removed as it causes TypeError
 
 /**
  * Normaliza o ticker para o padrão Yahoo (adiciona .SA para ações brasileiras)
- * Ex: PETR4 -> PETR4.SA
  */
 const normalizeTicker = (ticker) => {
     if (!ticker) return '';
     const t = ticker.toUpperCase().trim();
-    // Se já tem .SA ou é cripto (ex: BTC-USD), mantém. Senão, adiciona .SA
-    if (t.includes('.') || t.includes('-')) return t;
+    // Se já tem .SA, ponto (BDR/ETF as vezes) ou é cripto (BTC-USD), mantém.
+    if (t.endsWith('.SA') || t.includes('-')) return t;
     return `${t}.SA`;
 };
 
 /**
- * Busca cotação atual (Preço e Variação)
+ * Busca cotação atual de um único ativo
  */
 const getQuote = async (ticker) => {
     const symbol = normalizeTicker(ticker);
@@ -37,81 +32,99 @@ const getQuote = async (ticker) => {
     if (cached) return cached;
 
     try {
-        const quote = await yahooFinance.quote(symbol);
+        const quote = await yahooFinance.quote(symbol, { validateResult: false });
 
         if (!quote) return null;
 
         const data = {
-            symbol: ticker,
-            price: quote.regularMarketPrice,
+            symbol: ticker, // Retorna o ticker original (sem .SA)
+            price: quote.regularMarketPrice || 0,
             change: quote.regularMarketChange || 0,
             changePercent: quote.regularMarketChangePercent || 0,
-            updatedAt: new Date(quote.regularMarketTime)
+            updatedAt: new Date()
         };
 
         cache.set(cacheKey, data);
         return data;
     } catch (error) {
-        // Yahoo falha se o ativo não existir ou mudar de nome
-        logger.warn(`Yahoo Finance: Falha ao buscar ${symbol}: ${error.message}`);
+        // Log apenas em debug para não poluir, pois é normal falhar alguns
+        // logger.debug(`Yahoo falhou para ${symbol}: ${error.message}`);
         return null;
     }
 };
 
 /**
- * Busca cotações em lote (vários ativos)
- */
-/**
- * Busca cotações em lote (vários ativos) com proteção de falhas
+ * Busca cotações em lote com FALLBACK para individual
+ * Essa é a função que resolve o problema dos zeros
  */
 const getQuotes = async (tickers) => {
     const results = {};
     const symbolsToFetch = [];
+    const tickerMap = {}; // Mapa de Ticker.SA -> Ticker
 
-    // 1. Verifica cache primeiro
+    // 1. Verifica cache e prepara lista
     for (const t of tickers) {
         const symbol = normalizeTicker(t);
         const cached = cache.get(`yahoo_quote_${symbol}`);
+
         if (cached) {
-            results[t] = cached; // Usa a chave original (ex: PETR4)
+            results[t] = cached;
         } else {
             symbolsToFetch.push(symbol);
+            tickerMap[symbol] = t; // Guarda referência do original
         }
     }
 
     if (symbolsToFetch.length === 0) return results;
 
     try {
-        // Tenta buscar todos de uma vez
+        // 2. Tenta buscar em LOTE (Rápido)
         const quotes = await yahooFinance.quote(symbolsToFetch, { validateResult: false });
 
-        // Garante que seja array
         const quotesArray = Array.isArray(quotes) ? quotes : [quotes];
 
         for (const q of quotesArray) {
             if (!q || !q.symbol) continue;
 
-            // Remove o .SA para salvar no resultado com a chave que o sistema usa
-            const cleanTicker = q.symbol.replace('.SA', '');
+            const cleanTicker = tickerMap[q.symbol] || q.symbol.replace('.SA', '');
 
             const data = {
                 symbol: cleanTicker,
                 price: q.regularMarketPrice || 0,
                 change: q.regularMarketChange || 0,
                 changePercent: q.regularMarketChangePercent || 0,
-                updatedAt: new Date(q.regularMarketTime || Date.now())
+                updatedAt: new Date()
             };
 
-            // Salva no cache
             cache.set(`yahoo_quote_${q.symbol}`, data);
-
-            // Salva no resultado
             results[cleanTicker] = data;
         }
+
     } catch (error) {
-        // Se falhar o lote, não faz nada, retorna o que tem (os zeros serão tratados no service)
-        // Em produção, poderíamos tentar buscar um por um em caso de falha do lote
-        console.warn('Yahoo Batch Warning:', error.message);
+        // 3. SE O LOTE FALHAR (Erro 404 em um item cancela o lote todo), 
+        // BUSCA UM POR UM (Lento mas Garantido)
+        logger.warn(`Yahoo Batch falhou (${error.message}). Tentando individualmente para ${symbolsToFetch.length} ativos...`);
+
+        await Promise.all(symbolsToFetch.map(async (symbol) => {
+            try {
+                const q = await yahooFinance.quote(symbol, { validateResult: false });
+                if (q) {
+                    const cleanTicker = tickerMap[symbol];
+                    const data = {
+                        symbol: cleanTicker,
+                        price: q.regularMarketPrice || 0,
+                        change: q.regularMarketChange || 0,
+                        changePercent: q.regularMarketChangePercent || 0,
+                        updatedAt: new Date()
+                    };
+                    cache.set(`yahoo_quote_${symbol}`, data);
+                    results[cleanTicker] = data;
+                }
+            } catch (innerErr) {
+                // Se falhar individualmente, é porque o ativo realmente não existe no Yahoo
+                // Apenas ignora e deixa como 0
+            }
+        }));
     }
 
     return results;
@@ -124,23 +137,20 @@ const getDividendsHistory = async (ticker, startDate) => {
     const symbol = normalizeTicker(ticker);
 
     try {
-        // Busca dados históricos filtrando por eventos 'div' (dividendos)
         const queryOptions = {
-            period1: startDate, // Data inicial (ex: '2024-01-01')
-            events: 'div'       // Apenas dividendos
+            period1: startDate,
+            events: 'div'
         };
 
         const result = await yahooFinance.historical(symbol, queryOptions);
 
-        // O Yahoo retorna array de objetos { date, dividends }
         return result.map(div => ({
-            date: div.date, // Objeto Date
+            date: div.date,
             amount: div.dividends,
-            type: 'DIVIDEND' // Yahoo não diferencia JCP de Dividendo facilmente
+            type: 'DIVIDEND'
         }));
 
     } catch (error) {
-        logger.warn(`Yahoo: Erro ao buscar dividendos de ${symbol}: ${error.message}`);
         return [];
     }
 };
