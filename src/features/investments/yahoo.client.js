@@ -11,7 +11,8 @@ const { logger } = require('../../config/logger');
 const cache = new NodeCache({ stdTTL: 900 });
 
 // Configurações para suprimir avisos do console da lib
-yahooFinance.suppressNotices(['yahooSurvey']);
+// Configurações para suprimir avisos do console da lib
+// yahooFinance.suppressNotices(['yahooSurvey']); // Removed as it causes TypeError
 
 /**
  * Normaliza o ticker para o padrão Yahoo (adiciona .SA para ações brasileiras)
