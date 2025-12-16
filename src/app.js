@@ -25,6 +25,9 @@ const PORT = process.env.PORT || 3000;
 // MIDDLEWARES DE SEGURANÇA
 // ===========================================
 
+// Trust proxy - necessário para rate limiting atrás de reverse proxy
+app.set('trust proxy', 1);
+
 // Helmet - Headers de segurança
 app.use(helmet());
 
@@ -45,7 +48,8 @@ const limiter = rateLimit({
     code: 'RATE_LIMIT_EXCEEDED'
   },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  validate: { xForwardedForHeader: false }
 });
 app.use(limiter);
 
