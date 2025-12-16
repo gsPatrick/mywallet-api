@@ -11,7 +11,7 @@ const { AppError } = require('../../middlewares/errorHandler');
 /**
  * Registra um novo usuário
  */
-const register = async ({ name, email, password }) => {
+const register = async ({ name, email, password, salary, salaryDay }) => {
     // Verificar se email já existe
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
@@ -22,7 +22,9 @@ const register = async ({ name, email, password }) => {
     const user = await User.create({
         name,
         email,
-        password
+        password,
+        salary: salary || null,
+        salaryDay: salaryDay || null
     });
 
     // Log de auditoria

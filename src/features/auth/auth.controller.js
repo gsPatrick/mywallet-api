@@ -12,9 +12,9 @@ const { getClientIp } = require('../../middlewares/auditLogger');
  */
 const register = async (req, res, next) => {
     try {
-        const { name, email, password } = req.body;
+        const { name, email, password, salary, salaryDay } = req.body;
 
-        const result = await authService.register({ name, email, password });
+        const result = await authService.register({ name, email, password, salary, salaryDay });
 
         res.status(201).json({
             message: 'Usuário registrado com sucesso',
