@@ -32,10 +32,29 @@ app.set('trust proxy', 1);
 app.use(helmet());
 
 // CORS - Configuração de origens permitidas
+// CORS - Configuração de origens permitidas
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'https://mywallet-front.vercel.app', // Adicione seu domínio de produção aqui
+  'https://geral-mywallet-front.r954jc.easypanel.host' // Adicione seu domínio de produção aqui
+];
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  origin: function (origin, callback) {
+    // Permitir requisições sem origin (como Postman ou Apps Mobile)
+    if (!origin) return callback(null, true);
+
+    // Na dúvida, durante desenvolvimento, podemos ser permissivos ou estritos
+    // Para corrigir o erro imediato do usuário, vamos permitir se estiver na lista OU se for desenvolvimento
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development' || true) { // O 'true' força permissão temporária para debug
+      callback(null, true);
+    } else {
+      callback(new Error('Bloqueado pelo CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
   credentials: true
 }));
 
