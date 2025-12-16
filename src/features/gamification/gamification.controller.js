@@ -155,6 +155,36 @@ const markMedalNotified = async (req, res) => {
     }
 };
 
+/**
+ * PUT /api/gamification/profile/featured-medals
+ * Atualiza medalhas em destaque do usuário (máx 5)
+ */
+const updateFeaturedMedals = async (req, res) => {
+    try {
+        const { medalIds } = req.body;
+
+        if (!Array.isArray(medalIds)) {
+            return res.status(400).json({
+                success: false,
+                error: 'medalIds deve ser um array'
+            });
+        }
+
+        if (medalIds.length > 5) {
+            return res.status(400).json({
+                success: false,
+                error: 'Máximo de 5 medalhas em destaque'
+            });
+        }
+
+        const profile = await gamificationService.updateFeaturedMedals(req.user.id, medalIds);
+        res.json({ success: true, data: profile });
+    } catch (error) {
+        console.error('Erro ao atualizar medalhas em destaque:', error);
+        res.status(500).json({ success: false, error: 'Erro ao atualizar medalhas' });
+    }
+};
+
 module.exports = {
     getProfile,
     updateProfile,
@@ -164,5 +194,6 @@ module.exports = {
     checkMedals,
     registerActivity,
     getNewMedals,
-    markMedalNotified
+    markMedalNotified,
+    updateFeaturedMedals
 };

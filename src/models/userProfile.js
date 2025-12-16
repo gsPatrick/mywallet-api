@@ -95,6 +95,11 @@ module.exports = (sequelize) => {
         connectedCards: {
             type: DataTypes.INTEGER,
             defaultValue: 0
+        },
+        // Featured medals (up to 5 medal IDs to display on profile)
+        featuredMedals: {
+            type: DataTypes.JSON,
+            defaultValue: []
         }
     }, {
         tableName: 'user_profiles',

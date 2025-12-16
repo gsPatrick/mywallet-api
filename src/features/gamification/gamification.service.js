@@ -289,6 +289,9 @@ const checkAndUnlockMedals = async (userId) => {
 
         progress = Math.min(progress, 100);
 
+        // Track if was already complete before
+        const wasComplete = userMedal?.isComplete || false;
+
         // Create or update user medal
         if (!userMedal) {
             userMedal = await UserMedal.create({
@@ -306,8 +309,8 @@ const checkAndUnlockMedals = async (userId) => {
             });
         }
 
-        // If newly completed, add XP and track
-        if (isComplete && !userMedal.isComplete) {
+        // If newly completed (wasn't complete before, now is), add XP and track
+        if (isComplete && !wasComplete) {
             await profile.update({ xp: profile.xp + medal.xpReward });
             newlyUnlocked.push({
                 ...medal.toJSON(),
@@ -409,6 +412,17 @@ const seedMedals = async () => {
     }
 };
 
+/**
+ * Atualiza medalhas em destaque do usuário
+ */
+const updateFeaturedMedals = async (userId, medalIds) => {
+    await UserProfile.update(
+        { featuredMedals: medalIds.slice(0, 5) },
+        { where: { userId } }
+    );
+    return getOrCreateProfile(userId);
+};
+
 module.exports = {
     getOrCreateProfile,
     updateProfile,
@@ -419,5 +433,6 @@ module.exports = {
     registerActivity,
     getUnnotifiedMedals,
     markMedalAsNotified,
-    seedMedals
+    seedMedals,
+    updateFeaturedMedals
 };

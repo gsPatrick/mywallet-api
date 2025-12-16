@@ -13,6 +13,7 @@ router.use(authMiddleware);
 // Profile
 router.get('/profile', controller.getProfile);
 router.put('/profile', controller.updateProfile);
+router.put('/profile/featured-medals', controller.updateFeaturedMedals);
 router.put('/password', controller.changePassword);
 
 // Stats
