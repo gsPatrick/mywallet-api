@@ -112,13 +112,28 @@ const calculateStats = async (userId) => {
     // Get transactions count
     const transactionCount = await ManualTransaction.count({ where: { userId } });
 
-    // Get connected banks/cards
-    const consents = await Consent.count({ where: { userId, status: 'active' } });
-    const cards = await CreditCard.count({ where: { userId } });
+    // Get connected banks/cards (with error handling)
+    let consents = 0;
+    let cards = 0;
+    try {
+        consents = await Consent.count({ where: { userId, status: 'AUTHORIZED' } });
+    } catch (e) {
+        console.warn('Could not count consents:', e.message);
+    }
+    try {
+        cards = await CreditCard.count({ where: { userId } });
+    } catch (e) {
+        console.warn('Could not count cards:', e.message);
+    }
 
     // Get dividends
-    const dividends = await Dividend.findAll({ where: { userId } });
-    const totalDividends = dividends.reduce((sum, d) => sum + parseFloat(d.amount || 0), 0);
+    let totalDividends = 0;
+    try {
+        const dividends = await Dividend.findAll({ where: { userId } });
+        totalDividends = dividends.reduce((sum, d) => sum + parseFloat(d.amount || 0), 0);
+    } catch (e) {
+        console.warn('Could not get dividends:', e.message);
+    }
 
     // Update profile with stats
     await UserProfile.update({
@@ -237,6 +252,26 @@ const checkAndUnlockMedals = async (userId) => {
         } else if (req.includes('assetTypes')) {
             progress = (stats.assetTypes.length / val) * 100;
             isComplete = stats.assetTypes.length >= val;
+        } else if (req === 'firstAccess') {
+            // First access is always complete
+            isComplete = true;
+            progress = 100;
+        } else if (req === 'isOwner') {
+            // Check if user email is owner (Patrick)
+            const user = await User.findByPk(userId);
+            isComplete = user?.email === 'patrick@gmail.com' || user?.email === 'patrick123@gmail.com';
+            progress = isComplete ? 100 : 0;
+        } else if (req === 'isFirstUser') {
+            // Check if user is the first registered
+            const firstUser = await User.findOne({ order: [['createdAt', 'ASC']] });
+            isComplete = firstUser?.id === userId;
+            progress = isComplete ? 100 : 0;
+        } else if (req === 'isBetaTester') {
+            // Beta testers: registered before 2025-02-01
+            const user = await User.findByPk(userId);
+            const betaEndDate = new Date('2025-02-01');
+            isComplete = user && new Date(user.createdAt) < betaEndDate;
+            progress = isComplete ? 100 : 0;
         } else if (req.includes('has')) {
             // Check for specific asset types
             const typeChecks = {
@@ -349,6 +384,31 @@ const markMedalAsNotified = async (userId, medalId) => {
     );
 };
 
+/**
+ * Seed medals from medalsData.js
+ */
+const seedMedals = async () => {
+    try {
+        const medalsData = require('./medalsData');
+
+        for (const medalData of medalsData) {
+            const [medal, created] = await Medal.findOrCreate({
+                where: { code: medalData.code },
+                defaults: medalData
+            });
+
+            if (!created) {
+                // Update existing medal
+                await medal.update(medalData);
+            }
+        }
+
+        console.log(`✅ ${medalsData.length} medalhas sincronizadas`);
+    } catch (error) {
+        console.error('Erro ao sincronizar medalhas:', error);
+    }
+};
+
 module.exports = {
     getOrCreateProfile,
     updateProfile,
@@ -358,5 +418,6 @@ module.exports = {
     checkAndUnlockMedals,
     registerActivity,
     getUnnotifiedMedals,
-    markMedalAsNotified
+    markMedalAsNotified,
+    seedMedals
 };

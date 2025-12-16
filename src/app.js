@@ -111,6 +111,10 @@ const startServer = async () => {
       logger.info('✅ Models sincronizados com banco de dados');
     }
 
+    // Seed medals
+    const { seedMedals } = require('./features/gamification/gamification.service');
+    await seedMedals();
+
     // Iniciar servidor
     app.listen(PORT, () => {
       logger.info(`🚀 Servidor rodando na porta ${PORT}`);
