@@ -61,16 +61,19 @@ const getQuote = async (ticker) => {
 /**
  * Busca cotações em lote (vários ativos)
  */
+/**
+ * Busca cotações em lote (vários ativos) com proteção de falhas
+ */
 const getQuotes = async (tickers) => {
     const results = {};
     const symbolsToFetch = [];
 
-    // Verifica cache primeiro
+    // 1. Verifica cache primeiro
     for (const t of tickers) {
         const symbol = normalizeTicker(t);
         const cached = cache.get(`yahoo_quote_${symbol}`);
         if (cached) {
-            results[t] = cached;
+            results[t] = cached; // Usa a chave original (ex: PETR4)
         } else {
             symbolsToFetch.push(symbol);
         }
@@ -79,32 +82,36 @@ const getQuotes = async (tickers) => {
     if (symbolsToFetch.length === 0) return results;
 
     try {
-        // O Yahoo aceita array de símbolos
-        const quotes = await yahooFinance.quote(symbolsToFetch);
+        // Tenta buscar todos de uma vez
+        const quotes = await yahooFinance.quote(symbolsToFetch, { validateResult: false });
 
-        // A lib pode retornar um objeto único ou array
+        // Garante que seja array
         const quotesArray = Array.isArray(quotes) ? quotes : [quotes];
 
         for (const q of quotesArray) {
-            // Remove o .SA para devolver pro sistema
+            if (!q || !q.symbol) continue;
+
+            // Remove o .SA para salvar no resultado com a chave que o sistema usa
             const cleanTicker = q.symbol.replace('.SA', '');
 
             const data = {
                 symbol: cleanTicker,
-                price: q.regularMarketPrice,
+                price: q.regularMarketPrice || 0,
                 change: q.regularMarketChange || 0,
                 changePercent: q.regularMarketChangePercent || 0,
-                updatedAt: new Date(q.regularMarketTime)
+                updatedAt: new Date(q.regularMarketTime || Date.now())
             };
 
-            // Salva no cache com a chave com .SA (padrão yahoo)
+            // Salva no cache
             cache.set(`yahoo_quote_${q.symbol}`, data);
 
-            // Salva no resultado com a chave limpa (padrão sistema)
+            // Salva no resultado
             results[cleanTicker] = data;
         }
     } catch (error) {
-        logger.error('Yahoo Finance Batch Error:', error.message);
+        // Se falhar o lote, não faz nada, retorna o que tem (os zeros serão tratados no service)
+        // Em produção, poderíamos tentar buscar um por um em caso de falha do lote
+        console.warn('Yahoo Batch Warning:', error.message);
     }
 
     return results;
