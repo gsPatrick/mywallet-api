@@ -35,6 +35,7 @@ const UserMedal = require('./userMedal')(sequelize);
 // Importar models - Fase 4 (Transações Aprimoradas)
 const Category = require('./category')(sequelize);
 const Notification = require('./notification')(sequelize);
+const GoalHistory = require('./goalHistory')(sequelize);
 
 // ===========================================
 // ASSOCIAÇÕES - Fase 1
@@ -99,6 +100,14 @@ Budget.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 // User -> Goals
 User.hasMany(Goal, { foreignKey: 'userId', as: 'goals' });
 Goal.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+// Goal -> GoalHistory
+Goal.hasMany(GoalHistory, { foreignKey: 'goalId', as: 'history' });
+GoalHistory.belongsTo(Goal, { foreignKey: 'goalId', as: 'goal' });
+
+// User -> GoalHistory
+User.hasMany(GoalHistory, { foreignKey: 'userId', as: 'goalHistory' });
+GoalHistory.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
 // User -> AuditLogs
 User.hasMany(AuditLog, { foreignKey: 'userId', as: 'auditLogs' });
@@ -212,5 +221,6 @@ module.exports = {
     UserMedal,
     // Fase 4 - Transações Aprimoradas
     Category,
-    Notification
+    Notification,
+    GoalHistory
 };

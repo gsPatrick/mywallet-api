@@ -1,28 +1,37 @@
 /**
  * Investments Service
+ * Gerencia a carteira do usuário (Renda Variável)
+ * 
+ * Lógica:
+ * 1. O usuário registra a compra (com o preço que ELE pagou).
+ * 2. O sistema busca o preço ATUAL via Yahoo Finance.
+ * 3. O sistema calcula o lucro/prejuízo.
  */
 
-const { Investment, Asset, AuditLog } = require('../../models');
-const brapiClient = require('./brapi.client');
+const { Investment, Asset, FinancialProduct } = require('../../models');
+const yahooClient = require('./yahoo.client'); // Usa Yahoo para cotação em tempo real (Grátis)
 const { AppError } = require('../../middlewares/errorHandler');
 const { Op } = require('sequelize');
 
 /**
- * Lista investimentos do usuário
+ * Lista o histórico de operações (compras e vendas) do usuário
  */
 const listInvestments = async (userId, filters = {}) => {
     const { assetType, page = 1, limit = 50 } = filters;
 
-    const include = [{
-        model: Asset,
-        as: 'asset',
-        where: assetType ? { type: assetType } : {},
-        required: true
-    }];
+    const where = {};
+    // Filtro por tipo de ativo se solicitado
+    if (assetType) {
+        where['$asset.type$'] = assetType;
+    }
 
     const investments = await Investment.findAll({
-        where: { userId },
-        include,
+        where: { userId, ...where },
+        include: [{
+            model: Asset,
+            as: 'asset',
+            required: true
+        }],
         order: [['date', 'DESC']],
         limit,
         offset: (page - 1) * limit
@@ -30,17 +39,12 @@ const listInvestments = async (userId, filters = {}) => {
 
     return investments.map(inv => ({
         id: inv.id,
-        asset: {
-            id: inv.asset.id,
-            ticker: inv.asset.ticker,
-            name: inv.asset.name,
-            type: inv.asset.type
-        },
-        operationType: inv.operationType,
+        ticker: inv.asset.ticker,
+        name: inv.asset.name,
+        type: inv.asset.type,
+        operationType: inv.operationType, // COMPRA ou VENDA
         quantity: parseFloat(inv.quantity),
-        price: parseFloat(inv.price),
-        brokerageFee: parseFloat(inv.brokerageFee),
-        otherFees: parseFloat(inv.otherFees),
+        price: parseFloat(inv.price), // Preço que o usuário pagou na época
         totalValue: inv.getTotalValue(),
         date: inv.date,
         broker: inv.broker
@@ -48,185 +52,204 @@ const listInvestments = async (userId, filters = {}) => {
 };
 
 /**
- * Registra um novo investimento
+ * Registra um novo investimento (Ordem de Compra/Venda)
+ * O usuário INFORMA o preço que pagou aqui.
  */
 const createInvestment = async (userId, data) => {
-    const { ticker, operationType, quantity, price, brokerageFee, otherFees, date, broker } = data;
+    const { ticker, operationType, quantity, price, brokerageFee, date, broker } = data;
 
-    // Buscar ou criar ativo
-    let asset = await Asset.findOne({ where: { ticker: ticker.toUpperCase() } });
+    // 1. Busca o ativo no nosso banco local (que foi populado pela Brapi)
+    let asset = await Asset.findOne({
+        where: { ticker: ticker.toUpperCase() }
+    });
 
+    // Fallback: Se o ativo não existir no banco local (raro se o sync rodar),
+    // tentamos buscar dados básicos dele no Yahoo para não travar o usuário
     if (!asset) {
-        // Buscar info na Brapi
-        const assetInfo = await brapiClient.getAssetInfo(ticker.toUpperCase());
-
-        if (!assetInfo) {
-            throw new AppError('Ativo não encontrado na B3', 404, 'ASSET_NOT_FOUND');
+        const yahooData = await yahooClient.getQuote(ticker);
+        if (!yahooData) {
+            throw new AppError('Ativo não encontrado na bolsa.', 404, 'ASSET_NOT_FOUND');
         }
 
+        // Cria o ativo on-the-fly
         asset = await Asset.create({
             ticker: ticker.toUpperCase(),
-            name: assetInfo.longName || assetInfo.shortName || ticker,
-            type: determineAssetType(ticker)
+            name: yahooData.shortName || ticker.toUpperCase(),
+            type: 'STOCK', // Default, já que yahoo não retorna tipo fácil
+            isActive: true
         });
     }
 
+    // 2. Salva a operação com o preço MANUAL do usuário
     const investment = await Investment.create({
         userId,
         assetId: asset.id,
         operationType,
         quantity,
-        price,
+        price, // IMPORTANTE: Preço de execução da ordem
         brokerageFee: brokerageFee || 0,
-        otherFees: otherFees || 0,
-        date,
+        date: date || new Date(),
         broker
     });
 
-    return {
-        id: investment.id,
-        asset: {
-            ticker: asset.ticker,
-            name: asset.name,
-            type: asset.type
-        },
-        operationType: investment.operationType,
-        quantity: parseFloat(investment.quantity),
-        price: parseFloat(investment.price),
-        totalValue: investment.getTotalValue(),
-        date: investment.date
-    };
+    return investment;
 };
 
 /**
- * Calcula portfólio do usuário com cotações atuais
+ * Calcula o Portfólio Consolidado (Dashboard)
+ * Mistura: O que o usuário tem + Cotação Atual do Yahoo
  */
 const getPortfolio = async (userId) => {
-    // Buscar todos os investimentos agrupados por ativo
+    // 1. Busca todas as operações de renda variável do usuário
     const investments = await Investment.findAll({
         where: { userId },
-        include: [{ model: Asset, as: 'asset' }],
-        order: [['date', 'ASC']]
+        include: [{ model: Asset, as: 'asset' }]
     });
 
-    // Calcular posição por ativo
-    const positions = {};
+    // 2. Busca produtos financeiros manuais (Renda Fixa, Crypto manual, etc)
+    const financialProducts = await FinancialProduct.findAll({
+        where: { userId, status: 'ACTIVE' }
+    });
 
-    for (const inv of investments) {
+    // Estrutura para consolidar posições (Preço Médio)
+    const positionsMap = {};
+    const tickersToFetch = new Set();
+
+    // 3. Processa Renda Variável (Cálculo de Preço Médio)
+    investments.forEach(inv => {
         const ticker = inv.asset.ticker;
+        tickersToFetch.add(ticker);
 
-        if (!positions[ticker]) {
-            positions[ticker] = {
-                asset: {
-                    id: inv.asset.id,
-                    ticker: inv.asset.ticker,
-                    name: inv.asset.name,
-                    type: inv.asset.type
-                },
+        if (!positionsMap[ticker]) {
+            positionsMap[ticker] = {
+                ticker,
+                name: inv.asset.name,
+                logoUrl: inv.asset.logoUrl, // Logo vinda do banco (Brapi sync)
+                type: inv.asset.type,
                 quantity: 0,
-                totalCost: 0,
-                averagePrice: 0
+                totalCost: 0, // Custo total de aquisição
             };
         }
 
         const qty = parseFloat(inv.quantity);
-        const price = parseFloat(inv.price);
-        const fees = parseFloat(inv.brokerageFee) + parseFloat(inv.otherFees);
+        const price = parseFloat(inv.price); // Preço histórico
+        const fees = parseFloat(inv.brokerageFee || 0);
 
         if (inv.operationType === 'BUY') {
-            positions[ticker].totalCost += (qty * price) + fees;
-            positions[ticker].quantity += qty;
+            positionsMap[ticker].quantity += qty;
+            positionsMap[ticker].totalCost += (qty * price) + fees;
         } else {
-            // SELL - reduz posição
-            const sellValue = qty * price - fees;
-            positions[ticker].quantity -= qty;
-            if (positions[ticker].quantity > 0) {
-                positions[ticker].totalCost =
-                    positions[ticker].totalCost * (positions[ticker].quantity / (positions[ticker].quantity + qty));
-            } else {
-                positions[ticker].totalCost = 0;
+            // Lógica de venda (reduz quantidade e custo proporcional)
+            if (positionsMap[ticker].quantity > 0) {
+                const avgPrice = positionsMap[ticker].totalCost / positionsMap[ticker].quantity;
+                positionsMap[ticker].totalCost -= (qty * avgPrice);
+                positionsMap[ticker].quantity -= qty;
             }
         }
-    }
+    });
 
-    // Filtrar posições ativas
-    const activePositions = Object.values(positions).filter(p => p.quantity > 0);
+    // 4. Busca Cotações em Tempo Real (Yahoo Finance Grátis)
+    const quotes = await yahooClient.getQuotes(Array.from(tickersToFetch));
 
-    // Buscar cotações atuais
-    const tickers = activePositions.map(p => p.asset.ticker);
-    const quotes = await brapiClient.getQuotes(tickers);
+    let totalInvested = 0;
+    let totalCurrentBalance = 0;
 
-    // Calcular valores
-    let totalCost = 0;
-    let totalCurrentValue = 0;
+    // 5. Monta lista de Renda Variável com Lucro/Prejuízo
+    const variableIncomePositions = Object.values(positionsMap)
+        .filter(p => p.quantity > 0.000001) // Remove posições zeradas
+        .map(p => {
+            const quote = quotes[p.ticker];
 
-    const portfolio = activePositions.map(pos => {
-        pos.averagePrice = pos.quantity > 0 ? pos.totalCost / pos.quantity : 0;
+            // Se o Yahoo achou preço, usa. Se não, usa o preço médio (fallback)
+            const currentPrice = quote ? quote.price : (p.totalCost / p.quantity);
 
-        const quote = quotes[pos.asset.ticker];
-        const currentPrice = quote?.price || pos.averagePrice;
-        const currentValue = pos.quantity * currentPrice;
-        const profit = currentValue - pos.totalCost;
-        const profitPercent = pos.totalCost > 0 ? (profit / pos.totalCost) * 100 : 0;
+            const currentBalance = p.quantity * currentPrice;
+            const profit = currentBalance - p.totalCost;
 
-        totalCost += pos.totalCost;
-        totalCurrentValue += currentValue;
+            // Evita divisão por zero
+            const profitPercent = p.totalCost > 0 ? (profit / p.totalCost) * 100 : 0;
+
+            totalInvested += p.totalCost;
+            totalCurrentBalance += currentBalance;
+
+            return {
+                source: 'VARIABLE_INCOME',
+                ticker: p.ticker,
+                name: p.name,
+                logoUrl: p.logoUrl,
+                type: p.type,
+                quantity: p.quantity,
+                averagePrice: p.totalCost / p.quantity, // Preço Médio de Compra
+                currentPrice,                           // Preço Atual de Mercado
+                totalCost: p.totalCost,
+                currentBalance,
+                profit,
+                profitPercent,
+                dayChange: quote?.changePercent || 0,
+                lastUpdate: quote?.updatedAt
+            };
+        });
+
+    // 6. Soma Renda Fixa / Outros Produtos
+    const fixedIncomePositions = financialProducts.map(fp => {
+        const invested = parseFloat(fp.investedAmount);
+        // Se tiver valor atual atualizado manualmente ou via outra API, usa ele
+        // Senão usa o investido (Renda Fixa muitas vezes só atualiza no vencimento ou mensalmente)
+        const current = fp.currentValue ? parseFloat(fp.currentValue) : invested;
+
+        totalInvested += invested;
+        totalCurrentBalance += current;
 
         return {
-            ...pos,
-            currentPrice,
-            currentValue,
-            profit,
-            profitPercent,
-            quote
+            source: 'FIXED_INCOME',
+            id: fp.id,
+            name: fp.name,
+            type: fp.type, // 'RENDA_FIXA', 'CRYPTO', etc
+            totalCost: invested,
+            currentBalance: current,
+            profit: current - invested,
+            profitPercent: invested > 0 ? ((current - invested) / invested) * 100 : 0
         };
     });
 
+    // 7. Retorno unificado
     return {
-        positions: portfolio,
         summary: {
-            totalCost,
-            totalCurrentValue,
-            totalProfit: totalCurrentValue - totalCost,
-            totalProfitPercent: totalCost > 0 ? ((totalCurrentValue - totalCost) / totalCost) * 100 : 0
-        }
+            totalInvested,
+            totalCurrentBalance,
+            totalProfit: totalCurrentBalance - totalInvested,
+            totalProfitPercent: totalInvested > 0
+                ? ((totalCurrentBalance - totalInvested) / totalInvested) * 100
+                : 0
+        },
+        positions: [...variableIncomePositions, ...fixedIncomePositions],
+        allocation: calculateAllocation([...variableIncomePositions, ...fixedIncomePositions], totalCurrentBalance)
     };
 };
 
 /**
- * Lista ativos disponíveis
+ * Helper para calcular % de alocação (Gráfico de Pizza)
  */
-const listAssets = async (filters = {}) => {
-    const { type, search, page = 1, limit = 50 } = filters;
+const calculateAllocation = (allPositions, totalValue) => {
+    const allocation = {};
+    if (totalValue === 0) return allocation;
 
-    const where = {};
-    if (type) where.type = type;
-    if (search) where.ticker = { [Op.iLike]: `%${search}%` };
-
-    const assets = await Asset.findAll({
-        where,
-        order: [['ticker', 'ASC']],
-        limit,
-        offset: (page - 1) * limit
+    allPositions.forEach(pos => {
+        const type = pos.type; // STOCK, FII, RENDA_FIXA...
+        if (!allocation[type]) allocation[type] = 0;
+        allocation[type] += pos.currentBalance;
     });
 
-    return assets;
-};
+    // Converte para porcentagem
+    Object.keys(allocation).forEach(key => {
+        allocation[key] = parseFloat(((allocation[key] / totalValue) * 100).toFixed(2));
+    });
 
-/**
- * Determina tipo do ativo pelo ticker
- */
-const determineAssetType = (ticker) => {
-    const num = ticker.slice(-2);
-    if (num === '11') return 'FII';
-    if (['31', '32', '33', '34', '35'].includes(num)) return 'BDR';
-    if (ticker.length > 5 && ticker.includes('11')) return 'ETF';
-    return 'STOCK';
+    return allocation;
 };
 
 module.exports = {
     listInvestments,
     createInvestment,
-    getPortfolio,
-    listAssets
+    getPortfolio
 };

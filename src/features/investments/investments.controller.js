@@ -43,4 +43,17 @@ const listAssets = async (req, res, next) => {
     }
 };
 
-module.exports = { listInvestments, createInvestment, getPortfolio, listAssets };
+const syncAssetsDatabase = async (req, res, next) => {
+    try {
+        // Idealmente, verifique se o usuário é ADMIN aqui
+        const result = await assetsService.syncAllAssets();
+        res.json({
+            message: 'Banco de dados de ativos atualizado com sucesso.',
+            details: result
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+module.exports = { listInvestments, createInvestment, getPortfolio, listAssets, syncAssetsDatabase };

@@ -38,6 +38,27 @@ class GoalsController {
             res.status(status).json({ error: error.message });
         }
     }
+
+    async transaction(req, res) {
+        try {
+            const { amount, type, reason } = req.body;
+            const goal = await goalsService.transaction(req.user.id, req.params.id, { amount, type, reason });
+            res.json(goal);
+        } catch (error) {
+            const status = error.message === 'Meta não encontrada' ? 404 : 400;
+            res.status(status).json({ error: error.message });
+        }
+    }
+
+    async getHistory(req, res) {
+        try {
+            const history = await goalsService.getHistory(req.user.id, req.params.id);
+            res.json(history);
+        } catch (error) {
+            const status = error.message === 'Meta não encontrada' ? 404 : 500;
+            res.status(status).json({ error: error.message });
+        }
+    }
 }
 
 module.exports = new GoalsController();
