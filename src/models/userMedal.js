@@ -47,10 +47,11 @@ module.exports = (sequelize) => {
     }, {
         tableName: 'user_medals',
         timestamps: true,
+        underscored: true,
         indexes: [
             {
                 unique: true,
-                fields: ['userId', 'medalId']
+                fields: ['user_id', 'medal_id']
             }
         ]
     });
