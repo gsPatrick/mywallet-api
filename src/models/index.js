@@ -27,6 +27,11 @@ const Dividend = require('./dividend')(sequelize);
 const InvestmentSnapshot = require('./investmentSnapshot')(sequelize);
 const FinancialProduct = require('./financialProduct')(sequelize);
 
+// Importar models - Fase 3 (Gamificação)
+const UserProfile = require('./userProfile')(sequelize);
+const Medal = require('./medal')(sequelize);
+const UserMedal = require('./userMedal')(sequelize);
+
 // ===========================================
 // ASSOCIAÇÕES - Fase 1
 // ===========================================
@@ -140,6 +145,22 @@ User.hasMany(Message, { foreignKey: 'userId', as: 'messages' });
 Message.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
 // ===========================================
+// ASSOCIAÇÕES - Fase 3 (Gamificação)
+// ===========================================
+
+// User -> UserProfile
+User.hasOne(UserProfile, { foreignKey: 'userId', as: 'profile' });
+UserProfile.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+// User -> UserMedals
+User.hasMany(UserMedal, { foreignKey: 'userId', as: 'userMedals' });
+UserMedal.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+// Medal -> UserMedals
+Medal.hasMany(UserMedal, { foreignKey: 'medalId', as: 'userMedals' });
+UserMedal.belongsTo(Medal, { foreignKey: 'medalId', as: 'medal' });
+
+// ===========================================
 // EXPORTAÇÃO
 // ===========================================
 
@@ -164,6 +185,9 @@ module.exports = {
     Subscription,
     Dividend,
     InvestmentSnapshot,
-    FinancialProduct
+    FinancialProduct,
+    // Fase 3 - Gamificação
+    UserProfile,
+    Medal,
+    UserMedal
 };
-

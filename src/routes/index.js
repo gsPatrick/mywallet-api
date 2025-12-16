@@ -28,6 +28,11 @@ const reportsRoutes = require('../features/reports/reports.routes');
 const goalsRoutes = require('../features/goals/goals.routes');
 const messagesRoutes = require('../features/messages/messages.routes');
 
+// ===========================================
+// ROTAS - FASE 3 (GAMIFICAÇÃO)
+// ===========================================
+const gamificationRoutes = require('../features/gamification/gamification.routes');
+
 const router = Router();
 
 // Rotas públicas
@@ -60,6 +65,11 @@ router.use('/investment-dashboard', investmentDashboardRoutes);
 router.use('/subscriptions', subscriptionRoutes);
 router.use('/manual-cards', manualCardRoutes);
 router.use('/financial-products', financialProductRoutes);
+
+// ===========================================
+// REGISTRAR ROTAS - FASE 3
+// ===========================================
+router.use('/gamification', gamificationRoutes);
 
 // ===========================================
 // DOCUMENTAÇÃO DA API

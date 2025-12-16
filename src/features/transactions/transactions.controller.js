@@ -30,6 +30,18 @@ const listTransactions = async (req, res, next) => {
 };
 
 /**
+ * GET /transactions/categories
+ */
+const listCategories = async (req, res, next) => {
+    try {
+        const categories = await transactionsService.listCategories(req.userId);
+        res.json({ data: categories });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
  * POST /transactions/manual
  */
 const createManualTransaction = async (req, res, next) => {
@@ -125,6 +137,7 @@ const updateMetadata = async (req, res, next) => {
 
 module.exports = {
     listTransactions,
+    listCategories,
     createManualTransaction,
     updateTransaction,
     deleteTransaction,

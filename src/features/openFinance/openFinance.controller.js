@@ -80,6 +80,21 @@ const listConsents = async (req, res, next) => {
 };
 
 /**
+ * GET /open-finance/accounts
+ * Lista contas importadas
+ */
+const listAccounts = async (req, res, next) => {
+    try {
+        const accounts = await openFinanceService.listAccounts(req.userId);
+        res.json({
+            data: accounts
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
  * DELETE /open-finance/consents/:id
  * Revoga um consentimento
  */
@@ -184,6 +199,7 @@ module.exports = {
     createConsent,
     handleCallback,
     listConsents,
+    listAccounts,
     revokeConsent,
     importAccounts,
     importCards,

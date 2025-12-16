@@ -202,6 +202,16 @@ const listConsents = async (userId) => {
 };
 
 /**
+ * Lista contas bancárias importadas do usuário
+ */
+const listAccounts = async (userId) => {
+    return await BankAccount.findAll({
+        where: { userId },
+        order: [['bankName', 'ASC']]
+    });
+};
+
+/**
  * Revoga um consentimento
  */
 const revokeConsent = async (userId, consentId, reason = 'Revogado pelo usuário') => {
@@ -552,6 +562,7 @@ module.exports = {
     createConsent,
     handleCallback,
     listConsents,
+    listAccounts,
     revokeConsent,
     importAccounts,
     importCards,

@@ -23,6 +23,7 @@ const createTransactionSchema = {
 };
 
 // Rotas
+router.get('/categories', transactionsController.listCategories);
 router.get('/', transactionsController.listTransactions);
 router.post('/manual', validate(createTransactionSchema), auditLogger('TRANSACTION'), transactionsController.createManualTransaction);
 router.put('/:id', auditLogger('TRANSACTION'), transactionsController.updateTransaction);

@@ -21,6 +21,9 @@ router.post('/consents', openFinanceController.createConsent);
 router.get('/consents', openFinanceController.listConsents);
 router.delete('/consents/:id', openFinanceController.revokeConsent);
 
+// Listagem de Dados
+router.get('/accounts', openFinanceController.listAccounts);
+
 // OAuth Callback
 router.get('/callback', openFinanceController.handleCallback);
 

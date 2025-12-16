@@ -324,6 +324,21 @@ const listTransactions = async (userId, filters = {}) => {
 };
 
 /**
+ * Lista todas as categorias utilizadas pelo usuário
+ */
+const listCategories = async (userId) => {
+    const categories = await TransactionMetadata.findAll({
+        attributes: [
+            [TransactionMetadata.sequelize.fn('DISTINCT', TransactionMetadata.sequelize.col('category')), 'category']
+        ],
+        where: { userId, category: { [Op.not]: null } },
+        order: [['category', 'ASC']]
+    });
+
+    return categories.map(c => c.category);
+};
+
+/**
  * Obtém uma transação específica
  */
 const getTransaction = async (userId, transactionId, transactionType) => {
@@ -368,5 +383,6 @@ module.exports = {
     deleteManualTransaction,
     updateTransactionMetadata,
     listTransactions,
+    listCategories,
     getTransaction
 };
