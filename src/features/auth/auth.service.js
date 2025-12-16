@@ -177,11 +177,29 @@ const changePassword = async (userId, { currentPassword, newPassword }) => {
     return { message: 'Senha alterada com sucesso' };
 };
 
+/**
+ * Marca onboarding como completo
+ */
+const completeOnboarding = async (userId) => {
+    const user = await User.findByPk(userId);
+    if (!user) {
+        throw new AppError('Usuário não encontrado', 404, 'USER_NOT_FOUND');
+    }
+
+    user.onboardingComplete = true;
+    await user.save();
+
+    logger.info(`Onboarding completo: ${user.email}`);
+
+    return { onboardingComplete: true };
+};
+
 module.exports = {
     register,
     login,
     refreshTokens,
     getMe,
     updateUser,
-    changePassword
+    changePassword,
+    completeOnboarding
 };

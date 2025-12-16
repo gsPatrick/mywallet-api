@@ -42,5 +42,6 @@ router.post('/refresh', authController.refresh);
 router.get('/me', authMiddleware, authController.getMe);
 router.put('/me', authMiddleware, authController.updateMe);
 router.post('/change-password', authMiddleware, validate(changePasswordSchema), authController.changePassword);
+router.put('/onboarding-complete', authMiddleware, authController.completeOnboarding);
 
 module.exports = router;

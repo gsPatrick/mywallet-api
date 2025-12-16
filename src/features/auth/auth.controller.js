@@ -126,11 +126,29 @@ const changePassword = async (req, res, next) => {
     }
 };
 
+/**
+ * PUT /auth/onboarding-complete
+ * Marca onboarding como completo
+ */
+const completeOnboarding = async (req, res, next) => {
+    try {
+        const result = await authService.completeOnboarding(req.userId);
+
+        res.json({
+            message: 'Onboarding completo',
+            data: result
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     register,
     login,
     refresh,
     getMe,
     updateMe,
-    changePassword
+    changePassword,
+    completeOnboarding
 };

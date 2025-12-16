@@ -115,6 +115,10 @@ const startServer = async () => {
     const { seedMedals } = require('./features/gamification/gamification.service');
     await seedMedals();
 
+    // Seed default categories
+    const { seedDefaultCategories } = require('./features/categories/categories.controller');
+    await seedDefaultCategories();
+
     // Iniciar servidor
     app.listen(PORT, () => {
       logger.info(`🚀 Servidor rodando na porta ${PORT}`);

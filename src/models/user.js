@@ -45,6 +45,31 @@ module.exports = (sequelize) => {
                     msg: 'Senha deve ter no mínimo 6 caracteres'
                 }
             }
+        },
+        // Salário mensal (para receita fixa)
+        salary: {
+            type: DataTypes.DECIMAL(15, 2),
+            allowNull: true
+        },
+        // Dia do pagamento do salário (1-31)
+        salaryDay: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+            validate: {
+                min: 1,
+                max: 31
+            }
+        },
+        // Onboarding
+        onboardingComplete: {
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: false
+        },
+        onboardingStep: {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+            defaultValue: 0
         }
     }, {
         tableName: 'users',
@@ -77,6 +102,10 @@ module.exports = (sequelize) => {
             id: this.id,
             name: this.name,
             email: this.email,
+            salary: this.salary,
+            salaryDay: this.salaryDay,
+            onboardingComplete: this.onboardingComplete,
+            onboardingStep: this.onboardingStep,
             createdAt: this.createdAt,
             updatedAt: this.updatedAt
         };

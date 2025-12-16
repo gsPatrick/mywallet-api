@@ -32,6 +32,10 @@ const UserProfile = require('./userProfile')(sequelize);
 const Medal = require('./medal')(sequelize);
 const UserMedal = require('./userMedal')(sequelize);
 
+// Importar models - Fase 4 (Transações Aprimoradas)
+const Category = require('./category')(sequelize);
+const Notification = require('./notification')(sequelize);
+
 // ===========================================
 // ASSOCIAÇÕES - Fase 1
 // ===========================================
@@ -161,6 +165,22 @@ Medal.hasMany(UserMedal, { foreignKey: 'medalId', as: 'userMedals' });
 UserMedal.belongsTo(Medal, { foreignKey: 'medalId', as: 'medal' });
 
 // ===========================================
+// ASSOCIAÇÕES - Fase 4 (Transações Aprimoradas)
+// ===========================================
+
+// User -> Categories
+User.hasMany(Category, { foreignKey: 'userId', as: 'categories' });
+Category.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+// User -> Notifications
+User.hasMany(Notification, { foreignKey: 'userId', as: 'notifications' });
+Notification.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+// Category -> ManualTransactions
+Category.hasMany(ManualTransaction, { foreignKey: 'categoryId', as: 'transactions' });
+ManualTransaction.belongsTo(Category, { foreignKey: 'categoryId', as: 'category' });
+
+// ===========================================
 // EXPORTAÇÃO
 // ===========================================
 
@@ -189,5 +209,8 @@ module.exports = {
     // Fase 3 - Gamificação
     UserProfile,
     Medal,
-    UserMedal
+    UserMedal,
+    // Fase 4 - Transações Aprimoradas
+    Category,
+    Notification
 };
