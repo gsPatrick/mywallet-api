@@ -1,17 +1,16 @@
 /**
  * Investments Service
- * Gerencia carteira do usuário e busca de ativos
- * BRAPI para B3, Yahoo para Crypto + Internacional
+ * Gerencia a carteira do usuário e busca de ativos
  */
 
 const { Investment, Asset, FinancialProduct } = require('../../models');
-const brapiClient = require('./brapi.client');
 const yahooClient = require('./yahoo.client');
 const { AppError } = require('../../middlewares/errorHandler');
 const { Op } = require('sequelize');
 
 /**
- * Lista ativos disponíveis (Catálogo/Mercado/Autocomplete)
+ * Lista ativos disponíveis no banco de dados (Catálogo)
+ * Usado na aba "Mercado" e no Autocomplete
  */
 const listAssets = async (filters = {}) => {
     const { search, type } = filters;
@@ -30,26 +29,15 @@ const listAssets = async (filters = {}) => {
 
     const assets = await Asset.findAll({
         where,
-        limit: 50,
+        limit: 50, // Limita resultados para não pesar
         order: [['ticker', 'ASC']],
         attributes: ['id', 'ticker', 'name', 'type', 'logoUrl', 'sector']
     });
 
-    // Busca cotações (BRAPI para B3, Yahoo para Crypto)
+    // Tenta buscar cotação atual para a lista de mercado ficar bonita
+    // (Opcional: pode deixar sem preço na busca se ficar lento)
     const tickers = assets.map(a => a.ticker);
-    const b3Tickers = tickers.filter(t => !t.includes('-'));
-    const cryptoTickers = tickers.filter(t => t.includes('-'));
-
-    let quotes = {};
-
-    if (b3Tickers.length > 0) {
-        quotes = await brapiClient.getQuotes(b3Tickers);
-    }
-
-    if (cryptoTickers.length > 0) {
-        const yahooQuotes = await yahooClient.getQuotes(cryptoTickers);
-        quotes = { ...quotes, ...yahooQuotes };
-    }
+    const quotes = await yahooClient.getQuotes(tickers);
 
     return assets.map(asset => ({
         ...asset.toJSON(),
@@ -59,7 +47,7 @@ const listAssets = async (filters = {}) => {
 };
 
 /**
- * Lista histórico de operações do usuário
+ * Lista o histórico de operações (compras e vendas) do usuário
  */
 const listInvestments = async (userId, filters = {}) => {
     const { assetType, page = 1, limit = 50 } = filters;
@@ -97,37 +85,32 @@ const listInvestments = async (userId, filters = {}) => {
 };
 
 /**
- * Registra novo investimento
+ * Registra um novo investimento
  */
 const createInvestment = async (userId, data) => {
     const { ticker, operationType, quantity, price, brokerageFee, date, broker } = data;
 
-    // 1. Busca ativo no banco
+    // 1. Busca o ativo no banco local
     let asset = await Asset.findOne({
         where: { ticker: ticker.toUpperCase() }
     });
 
-    // 2. Se não existe, tenta buscar e criar
+    // Fallback: Se não existir, tenta buscar info básica no Yahoo e cria
     if (!asset) {
-        const isCrypto = ticker.includes('-');
-        const assetData = isCrypto
-            ? await yahooClient.getQuote(ticker)
-            : await brapiClient.getQuote(ticker);
-
-        if (!assetData) {
-            throw new AppError('Ativo não encontrado', 404, 'ASSET_NOT_FOUND');
+        const yahooData = await yahooClient.getQuote(ticker);
+        if (!yahooData) {
+            throw new AppError('Ativo não encontrado na bolsa.', 404, 'ASSET_NOT_FOUND');
         }
 
         asset = await Asset.create({
             ticker: ticker.toUpperCase(),
-            name: assetData.shortName || assetData.longName || ticker.toUpperCase(),
-            logoUrl: assetData.logo || assetData.logoUrl,
-            type: isCrypto ? 'CRYPTO' : 'STOCK',
+            name: yahooData.shortName || ticker.toUpperCase(),
+            type: 'STOCK', // Default se não soubermos
             isActive: true
         });
     }
 
-    // 3. Salva operação
+    // 2. Salva a operação
     const investment = await Investment.create({
         userId,
         assetId: asset.id,
@@ -143,15 +126,16 @@ const createInvestment = async (userId, data) => {
 };
 
 /**
- * Calcula portfólio consolidado
+ * Calcula o Portfólio Consolidado
  */
 const getPortfolio = async (userId) => {
-    // 1. Busca operações
+    // 1. Busca operações de renda variável
     const investments = await Investment.findAll({
         where: { userId },
         include: [{ model: Asset, as: 'asset' }]
     });
 
+    // 2. Busca produtos financeiros manuais
     const financialProducts = await FinancialProduct.findAll({
         where: { userId, status: 'ACTIVE' }
     });
@@ -159,7 +143,7 @@ const getPortfolio = async (userId) => {
     const positionsMap = {};
     const tickersToFetch = new Set();
 
-    // 2. Processa posições
+    // 3. Processa Renda Variável
     investments.forEach(inv => {
         const ticker = inv.asset.ticker;
         tickersToFetch.add(ticker);
@@ -191,26 +175,13 @@ const getPortfolio = async (userId) => {
         }
     });
 
-    // 3. Busca cotações (BRAPI para B3, Yahoo para Crypto)
-    const allTickers = Array.from(tickersToFetch);
-    const b3Tickers = allTickers.filter(t => !t.includes('-'));
-    const cryptoTickers = allTickers.filter(t => t.includes('-'));
-
-    let quotes = {};
-
-    if (b3Tickers.length > 0) {
-        quotes = await brapiClient.getQuotes(b3Tickers);
-    }
-
-    if (cryptoTickers.length > 0) {
-        const yahooQuotes = await yahooClient.getQuotes(cryptoTickers);
-        quotes = { ...quotes, ...yahooQuotes };
-    }
+    // 4. Busca Cotações Yahoo
+    const quotes = await yahooClient.getQuotes(Array.from(tickersToFetch));
 
     let totalInvested = 0;
     let totalCurrentBalance = 0;
 
-    // 4. Monta posições de renda variável
+    // 5. Monta posições de Renda Variável
     const variableIncomePositions = Object.values(positionsMap)
         .filter(p => p.quantity > 0.000001)
         .map(p => {
@@ -241,7 +212,7 @@ const getPortfolio = async (userId) => {
             };
         });
 
-    // 5. Monta posições de renda fixa
+    // 6. Monta posições de Renda Fixa/Outros
     const fixedIncomePositions = financialProducts.map(fp => {
         const invested = parseFloat(fp.investedAmount);
         const current = fp.currentValue ? parseFloat(fp.currentValue) : invested;
@@ -293,29 +264,40 @@ const calculateAllocation = (allPositions, totalValue) => {
 };
 
 /**
- * Evolução histórica do portfólio
+ * Obtém evolução histórica do portfólio para gráfico de rentabilidade
+ * @param {number} userId - ID do usuário
+ * @param {number} months - Número de meses para buscar (1, 3, 6, 12, 60)
  */
 const getPortfolioEvolution = async (userId, months = 12) => {
     const { InvestmentSnapshot } = require('../../models');
 
     const now = new Date();
+    const startYear = now.getFullYear();
+    const startMonth = now.getMonth() + 1; // JS months are 0-indexed
+
+    // Calculate cutoff date
     const cutoffDate = new Date(now);
     cutoffDate.setMonth(cutoffDate.getMonth() - months);
     const cutoffYear = cutoffDate.getFullYear();
     const cutoffMonth = cutoffDate.getMonth() + 1;
 
+    // Busca snapshots históricos ordenados por ano/mês
     const snapshots = await InvestmentSnapshot.findAll({
         where: {
             userId,
             [Op.or]: [
                 { year: { [Op.gt]: cutoffYear } },
-                { year: cutoffYear, month: { [Op.gte]: cutoffMonth } }
+                {
+                    year: cutoffYear,
+                    month: { [Op.gte]: cutoffMonth }
+                }
             ]
         },
         order: [['year', 'ASC'], ['month', 'ASC']],
         attributes: ['month', 'year', 'marketValue', 'totalCost', 'profit', 'profitPercent']
     });
 
+    // Se não houver snapshots, retorna dados simulados
     if (snapshots.length === 0) {
         const portfolio = await getPortfolio(userId);
         const currentValue = portfolio.summary?.totalCurrentBalance || 0;
@@ -348,6 +330,7 @@ const getPortfolioEvolution = async (userId, months = 12) => {
         };
     }
 
+    // Mapeia snapshots reais para formato do gráfico
     const data = snapshots.map(s => {
         const snapshotDate = new Date(s.year, s.month - 1, 1);
         return {
@@ -360,10 +343,12 @@ const getPortfolioEvolution = async (userId, months = 12) => {
         };
     });
 
+    // Calcula rentabilidade do período
     const firstValue = data[0]?.invested || 1;
     const lastValue = data[data.length - 1]?.value || 0;
     const returnPercent = ((lastValue - firstValue) / firstValue) * 100;
 
+    // CDI aproximado (11.25% ao ano)
     const cdiAnnual = 11.25;
     const cdiForPeriod = (cdiAnnual / 12) * months;
     const cdiPercent = returnPercent > 0 ? (returnPercent / cdiForPeriod) * 100 : 0;
