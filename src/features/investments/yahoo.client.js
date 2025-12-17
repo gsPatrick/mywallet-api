@@ -1,6 +1,6 @@
 /**
- * Yahoo Finance Client
- * Cliente robusto para cotações B3 e Dividendos
+ * Yahoo Finance Client - VERSÃO DEBUG COMPLETA
+ * Inclui logs no console e tratamento de erros individual
  */
 
 const yahooFinance = require('yahoo-finance2').default;
@@ -18,8 +18,8 @@ const normalizeTicker = (ticker) => {
     if (!ticker) return '';
     let t = ticker.toUpperCase().trim();
 
-    // Se for cripto (ex: BTC-USD) ou já tiver .SA, mantém
-    if (t.includes('-') || t.endsWith('.SA')) {
+    // Se for cripto (ex: BTC-USD), índices (ex: ^BVSP) ou já tiver .SA, mantém
+    if (t.includes('-') || t.endsWith('.SA') || t.startsWith('^')) {
         return t;
     }
 
@@ -61,6 +61,9 @@ const getQuotes = async (tickers) => {
     // Se tudo estava em cache, retorna
     if (symbolsToFetch.length === 0) return results;
 
+    // LOG DE DEBUG PARA VOCÊ VER NO TERMINAL
+    console.log(`🔍 [YAHOO] Buscando preços para: ${symbolsToFetch.join(', ')}`);
+
     // 2. Busca Online (Em paralelo para performance)
     // Usamos Promise.all com map individual para isolar erros
     await Promise.all(symbolsToFetch.map(async (symbol) => {
@@ -70,11 +73,21 @@ const getQuotes = async (tickers) => {
             // validateResult: false evita erros de validação da lib se faltar algum campo não essencial
             const quote = await yahooFinance.quote(symbol, { validateResult: false });
 
-            if (!quote) throw new Error('Cotação vazia');
+            if (!quote) {
+                console.log(`⚠️ [YAHOO] Ativo não encontrado ou resposta vazia: ${symbol}`);
+                throw new Error('Empty quote');
+            }
 
             // Tenta pegar o preço em ordem de preferência: 
             // Preço Atual -> Bid (Oferta) -> Ask (Venda) -> Fechamento Anterior
             const price = quote.regularMarketPrice || quote.bid || quote.ask || quote.regularMarketPreviousClose || 0;
+
+            // LOG DE SUCESSO
+            if (price > 0) {
+                console.log(`✅ [YAHOO] ${symbol} encontrado: R$ ${price} (${quote.regularMarketChangePercent}%)`);
+            } else {
+                console.log(`⚠️ [YAHOO] ${symbol} encontrado mas sem preço válido.`);
+            }
 
             const data = {
                 symbol: originalTicker,
@@ -92,8 +105,8 @@ const getQuotes = async (tickers) => {
             results[originalTicker] = data;
 
         } catch (error) {
-            // Log discreto para não poluir o terminal, pois BDRs obscuros falham com frequência
-            // console.warn(`Yahoo falhou para ${symbol}`);
+            // LOG DE ERRO
+            console.error(`❌ [YAHOO] Erro ao buscar ${symbol}: ${error.message}`);
 
             // Retorna zerado para não quebrar o frontend
             results[originalTicker] = {
@@ -117,12 +130,16 @@ const getDividendsHistory = async (ticker, startDate) => {
     const symbol = normalizeTicker(ticker);
 
     try {
+        console.log(`🔍 [YAHOO] Buscando dividendos para ${symbol} desde ${startDate}`);
+
         const queryOptions = {
             period1: startDate, // Ex: '2024-01-01'
             events: 'div'       // Apenas dividendos
         };
 
         const result = await yahooFinance.historical(symbol, queryOptions);
+
+        console.log(`✅ [YAHOO] ${result.length} dividendos encontrados para ${symbol}`);
 
         return result.map(div => ({
             date: div.date,
@@ -131,7 +148,7 @@ const getDividendsHistory = async (ticker, startDate) => {
         }));
 
     } catch (error) {
-        logger.warn(`Erro ao buscar dividendos para ${symbol}: ${error.message}`);
+        console.error(`❌ [YAHOO] Erro dividendos ${symbol}: ${error.message}`);
         return [];
     }
 };
