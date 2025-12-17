@@ -251,10 +251,42 @@ const getCategoryBreakdown = async (userId) => {
 
 /**
  * Obtém atividades recentes do usuário
+ * Filtra apenas ações de usuário, exclui erros e imports automáticos
  */
 const getActivities = async (userId) => {
+    // Lista de ações que queremos mostrar (ações do usuário)
+    const allowedActions = [
+        'TRANSACTION_CREATE',
+        'TRANSACTION_UPDATE',
+        'TRANSACTION_DELETE',
+        'MANUAL_TRANSACTION_CREATE',
+        'MANUAL_TRANSACTION_UPDATE',
+        'MANUAL_TRANSACTION_DELETE',
+        'SUBSCRIPTION_CREATE',
+        'SUBSCRIPTION_UPDATE',
+        'SUBSCRIPTION_CANCEL',
+        'SUBSCRIPTION_PAY',
+        'INVESTMENT_CREATE',
+        'INVESTMENT_UPDATE',
+        'INVESTMENT_DELETE',
+        'GOAL_CREATE',
+        'GOAL_UPDATE',
+        'GOAL_DELETE',
+        'BUDGET_CREATE',
+        'BUDGET_UPDATE',
+        'CATEGORY_CREATE',
+        'CATEGORY_UPDATE',
+        'CATEGORY_DELETE',
+        'CARD_CREATE',
+        'CARD_UPDATE',
+        'CARD_DELETE'
+    ];
+
     const logs = await AuditLog.findAll({
-        where: { userId },
+        where: {
+            userId,
+            action: allowedActions
+        },
         order: [['createdAt', 'DESC']],
         limit: 20,
         attributes: ['id', 'action', 'resource', 'details', 'createdAt']
@@ -269,6 +301,7 @@ const getActivities = async (userId) => {
         rawAction: log.action
     }));
 };
+
 
 // Helpers de tradução simples
 const translateAction = (action) => {
