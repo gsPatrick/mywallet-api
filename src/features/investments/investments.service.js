@@ -263,9 +263,98 @@ const calculateAllocation = (allPositions, totalValue) => {
     return allocation;
 };
 
+/**
+ * Obtém evolução histórica do portfólio para gráfico de rentabilidade
+ * @param {number} userId - ID do usuário
+ * @param {number} months - Número de meses para buscar (1, 3, 6, 12, 60)
+ */
+const getPortfolioEvolution = async (userId, months = 12) => {
+    const { InvestmentSnapshot } = require('../../models');
+
+    const startDate = new Date();
+    startDate.setMonth(startDate.getMonth() - months);
+
+    // Busca snapshots históricos ordenados por data
+    const snapshots = await InvestmentSnapshot.findAll({
+        where: {
+            userId,
+            snapshotDate: { [Op.gte]: startDate }
+        },
+        order: [['snapshotDate', 'ASC']],
+        attributes: ['snapshotDate', 'totalValue', 'totalInvested', 'totalProfit', 'profitPercent']
+    });
+
+    // Se não houver snapshots, retorna dados vazios
+    if (snapshots.length === 0) {
+        // Gera pontos básicos usando dados atuais do portfolio
+        const portfolio = await getPortfolio(userId);
+        const currentValue = portfolio.summary?.totalCurrentBalance || 0;
+        const totalInvested = portfolio.summary?.totalInvested || 0;
+
+        // Retorna dados simulados baseados no valor atual
+        const data = [];
+        const now = new Date();
+
+        for (let i = months; i >= 0; i--) {
+            const date = new Date(now);
+            date.setMonth(date.getMonth() - i);
+
+            const progress = (months - i) / months;
+            const value = totalInvested * (0.8 + progress * 0.2) + (currentValue - totalInvested) * progress;
+
+            data.push({
+                date: date.toISOString().split('T')[0],
+                displayDate: date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+                value: Math.max(0, value),
+                invested: totalInvested * (0.5 + progress * 0.5)
+            });
+        }
+
+        return {
+            data,
+            hasRealData: false,
+            summary: {
+                returnPercent: portfolio.summary?.totalProfitPercent || 0,
+                cdiPercent: 100 // placeholder
+            }
+        };
+    }
+
+    // Mapeia snapshots reais para formato do gráfico
+    const data = snapshots.map(s => ({
+        date: s.snapshotDate,
+        displayDate: new Date(s.snapshotDate).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+        value: parseFloat(s.totalValue) || 0,
+        invested: parseFloat(s.totalInvested) || 0,
+        profit: parseFloat(s.totalProfit) || 0,
+        profitPercent: parseFloat(s.profitPercent) || 0
+    }));
+
+    // Calcula rentabilidade do período
+    const firstValue = data[0]?.invested || 1;
+    const lastValue = data[data.length - 1]?.value || 0;
+    const returnPercent = ((lastValue - firstValue) / firstValue) * 100;
+
+    // CDI aproximado (11.25% ao ano)
+    const cdiAnnual = 11.25;
+    const cdiForPeriod = (cdiAnnual / 12) * months;
+    const cdiPercent = (returnPercent / cdiForPeriod) * 100;
+
+    return {
+        data,
+        hasRealData: true,
+        summary: {
+            returnPercent,
+            cdiPercent,
+            cdiForPeriod
+        }
+    };
+};
+
 module.exports = {
-    listAssets, // Esta função estava faltando!
+    listAssets,
     listInvestments,
     createInvestment,
-    getPortfolio
+    getPortfolio,
+    getPortfolioEvolution
 };

@@ -66,4 +66,22 @@ const listDividends = async (req, res, next) => {
     }
 };
 
-module.exports = { listInvestments, createInvestment, getPortfolio, listAssets, syncAssetsDatabase, listDividends };
+const getPortfolioEvolution = async (req, res, next) => {
+    try {
+        const months = parseInt(req.query.months) || 12;
+        const evolution = await investmentsService.getPortfolioEvolution(req.userId, months);
+        res.json({ data: evolution });
+    } catch (error) {
+        next(error);
+    }
+};
+
+module.exports = {
+    listInvestments,
+    createInvestment,
+    getPortfolio,
+    listAssets,
+    syncAssetsDatabase,
+    listDividends,
+    getPortfolioEvolution
+};
