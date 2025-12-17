@@ -114,9 +114,6 @@ module.exports = {
     getSubscriptionAlerts,
     markSubscriptionPaid
 };
-const { AppError } = require('../../middlewares/errorHandler');
-const { Op } = require('sequelize');
-const { v4: uuidv4 } = require('uuid');
 
 // ===========================================
 // CRUD DE ASSINATURAS
