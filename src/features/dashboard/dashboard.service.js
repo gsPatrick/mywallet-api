@@ -112,10 +112,10 @@ const getSummary = async (userId) => {
     // Calculate All-Time Manual Balance for Total Equity
     const [allManualIncome, allManualExpenses] = await Promise.all([
         ManualTransaction.sum('amount', {
-            where: { userId, type: 'INCOME', status: 'COMPLETED' }
+            where: { userId, type: 'INCOME' }
         }),
         ManualTransaction.sum('amount', {
-            where: { userId, type: 'EXPENSE', status: 'COMPLETED' }
+            where: { userId, type: 'EXPENSE' }
         })
     ]);
     const manualTotalBalance = (parseFloat(allManualIncome) || 0) - (parseFloat(allManualExpenses) || 0);
