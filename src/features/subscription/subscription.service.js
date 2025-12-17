@@ -103,17 +103,6 @@ const markSubscriptionPaid = async (userId, subscriptionId, date = new Date()) =
     return transaction;
 };
 
-module.exports = {
-    listSubscriptions,
-    createSubscription,
-    updateSubscription,
-    cancelSubscription,
-    generatePendingTransactions,
-    getSubscriptionsSummary,
-    getUpcomingCharges,
-    getSubscriptionAlerts,
-    markSubscriptionPaid
-};
 
 // ===========================================
 // CRUD DE ASSINATURAS
@@ -521,5 +510,6 @@ module.exports = {
     generatePendingTransactions,
     getSubscriptionsSummary,
     getUpcomingCharges,
-    getSubscriptionAlerts
+    getSubscriptionAlerts,
+    markSubscriptionPaid
 };
