@@ -39,6 +39,11 @@ const gamificationRoutes = require('../features/gamification/gamification.routes
 const { categoriesRoutes } = require('../features/categories');
 const { notificationsRoutes } = require('../features/notifications');
 
+// ===========================================
+// ROTAS - FASE 5 (WHATSAPP BOT)
+// ===========================================
+const { whatsappRoutes } = require('../features/whatsapp');
+
 const router = Router();
 
 // Rotas públicas
@@ -82,6 +87,11 @@ router.use('/gamification', gamificationRoutes);
 // ===========================================
 router.use('/categories', categoriesRoutes);
 router.use('/notifications', notificationsRoutes);
+
+// ===========================================
+// REGISTRAR ROTAS - FASE 5 (WHATSAPP)
+// ===========================================
+router.use('/whatsapp', whatsappRoutes);
 
 // ===========================================
 // DOCUMENTAÇÃO DA API
