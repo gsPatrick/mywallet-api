@@ -53,9 +53,23 @@ const initSession = async (userId) => {
             session: sessionName,
             folderNameToken: getSessionPath(userId),
             headless: true,
-            useChrome: true,
+            useChrome: false, // Use Chromium instead
             debug: false,
             logQR: false,
+            puppeteerOptions: {
+                executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser',
+                args: [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',
+                    '--disable-accelerated-2d-canvas',
+                    '--no-first-run',
+                    '--no-zygote',
+                    '--single-process',
+                    '--disable-gpu',
+                    '--disable-extensions'
+                ]
+            },
             browserArgs: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
