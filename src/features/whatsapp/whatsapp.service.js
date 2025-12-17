@@ -214,6 +214,18 @@ const findOrCreateGroup = async (client, userId) => {
                 `Vou registrar automaticamente ✨`
             );
 
+            // Definir logo do grupo
+            try {
+                logger.info('⏳ Aguardando propagação do grupo...');
+                await new Promise(r => setTimeout(r, 4000)); // Delay de segurança
+
+                const logoUrl = 'https://i.imgur.com/MHJwgwz.jpeg';
+                await client.setGroupIcon(groupId, logoUrl);
+                logger.info('✅ Logo do MyWallet definida no grupo!');
+            } catch (iconError) {
+                logger.warn('⚠️ Não foi possível definir a foto do grupo:', iconError.message);
+            }
+
             logger.info(`✅ Grupo criado com sucesso: ${groupId}`);
             return group;
         }
@@ -227,48 +239,70 @@ const findOrCreateGroup = async (client, userId) => {
 
 /**
  * Configura o listener de mensagens
- * BLINDAGEM COMPLETA: só processa mensagens do grupo oficial
+ * USA onAnyMessage para capturar mensagens do próprio usuário (host)
+ * BLINDAGEM COMPLETA + ANTI-LOOP
  */
 const setupMessageListener = (client, userId) => {
-    client.onMessage(async (message) => {
+    // IMPORTANTE: onAnyMessage captura mensagens do próprio usuário
+    client.onAnyMessage(async (message) => {
         try {
             // ========================================
-            // BLOQUEIO TOTAL DE STATUS E BROADCAST
+            // 1. BLOQUEIO TOTAL DE LIXO
+            // Status, notificações de sistema, etc.
             // ========================================
             if (message.from === 'status@broadcast' ||
                 message.isStatus ||
                 message.type === 'e2e_notification' ||
-                message.type === 'notification_template') {
-                return; // Silenciosamente ignora
-            }
-
-            // Ignorar mensagens do próprio bot
-            if (message.fromMe) return;
-
-            // ========================================
-            // SEGURANÇA DE GRUPO
-            // Só processa mensagens do grupo oficial vinculado ao usuário
-            // ========================================
-            const user = await User.findByPk(userId);
-            if (!user || !user.whatsappGroupId) {
-                // Usuário não tem grupo configurado, ignorar tudo
+                message.type === 'notification_template' ||
+                message.type === 'protocol' ||
+                message.type === 'revoked') {
                 return;
             }
 
-            // Se a mensagem NÃO vier do grupo oficial, IGNORA
-            if (message.chatId !== user.whatsappGroupId) {
-                return; // Bloqueia grupos de família, conversas privadas, etc.
+            // ========================================
+            // 2. RECUPERAR USUÁRIO
+            // ========================================
+            const user = await User.findByPk(userId);
+            if (!user || !user.whatsappGroupId) {
+                return; // Sem grupo configurado
             }
 
             // ========================================
-            // FILTRO DE TIPO DE MENSAGEM
+            // 3. VERIFICAÇÃO DE GRUPO (CRUCIAL)
+            // Só processa mensagens do grupo oficial
+            // ========================================
+            const isFromGroup =
+                message.chatId === user.whatsappGroupId ||
+                message.from === user.whatsappGroupId ||
+                message.to === user.whatsappGroupId;
+
+            if (!isFromGroup) {
+                return; // Bloqueia outros grupos e conversas privadas
+            }
+
+            // ========================================
+            // 4. ANTI-LOOP (CRUCIAL)
+            // Não processar respostas do próprio bot
+            // ========================================
+            if (message.body && (
+                message.body.startsWith('🤖') ||
+                message.body.startsWith('✅') ||
+                message.body.startsWith('❌') ||
+                message.body.startsWith('❓') ||
+                message.body.startsWith('🎉')
+            )) {
+                return; // É resposta do bot, ignorar
+            }
+
+            // ========================================
+            // 5. FILTRO DE TIPO DE MENSAGEM
             // Só processa texto e áudio
             // ========================================
             if (message.type !== 'chat' && message.type !== 'ptt' && message.type !== 'audio') {
-                return; // Ignorar imagens, vídeos, stickers, etc.
+                return;
             }
 
-            logger.info(`📩 Mensagem do grupo oficial [${userId}]: ${message.type}`);
+            logger.info(`📩 Mensagem do grupo [${userId}]: ${message.type} - fromMe: ${message.fromMe}`);
 
             let textContent = '';
 
@@ -276,8 +310,8 @@ const setupMessageListener = (client, userId) => {
             if (message.type === 'ptt' || message.type === 'audio') {
                 textContent = await processAudio(client, message);
                 if (!textContent) {
-                    await client.sendText(message.chatId,
-                        '❌ Não consegui transcrever o áudio. Tente novamente.'
+                    await client.sendText(user.whatsappGroupId,
+                        '🤖 ❌ Não consegui transcrever o áudio. Tente novamente.'
                     );
                     return;
                 }
@@ -305,8 +339,8 @@ const setupMessageListener = (client, userId) => {
             const parsed = await groqService.parseTransaction(textContent, categories);
 
             if (parsed.error) {
-                await client.sendText(message.chatId,
-                    `❓ ${parsed.error}\n\nTente algo como: "gastei 50 no uber"`
+                await client.sendText(user.whatsappGroupId,
+                    `🤖 ❓ ${parsed.error}\n\nTente algo como: "gastei 50 no uber"`
                 );
                 return;
             }
@@ -321,16 +355,16 @@ const setupMessageListener = (client, userId) => {
                 category: parsed.category
             });
 
-            // Enviar confirmação
+            // Enviar confirmação COM IDENTIDADE VISUAL DO BOT
             const emoji = parsed.type === 'INCOME' ? '💵' : '💸';
             const sign = parsed.type === 'INCOME' ? '+' : '-';
 
-            await client.sendText(message.chatId,
-                `✅ *Transação registrada!*\n\n` +
+            await client.sendText(user.whatsappGroupId,
+                `🤖 ✅ *Transação registrada!*\n\n` +
                 `${emoji} ${sign}R$ ${parsed.amount.toFixed(2)}\n` +
                 `📝 ${parsed.description}\n` +
-                `📁 ${parsed.category}\n` +
-                `${parsed.fallback ? '⚠️ _Processado via fallback_' : ''}`
+                `📁 ${parsed.category}` +
+                `${parsed.fallback ? '\n⚠️ _Processado via fallback_' : ''}`
             );
 
             logger.info(`✅ Transação criada via WhatsApp: ${transaction.id}`);
@@ -338,9 +372,12 @@ const setupMessageListener = (client, userId) => {
         } catch (error) {
             logger.error('❌ Erro ao processar mensagem:', error);
             try {
-                await client.sendText(message.chatId,
-                    '❌ Erro ao processar. Tente novamente.'
-                );
+                const user = await User.findByPk(userId);
+                if (user && user.whatsappGroupId) {
+                    await client.sendText(user.whatsappGroupId,
+                        '🤖 ❌ Erro ao processar. Tente novamente.'
+                    );
+                }
             } catch (e) { }
         }
     });
