@@ -67,8 +67,7 @@ const getSummary = async (userId) => {
                 userId,
                 operationType: 'BUY',
                 date: dateFilter
-            },
-            include: [{ model: Asset, as: 'asset' }]
+            }
         })
     ]);
 

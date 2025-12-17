@@ -202,7 +202,7 @@ const listCards = async (req, res, next) => {
         const { CreditCard } = require('../../models');
         const cards = await CreditCard.findAll({
             where: { userId: req.userId },
-            attributes: ['id', 'name', 'brand', 'lastFourDigits', 'color', 'closingDay', 'dueDay', 'creditLimit', 'status']
+            attributes: ['id', 'name', 'brand', 'lastFourDigits', 'color', 'closingDay', 'dueDay', 'creditLimit', 'isActive']
         });
         res.json({ data: cards });
     } catch (error) {
