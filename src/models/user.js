@@ -70,6 +70,11 @@ module.exports = (sequelize) => {
             type: DataTypes.INTEGER,
             allowNull: false,
             defaultValue: 0
+        },
+        // WhatsApp Bot - ID do grupo vinculado
+        whatsappGroupId: {
+            type: DataTypes.STRING,
+            allowNull: true
         }
     }, {
         tableName: 'users',

@@ -8,9 +8,12 @@ const wppconnect = require('@wppconnect-team/wppconnect');
 const { logger } = require('../../config/logger');
 const groqService = require('../ai/groq.service');
 const transactionsService = require('../transactions/transactions.service');
-const { Category } = require('../../models');
+const { Category, User } = require('../../models');
 const path = require('path');
 const fs = require('fs');
+
+// Número auxiliar para criar o grupo (OBRIGATÓRIO para criar grupo)
+const AUXILIARY_NUMBER = '557182862912@c.us';
 
 // Armazena clientes ativos por userId
 const activeSessions = new Map();
@@ -148,36 +151,62 @@ const initSession = async (userId) => {
 
 /**
  * Busca ou cria o grupo MyWallet AI
+ * Usa número auxiliar para criação pois é obrigatório ter 1 participante
  */
 const findOrCreateGroup = async (client, userId) => {
     try {
+        // Buscar usuário para verificar se já tem grupo vinculado
+        const user = await User.findByPk(userId);
+
+        // Se já tem grupo salvo no banco, usar esse
+        if (user && user.whatsappGroupId) {
+            logger.info(`📌 Grupo já vinculado: ${user.whatsappGroupId}`);
+            const session = activeSessions.get(userId);
+            if (session) session.groupId = user.whatsappGroupId;
+            return { gid: { _serialized: user.whatsappGroupId } };
+        }
+
         // Buscar grupos existentes
-        const chats = await client.getAllChats();
+        const chats = await client.listChats ? await client.listChats() : await client.getAllChats();
         const existingGroup = chats.find(chat =>
             chat.isGroup && chat.name === GROUP_NAME
         );
 
         if (existingGroup) {
-            logger.info(`📌 Grupo encontrado: ${GROUP_NAME}`);
+            const groupId = existingGroup.id._serialized;
+            logger.info(`📌 Grupo encontrado: ${GROUP_NAME} (${groupId})`);
+
+            // Salvar no banco
+            if (user) {
+                user.whatsappGroupId = groupId;
+                await user.save();
+            }
+
             const session = activeSessions.get(userId);
-            if (session) session.groupId = existingGroup.id._serialized;
+            if (session) session.groupId = groupId;
             return existingGroup;
         }
 
-        // Criar grupo (precisa do número do usuário)
-        logger.info(`📝 Criando grupo: ${GROUP_NAME}`);
-        const hostDevice = await client.getHostDevice();
-        const myNumber = hostDevice.wid._serialized;
+        // Criar grupo com número auxiliar (OBRIGATÓRIO ter pelo menos 1 participante)
+        logger.info(`📝 Criando grupo: ${GROUP_NAME} com participante auxiliar`);
 
-        // Criar grupo só com o próprio usuário
-        const group = await client.createGroup(GROUP_NAME, [myNumber]);
+        const group = await client.createGroup(GROUP_NAME, [AUXILIARY_NUMBER]);
 
         if (group && group.gid) {
+            const groupId = group.gid._serialized;
+
+            // Salvar no banco de dados
+            if (user) {
+                user.whatsappGroupId = groupId;
+                await user.save();
+                logger.info(`💾 Grupo salvo no banco: ${groupId}`);
+            }
+
             const session = activeSessions.get(userId);
-            if (session) session.groupId = group.gid._serialized;
+            if (session) session.groupId = groupId;
 
             // Enviar mensagem de boas-vindas
-            await client.sendText(group.gid._serialized,
+            await client.sendText(groupId,
                 `🎉 *Bem-vindo ao MyWallet AI!*\n\n` +
                 `Envie suas transações aqui:\n` +
                 `• Texto: "gastei 50 no uber"\n` +
@@ -185,36 +214,61 @@ const findOrCreateGroup = async (client, userId) => {
                 `Vou registrar automaticamente ✨`
             );
 
-            logger.info(`✅ Grupo criado com sucesso`);
+            logger.info(`✅ Grupo criado com sucesso: ${groupId}`);
+            return group;
         }
 
-        return group;
+        return null;
     } catch (error) {
         logger.error('❌ Erro ao criar grupo:', error.message);
+        return null;
     }
 };
 
 /**
  * Configura o listener de mensagens
+ * BLINDAGEM COMPLETA: só processa mensagens do grupo oficial
  */
 const setupMessageListener = (client, userId) => {
     client.onMessage(async (message) => {
         try {
+            // ========================================
+            // BLOQUEIO TOTAL DE STATUS E BROADCAST
+            // ========================================
+            if (message.from === 'status@broadcast' ||
+                message.isStatus ||
+                message.type === 'e2e_notification' ||
+                message.type === 'notification_template') {
+                return; // Silenciosamente ignora
+            }
+
             // Ignorar mensagens do próprio bot
             if (message.fromMe) return;
 
-            // Verificar se é do grupo correto ou mensagem direta
-            const session = activeSessions.get(userId);
-            const isFromGroup = message.isGroupMsg &&
-                session?.groupId &&
-                message.chatId === session.groupId;
-
-            // Aceitar mensagens do grupo ou diretas
-            if (!isFromGroup && message.isGroupMsg) {
-                return; // Ignorar outros grupos
+            // ========================================
+            // SEGURANÇA DE GRUPO
+            // Só processa mensagens do grupo oficial vinculado ao usuário
+            // ========================================
+            const user = await User.findByPk(userId);
+            if (!user || !user.whatsappGroupId) {
+                // Usuário não tem grupo configurado, ignorar tudo
+                return;
             }
 
-            logger.info(`📩 Mensagem recebida [${userId}]: ${message.type}`);
+            // Se a mensagem NÃO vier do grupo oficial, IGNORA
+            if (message.chatId !== user.whatsappGroupId) {
+                return; // Bloqueia grupos de família, conversas privadas, etc.
+            }
+
+            // ========================================
+            // FILTRO DE TIPO DE MENSAGEM
+            // Só processa texto e áudio
+            // ========================================
+            if (message.type !== 'chat' && message.type !== 'ptt' && message.type !== 'audio') {
+                return; // Ignorar imagens, vídeos, stickers, etc.
+            }
+
+            logger.info(`📩 Mensagem do grupo oficial [${userId}]: ${message.type}`);
 
             let textContent = '';
 
@@ -232,7 +286,13 @@ const setupMessageListener = (client, userId) => {
             else if (message.type === 'chat' && message.body) {
                 textContent = message.body;
             } else {
-                return; // Ignorar outros tipos
+                return;
+            }
+
+            // VALIDAÇÃO: Ignorar mensagens que não parecem transações
+            if (!looksLikeTransaction(textContent)) {
+                logger.info(`⏭️ Ignorando (não parece transação): "${textContent.substring(0, 50)}..."`);
+                return;
             }
 
             // Buscar categorias do usuário
@@ -284,6 +344,40 @@ const setupMessageListener = (client, userId) => {
             } catch (e) { }
         }
     });
+};
+
+/**
+ * Verifica se o texto parece uma transação financeira
+ */
+const looksLikeTransaction = (text) => {
+    if (!text || text.length < 5) return false;
+
+    const lowerText = text.toLowerCase();
+
+    // Ignorar URLs
+    if (lowerText.includes('http://') || lowerText.includes('https://') ||
+        lowerText.includes('.com') || lowerText.includes('.br') ||
+        lowerText.includes('youtu.be') || lowerText.includes('tiktok') ||
+        lowerText.includes('instagram')) {
+        return false;
+    }
+
+    // Ignorar mensagens muito longas (provavelmente não são transações)
+    if (text.length > 300) return false;
+
+    // Deve ter pelo menos um padrão de valor monetário
+    const hasMoneyPattern = /R?\$?\s?\d+([.,]\d{1,2})?/.test(text);
+
+    // Ou palavras-chave financeiras
+    const financialKeywords = [
+        'gastei', 'paguei', 'comprei', 'recebi', 'ganhei', 'transferi',
+        'pix', 'credito', 'crédito', 'debito', 'débito', 'boleto',
+        'uber', 'ifood', '99', 'mercado', 'supermercado', 'farmácia',
+        'salario', 'salário', 'pagamento', 'entrada', 'saída'
+    ];
+    const hasFinancialKeyword = financialKeywords.some(kw => lowerText.includes(kw));
+
+    return hasMoneyPattern || hasFinancialKeyword;
 };
 
 /**
