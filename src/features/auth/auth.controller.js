@@ -33,7 +33,9 @@ const register = async (req, res, next) => {
 const login = async (req, res, next) => {
     try {
         const { email, password } = req.body;
-        // ... (seu código de login existente) ...
+        const ipAddress = getClientIp(req);
+        const userAgent = req.get('User-Agent') || 'unknown';
+
         const result = await authService.login({ email, password, ipAddress, userAgent });
 
         // --- GATILHO DE DIVIDENDOS (Fire and Forget) ---
