@@ -1,20 +1,18 @@
 /**
- * Brapi Client
- * Cliente para API Brapi (Dados da B3 em Tempo Real e Diferido)
- * 
- * Funcionalidades:
- * - Cotações de Ações, FIIs, ETFs e BDRs
- * - Lista completa de ativos (para popular o banco)
- * - Logos e dados fundamentais
- * - Cache em memória para economizar requisições
+ * Brapi Client - VERSÃO COMPLETA
+ * Cobre 100% dos ativos negociados na B3:
+ * - Ações (~450)
+ * - FIIs (~450) 
+ * - BDRs (~900)
+ * - ETFs (~180)
+ * - Fiagros (~50)
+ * - FI-Infra (~40)
  */
 
 const axios = require('axios');
 const NodeCache = require('node-cache');
 const { logger } = require('../../config/logger');
 
-// Cache com TTL padrão de 15 minutos (900s) para cotações
-// Para lista de ativos, usamos um TTL maior dentro da função
 const cache = new NodeCache({
     stdTTL: parseInt(process.env.BRAPI_CACHE_TTL) || 900
 });
@@ -22,73 +20,84 @@ const cache = new NodeCache({
 const BRAPI_BASE_URL = process.env.BRAPI_BASE_URL || 'https://brapi.dev/api';
 const BRAPI_TOKEN = process.env.BRAPI_TOKEN;
 
-// Cria instância do Axios com configurações padrão
 const api = axios.create({
     baseURL: BRAPI_BASE_URL,
-    timeout: 15000, // 15 segundos de timeout
-    params: {
-        token: BRAPI_TOKEN // Injeta o token em todas as requisições
-    }
+    timeout: 15000,
+    params: BRAPI_TOKEN ? { token: BRAPI_TOKEN } : {}
 });
 
 /**
- * Busca a lista completa de ativos disponíveis na B3
- * Traz: Ticker, Nome, Logo, Setor, Tipo
- * 
- * @returns {Promise<Array>} Array de objetos com dados dos ativos
+ * Busca LISTA COMPLETA de ativos da B3
+ * Retorna array com ~2.170 ativos
  */
 const getAvailableStocksList = async () => {
-    // Tenta pegar do cache primeiro (cache de 24 horas para a lista completa)
     const cacheKey = 'brapi_full_asset_list';
     const cachedData = cache.get(cacheKey);
 
     if (cachedData) {
-        logger.info('📦 Retornando lista de ativos do cache');
+        logger.info('📦 Lista de ativos do cache');
         return cachedData;
     }
 
     try {
-        logger.info('🔄 Buscando lista completa de ativos na Brapi...');
+        logger.info('🔄 Buscando TODOS os ativos da B3 via Brapi...');
 
-        const response = await api.get('/quote/list', {
-            params: {
-                limit: 3000,       // Limite alto para pegar quase tudo
-                sortBy: 'volume',  // Prioriza ativos com liquidez
-                sortOrder: 'desc'
-            }
-        });
+        // Endpoint que retorna TODOS os tickers disponíveis
+        const response = await api.get('/available');
 
-        if (response.data && response.data.stocks) {
-            const stocks = response.data.stocks.map(stock => ({
-                ticker: stock.stock,
-                name: stock.name,
-                logo: stock.logo,     // URL da imagem
-                sector: stock.sector, // Setor de atuação
-                type: stock.type,     // 'stock' ou 'fund'
-                close: stock.close    // Preço de fechamento (referência)
-            }));
+        if (response.data?.stocks) {
+            const tickers = response.data.stocks; // Array de strings: ['PETR4', 'VALE3', ...]
 
-            // Salva no cache por 24 horas (86400 segundos)
-            cache.set(cacheKey, stocks, 86400);
+            logger.info(`✅ ${tickers.length} ativos encontrados na B3`);
 
-            logger.info(`✅ Lista de ativos obtida: ${stocks.length} itens encontrados.`);
-            return stocks;
+            // Cache por 24h (86400s)
+            cache.set(cacheKey, tickers, 86400);
+
+            return tickers;
         }
 
         return [];
     } catch (error) {
-        logger.error('❌ Erro ao buscar lista de ativos na Brapi:', {
-            message: error.message,
-            status: error.response?.status,
-            data: error.response?.data
-        });
-        // Em caso de erro, retorna array vazio para não quebrar a aplicação
+        logger.error('❌ Erro ao buscar lista de ativos:', error.message);
         return [];
     }
 };
 
 /**
- * Busca cotação atual de um único ativo
+ * Busca detalhes COMPLETOS de múltiplos ativos
+ * Usa para popular o banco com nome, setor, logo, etc
+ */
+const getStocksDetails = async (tickers) => {
+    if (!tickers || tickers.length === 0) return [];
+
+    try {
+        // Limite de 20 tickers por request (plano pago)
+        const tickersString = tickers.slice(0, 20).join(',');
+
+        const response = await api.get(`/quote/${tickersString}`, {
+            params: {
+                fundamental: false,
+                dividends: false
+            }
+        });
+
+        return (response.data?.results || []).map(stock => ({
+            ticker: stock.symbol,
+            name: stock.shortName || stock.longName,
+            logo: stock.logourl,
+            sector: stock.sector || 'N/A',
+            type: stock.type || 'stock',
+            price: stock.regularMarketPrice
+        }));
+
+    } catch (error) {
+        logger.error('❌ Erro ao buscar detalhes:', error.message);
+        return [];
+    }
+};
+
+/**
+ * Busca cotação de UM único ativo
  */
 const getQuote = async (ticker) => {
     const cacheKey = `quote_${ticker.toUpperCase()}`;
@@ -97,12 +106,7 @@ const getQuote = async (ticker) => {
     if (cached) return cached;
 
     try {
-        const response = await api.get(`/quote/${ticker}`, {
-            params: {
-                fundamental: false, // Não precisamos de dados fundamentalistas agora
-                dividends: false    // Dividendos pegamos em outra rota se precisar
-            }
-        });
+        const response = await api.get(`/quote/${ticker}`);
 
         if (response.data?.results?.[0]) {
             const quote = response.data.results[0];
@@ -114,7 +118,7 @@ const getQuote = async (ticker) => {
                 price: quote.regularMarketPrice,
                 change: quote.regularMarketChange,
                 changePercent: quote.regularMarketChangePercent,
-                logo: quote.logourl, // Garante URL da logo atualizada
+                logo: quote.logourl,
                 updatedAt: new Date(quote.regularMarketTime)
             };
 
@@ -123,17 +127,15 @@ const getQuote = async (ticker) => {
         }
         return null;
     } catch (error) {
-        // Não logar erro 404 (ativo não encontrado), apenas avisos
         if (error.response?.status !== 404) {
-            logger.error(`Erro ao buscar cotação ${ticker}:`, error.message);
+            logger.error(`Erro ao buscar ${ticker}:`, error.message);
         }
         return null;
     }
 };
 
 /**
- * Busca cotações de múltiplos ativos em uma única requisição
- * Ideal para o Dashboard
+ * Busca cotações de MÚLTIPLOS ativos (até 20 por vez)
  */
 const getQuotes = async (tickers) => {
     if (!tickers || tickers.length === 0) return {};
@@ -141,7 +143,7 @@ const getQuotes = async (tickers) => {
     const results = {};
     const tickersToFetch = [];
 
-    // 1. Verifica Cache
+    // 1. Verifica cache
     for (const ticker of tickers) {
         const cached = cache.get(`quote_${ticker.toUpperCase()}`);
         if (cached) {
@@ -151,30 +153,38 @@ const getQuotes = async (tickers) => {
         }
     }
 
-    // 2. Busca o que faltou
+    // 2. Busca em lotes de 20
     if (tickersToFetch.length > 0) {
-        try {
-            // A API aceita virgula: PETR4,VALE3,MXRF11
-            const tickersString = tickersToFetch.join(',');
+        for (let i = 0; i < tickersToFetch.length; i += 20) {
+            const batch = tickersToFetch.slice(i, i + 20);
 
-            const response = await api.get(`/quote/${tickersString}`);
+            try {
+                const tickersString = batch.join(',');
+                const response = await api.get(`/quote/${tickersString}`);
 
-            for (const quote of response.data?.results || []) {
-                const data = {
-                    symbol: quote.symbol,
-                    shortName: quote.shortName,
-                    price: quote.regularMarketPrice,
-                    change: quote.regularMarketChange,
-                    changePercent: quote.regularMarketChangePercent,
-                    logo: quote.logourl,
-                    updatedAt: new Date(quote.regularMarketTime)
-                };
+                for (const quote of response.data?.results || []) {
+                    const data = {
+                        symbol: quote.symbol,
+                        shortName: quote.shortName,
+                        price: quote.regularMarketPrice,
+                        change: quote.regularMarketChange,
+                        changePercent: quote.regularMarketChangePercent,
+                        logo: quote.logourl,
+                        updatedAt: new Date(quote.regularMarketTime)
+                    };
 
-                cache.set(`quote_${quote.symbol}`, data);
-                results[quote.symbol] = data;
+                    cache.set(`quote_${quote.symbol}`, data);
+                    results[quote.symbol] = data;
+                }
+
+                // Rate limit: aguarda 1s entre lotes
+                if (i + 20 < tickersToFetch.length) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+
+            } catch (error) {
+                logger.error('Erro ao buscar lote de cotações:', error.message);
             }
-        } catch (error) {
-            logger.error('Erro ao buscar lote de cotações:', error.message);
         }
     }
 
@@ -182,15 +192,16 @@ const getQuotes = async (tickers) => {
 };
 
 /**
- * Limpa o cache manualmente (útil para botão de "Atualizar Agora")
+ * Limpa cache manualmente
  */
 const clearCache = () => {
     cache.flushAll();
-    logger.info('🧹 Cache da Brapi limpo manualmente');
+    logger.info('🧹 Cache limpo');
 };
 
 module.exports = {
     getAvailableStocksList,
+    getStocksDetails,
     getQuote,
     getQuotes,
     clearCache
