@@ -14,5 +14,6 @@ router.get('/summary', dashboardController.getSummary);
 router.get('/alerts', dashboardController.getAlerts);
 router.get('/categories', dashboardController.getCategoryBreakdown);
 router.get('/activities', dashboardController.getActivities);
+router.get('/recent-transactions', dashboardController.getRecentTransactions);
 
 module.exports = router;

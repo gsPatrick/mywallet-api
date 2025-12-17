@@ -40,4 +40,13 @@ const getActivities = async (req, res, next) => {
     }
 };
 
-module.exports = { getSummary, getAlerts, getCategoryBreakdown, getActivities };
+const getRecentTransactions = async (req, res, next) => {
+    try {
+        const transactions = await dashboardService.getRecentTransactions(req.userId);
+        res.json({ data: transactions });
+    } catch (error) {
+        next(error);
+    }
+};
+
+module.exports = { getSummary, getAlerts, getCategoryBreakdown, getActivities, getRecentTransactions };

@@ -11,7 +11,8 @@ const {
     Goal,
     CreditCard,
     Asset,
-    AuditLog
+    AuditLog,
+    Category
 } = require('../../models');
 const investmentsService = require('../investments/investments.service');
 const { Op } = require('sequelize');
@@ -350,6 +351,40 @@ const translateResource = (resource) => {
     };
     return map[resource] || resource;
 };
+/**
+ * Obtém transações recentes com detalhes completos
+ * Para exibir na aba Manual do Dashboard
+ */
+const getRecentTransactions = async (userId) => {
+    const transactions = await ManualTransaction.findAll({
+        where: { userId },
+        include: [{
+            model: Category,
+            as: 'category',
+            attributes: ['id', 'name', 'icon', 'color']
+        }],
+        order: [['date', 'DESC'], ['createdAt', 'DESC']],
+        limit: 20,
+        attributes: ['id', 'description', 'amount', 'type', 'status', 'date', 'source', 'createdAt']
+    });
+
+    return transactions.map(t => ({
+        id: t.id,
+        description: t.description || 'Sem descrição',
+        amount: parseFloat(t.amount),
+        type: t.type, // INCOME, EXPENSE, TRANSFER
+        status: t.status, // PENDING, COMPLETED, CANCELLED
+        date: t.date,
+        source: t.source,
+        category: t.category ? {
+            id: t.category.id,
+            name: t.category.name,
+            icon: t.category.icon,
+            color: t.category.color
+        } : null,
+        createdAt: t.createdAt
+    }));
+};
 
 
 
@@ -357,5 +392,6 @@ module.exports = {
     getSummary,
     getAlerts,
     getCategoryBreakdown,
-    getActivities
+    getActivities,
+    getRecentTransactions
 };
