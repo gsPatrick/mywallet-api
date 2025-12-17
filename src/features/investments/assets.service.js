@@ -1,58 +1,82 @@
+/**
+ * --- FILE: src/features/investments/assets.service.js ---
+ */
 const { Asset } = require('../../models');
 const brapiClient = require('./brapi.client');
 const { logger } = require('../../config/logger');
 const { Op } = require('sequelize');
 
-// Helper para classificar o ativo
-const determineType = (stock) => {
-    const ticker = stock.ticker.toUpperCase();
+/**
+ * Helper para descobrir o tipo do ativo baseado no ticker e dados
+ */
+const determineAssetType = (stockData) => {
+    const ticker = stockData.stock;
+    const type = stockData.type; // A Brapi as vezes manda 'stock' ou 'fund'
 
-    // ETFs costumam ter 11, mas precisamos diferenciar de FIIs
-    // A Brapi às vezes manda 'fund' para FIIs e ETFs.
-    // Lógica simplificada (pode ser melhorada):
-    if (stock.type === 'fund') return 'FII';
-    if (ticker.endsWith('31') || ticker.endsWith('33') || ticker.endsWith('34')) return 'BDR';
-    if (ticker.endsWith('11')) return 'FII'; // Maioria 11 é FII ou ETF
-    return 'STOCK';
+    // Lógica baseada no final do ticker (Padrão B3)
+    const end = ticker.match(/\d+$/)?.[0];
+
+    if (type === 'fund' || end === '11') {
+        // Se tem 11 no final, geralmente é FII ou ETF
+        // Para simplificar, se não tivermos certeza, marcamos como FII
+        // Num sistema perfeito, precisaria de uma lista de ETFs separada
+        return 'FII';
+    }
+
+    if (end === '31' || end === '32' || end === '33' || end === '34' || end === '35') {
+        return 'BDR';
+    }
+
+    return 'STOCK'; // Padrão (3, 4, etc)
 };
 
+/**
+ * Sincroniza o banco de dados com todos os ativos da B3
+ * Deve ser rodado via CRON JOB (ex: 1x por semana) ou manualmente pelo Admin
+ */
 const syncAllAssets = async () => {
-    logger.info('🚀 Iniciando sincronização do catálogo de ativos...');
+    logger.info('Iniciando sincronização de ativos...');
 
-    const assetsList = await brapiClient.getAvailableStocksList();
+    const stocksList = await brapiClient.getAvailableStocksList();
 
-    if (!assetsList.length) return { error: 'Nenhum dado recebido da API' };
+    if (!stocksList || stocksList.length === 0) {
+        throw new Error('Nenhum ativo encontrado na fonte externa.');
+    }
 
     let count = 0;
-    const batchSize = 100;
+    const batchSize = 100; // Salvar em lotes para não travar o banco
 
-    // Processamento em lote para performance
-    for (let i = 0; i < assetsList.length; i += batchSize) {
-        const chunk = assetsList.slice(i, i + batchSize);
+    // Processar em lotes
+    for (let i = 0; i < stocksList.length; i += batchSize) {
+        const batch = stocksList.slice(i, i + batchSize);
 
-        const upsertData = chunk.map(item => ({
-            ticker: item.ticker,
-            name: item.name,
-            logoUrl: item.logo, // Salva a URL da imagem
-            type: determineType(item),
-            sector: item.sector,
+        const assetsToUpsert = batch.map(stock => ({
+            ticker: stock.stock,
+            name: stock.name || stock.stock, // Usa o ticker se não tiver nome
+            type: determineAssetType(stock),
+            logoUrl: stock.logo, // Se a API fornecer logo
+            isActive: true,
             updatedAt: new Date()
         }));
 
-        await Asset.bulkCreate(upsertData, {
-            updateOnDuplicate: ['name', 'logoUrl', 'sector', 'updatedAt']
+        // Upsert: Cria se não existe, Atualiza se existe
+        await Asset.bulkCreate(assetsToUpsert, {
+            updateOnDuplicate: ['name', 'type', 'logoUrl', 'updatedAt']
         });
 
-        count += chunk.length;
+        count += batch.length;
+        logger.info(`Processados ${count} de ${stocksList.length} ativos...`);
     }
 
-    logger.info(`✅ Catálogo atualizado: ${count} ativos sincronizados.`);
-    return { total: count };
+    logger.info('✅ Sincronização de ativos concluída com sucesso!');
+    return { totalSynced: count };
 };
 
-// Busca otimizada para o Frontend (Autocomplete)
+/**
+ * Busca ativos para o Autocomplete (Dropdown)
+ */
 const searchAssets = async (query) => {
-    if (!query) return [];
+    if (!query || query.length < 2) return [];
 
     return await Asset.findAll({
         where: {
@@ -62,9 +86,12 @@ const searchAssets = async (query) => {
             ],
             isActive: true
         },
-        limit: 10,
-        attributes: ['ticker', 'name', 'type', 'logoUrl'] // Retorna a logo pro front
+        limit: 10, // Retorna apenas os 10 melhores resultados
+        attributes: ['id', 'ticker', 'name', 'type', 'logoUrl']
     });
 };
 
-module.exports = { syncAllAssets, searchAssets };
+module.exports = {
+    syncAllAssets,
+    searchAssets
+};

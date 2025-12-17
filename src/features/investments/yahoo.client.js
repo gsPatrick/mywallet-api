@@ -87,8 +87,8 @@ const getQuotes = async (tickers) => {
         const originalTicker = tickerMap[symbol];
 
         try {
-            // validateResult: false é importante para evitar erros estritos de validação
-            const quote = await yahooFinance.quote(symbol, { validateResult: false });
+            // REMOVIDO validateResult: false - não é mais aceito pela lib
+            const quote = await yahooFinance.quote(symbol);
 
             if (!quote) {
                 console.log(`⚠️ [YAHOO] Ativo não encontrado: ${symbol}`);
