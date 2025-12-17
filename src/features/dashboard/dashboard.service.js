@@ -285,7 +285,7 @@ const getActivities = async (userId) => {
     const logs = await AuditLog.findAll({
         where: {
             userId,
-            action: allowedActions
+            action: { [Op.in]: allowedActions }
         },
         order: [['createdAt', 'DESC']],
         limit: 20,
