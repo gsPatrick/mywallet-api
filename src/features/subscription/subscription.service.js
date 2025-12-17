@@ -1,9 +1,119 @@
-/**
- * Subscription Service
- * Gestão de assinaturas e recorrências
- */
+const { Subscription, CardTransaction, CreditCard, AuditLog, ManualTransaction } = require('../../models');
+const { AppError } = require('../../middlewares/errorHandler');
+const { Op } = require('sequelize');
+const { v4: uuidv4 } = require('uuid');
 
-const { Subscription, CardTransaction, CreditCard, AuditLog } = require('../../models');
+// ... (rest of imports)
+
+// ... (existing code)
+
+/**
+ * Marca uma assinatura como paga (cria ou atualiza transação)
+ */
+const markSubscriptionPaid = async (userId, subscriptionId, date = new Date()) => {
+    const subscription = await Subscription.findOne({
+        where: { id: subscriptionId, userId }
+    });
+
+    if (!subscription) {
+        throw new AppError('Assinatura não encontrada', 404, 'SUBSCRIPTION_NOT_FOUND');
+    }
+
+    const payDate = new Date(date).toISOString().split('T')[0];
+
+    // 1. Tenta encontrar transação pendente para a data próxima (mesmo mês/ano)
+    const startOfMonth = new Date(date);
+    startOfMonth.setDate(1);
+    const endOfMonth = new Date(startOfMonth.getFullYear(), startOfMonth.getMonth() + 1, 0);
+
+    const dateFilter = {
+        [Op.between]: [startOfMonth.toISOString().split('T')[0], endOfMonth.toISOString().split('T')[0]]
+    };
+
+    let transaction;
+
+    if (subscription.cardId) {
+        // Busca em CardTransaction
+        transaction = await CardTransaction.findOne({
+            where: {
+                subscriptionId: subscriptionId,
+                date: dateFilter
+            }
+        });
+
+        if (transaction) {
+            transaction.status = 'PAID'; // Assume PAID for card transaction manually confirmed
+            await transaction.save();
+        } else {
+            // Cria nova
+            transaction = await CardTransaction.create({
+                userId,
+                cardId: subscription.cardId,
+                subscriptionId: subscription.id,
+                description: subscription.name,
+                amount: subscription.amount,
+                date: payDate,
+                category: subscription.category,
+                isRecurring: true,
+                recurringFrequency: subscription.frequency,
+                status: 'PAID'
+            });
+        }
+    } else {
+        // É ManualTransaction
+        // (Nota: ManualTransaction não tem subscriptionId nativo no modelo mostrado,
+        // mas podemos deduzir pelo nome/data ou adicionar metadata se necessário.
+        // Simplificação: Cria uma nova COMPLETED)
+
+        transaction = await ManualTransaction.create({
+            userId,
+            type: 'EXPENSE',
+            status: 'COMPLETED',
+            source: 'OTHER', // Ou 'CASH', 'PIX' se viesse do input
+            description: subscription.name,
+            amount: subscription.amount,
+            date: payDate,
+            category: subscription.category,
+            isRecurring: true,
+            recurringFrequency: subscription.frequency
+        });
+    }
+
+    // Avança a data da próxima cobrança se for a atual
+    const nextBill = new Date(subscription.nextBillingDate);
+    const paidDate = new Date(payDate);
+
+    // Se a data paga for próxima da data de cobrança prevista (margem de 5 dias), avança
+    const diffTime = Math.abs(paidDate - nextBill);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays <= 5 || paidDate >= nextBill) {
+        subscription.nextBillingDate = calculateNextBillingDate(subscription.nextBillingDate, subscription.frequency);
+        await subscription.save();
+    }
+
+    await AuditLog.log({
+        userId,
+        action: 'SUBSCRIPTION_PAY',
+        resource: 'SUBSCRIPTION',
+        resourceId: subscription.id,
+        details: { transactionId: transaction.id }
+    });
+
+    return transaction;
+};
+
+module.exports = {
+    listSubscriptions,
+    createSubscription,
+    updateSubscription,
+    cancelSubscription,
+    generatePendingTransactions,
+    getSubscriptionsSummary,
+    getUpcomingCharges,
+    getSubscriptionAlerts,
+    markSubscriptionPaid
+};
 const { AppError } = require('../../middlewares/errorHandler');
 const { Op } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');

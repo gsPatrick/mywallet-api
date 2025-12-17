@@ -24,6 +24,7 @@ router.get('/', subscriptionController.listSubscriptions);
 router.post('/', validate(createSchema), subscriptionController.createSubscription);
 router.put('/:id', subscriptionController.updateSubscription);
 router.delete('/:id', subscriptionController.cancelSubscription);
+router.post('/:id/pay', subscriptionController.markPaid);
 
 // Análises
 router.get('/summary', subscriptionController.getSummary);

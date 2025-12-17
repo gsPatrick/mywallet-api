@@ -25,5 +25,6 @@ router.get('/', investmentsController.listInvestments);
 router.post('/', validate(createSchema), investmentsController.createInvestment);
 router.get('/portfolio', investmentsController.getPortfolio);
 router.get('/assets', investmentsController.listAssets);
+router.get('/dividends', investmentsController.listDividends);
 
 module.exports = router;

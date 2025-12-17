@@ -13,5 +13,6 @@ router.use(authMiddleware);
 router.get('/summary', dashboardController.getSummary);
 router.get('/alerts', dashboardController.getAlerts);
 router.get('/categories', dashboardController.getCategoryBreakdown);
+router.get('/activities', dashboardController.getActivities);
 
 module.exports = router;

@@ -56,4 +56,14 @@ const syncAssetsDatabase = async (req, res, next) => {
     }
 };
 
-module.exports = { listInvestments, createInvestment, getPortfolio, listAssets, syncAssetsDatabase };
+const listDividends = async (req, res, next) => {
+    try {
+        const dividendsService = require('./dividends.service');
+        const dividends = await dividendsService.listDividends(req.userId);
+        res.json({ data: dividends });
+    } catch (error) {
+        next(error);
+    }
+};
+
+module.exports = { listInvestments, createInvestment, getPortfolio, listAssets, syncAssetsDatabase, listDividends };

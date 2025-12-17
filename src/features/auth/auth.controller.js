@@ -5,6 +5,7 @@
 
 const authService = require('./auth.service');
 const { getClientIp } = require('../../middlewares/auditLogger');
+const dividendsService = require('../investments/dividends.service');
 
 /**
  * POST /auth/register
@@ -32,10 +33,14 @@ const register = async (req, res, next) => {
 const login = async (req, res, next) => {
     try {
         const { email, password } = req.body;
-        const ipAddress = getClientIp(req);
-        const userAgent = req.headers['user-agent'];
-
+        // ... (seu código de login existente) ...
         const result = await authService.login({ email, password, ipAddress, userAgent });
+
+        // --- GATILHO DE DIVIDENDOS (Fire and Forget) ---
+        // Não usamos 'await' aqui propositalmente para o login ser rápido
+        dividendsService.syncUserDividends(result.user.id)
+            .catch(err => console.error('Erro no sync de dividendos em background:', err));
+        // ------------------------------------------------
 
         res.json({
             message: 'Login realizado com sucesso',

@@ -83,8 +83,18 @@ const getUpcoming = async (req, res, next) => {
 
 const getAlerts = async (req, res, next) => {
     try {
-        const data = await subscriptionService.getSubscriptionAlerts(req.userId);
-        res.json({ data });
+        const alerts = await subscriptionService.getSubscriptionAlerts(req.userId);
+        res.json({ data: alerts });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const markPaid = async (req, res, next) => {
+    try {
+        const { date } = req.body;
+        const transaction = await subscriptionService.markSubscriptionPaid(req.userId, req.params.id, date);
+        res.json({ data: transaction, message: 'Assinatura marcada como paga' });
     } catch (error) {
         next(error);
     }
@@ -98,5 +108,6 @@ module.exports = {
     generateTransactions,
     getSummary,
     getUpcoming,
-    getAlerts
+    getAlerts,
+    markPaid
 };

@@ -31,4 +31,13 @@ const getCategoryBreakdown = async (req, res, next) => {
     }
 };
 
-module.exports = { getSummary, getAlerts, getCategoryBreakdown };
+const getActivities = async (req, res, next) => {
+    try {
+        const activities = await dashboardService.getActivities(req.userId);
+        res.json({ data: activities });
+    } catch (error) {
+        next(error);
+    }
+};
+
+module.exports = { getSummary, getAlerts, getCategoryBreakdown, getActivities };

@@ -10,7 +10,9 @@ const {
     Budget,
     Goal,
     CreditCard,
-    Asset
+    CreditCard,
+    Asset,
+    AuditLog
 } = require('../../models');
 const investmentsService = require('../investments/investments.service');
 const { Op } = require('sequelize');
@@ -99,6 +101,7 @@ const getSummary = async (userId) => {
     const spendingLimit = budget ? budget.getSpendingLimit() : income * 0.6;
 
     // Gerar alertas
+    // Generate alerts
     const alerts = generateAlerts({
         income,
         expenses,
@@ -107,6 +110,17 @@ const getSummary = async (userId) => {
         recommendedInvestment,
         budget
     });
+
+    // Calculate All-Time Manual Balance for Total Equity
+    const [allManualIncome, allManualExpenses] = await Promise.all([
+        ManualTransaction.sum('amount', {
+            where: { userId, type: 'INCOME', status: 'COMPLETED' }
+        }),
+        ManualTransaction.sum('amount', {
+            where: { userId, type: 'EXPENSE', status: 'COMPLETED' }
+        })
+    ]);
+    const manualTotalBalance = (parseFloat(allManualIncome) || 0) - (parseFloat(allManualExpenses) || 0);
 
     return {
         period: {
@@ -126,6 +140,7 @@ const getSummary = async (userId) => {
         spendingLimit,
         remainingBudget: spendingLimit - expenses,
         balance: income - expenses - investedThisMonth,
+        manualTotalBalance, // Added field
         hasBudget: !!budget,
         alerts
     };
@@ -235,8 +250,57 @@ const getCategoryBreakdown = async (userId) => {
     return Object.values(categories).sort((a, b) => b.total - a.total);
 };
 
+/**
+ * Obtém atividades recentes do usuário
+ */
+const getActivities = async (userId) => {
+    const logs = await AuditLog.findAll({
+        where: { userId },
+        order: [['createdAt', 'DESC']],
+        limit: 20,
+        attributes: ['id', 'action', 'resource', 'details', 'createdAt']
+    });
+
+    return logs.map(log => ({
+        id: log.id,
+        action: translateAction(log.action),
+        resource: translateResource(log.resource),
+        details: log.details,
+        date: log.createdAt,
+        rawAction: log.action
+    }));
+};
+
+// Helpers de tradução simples
+const translateAction = (action) => {
+    const map = {
+        'USER_LOGIN': 'Login realizado',
+        'TRANSACTION_CREATE': 'Nova transação',
+        'TRANSACTION_UPDATE': 'Transação atualizada',
+        'TRANSACTION_DELETE': 'Transação removida',
+        'CONSENT_CREATE': 'Novo vínculo Open Finance',
+        'DATA_IMPORT': 'Sincronização bancária',
+        '_CREATE': 'Registro criado',
+        '_UPDATE': 'Registro atualizado',
+        '_DELETE': 'Registro removido'
+    };
+    return map[action] || action;
+};
+
+const translateResource = (resource) => {
+    const map = {
+        'TRANSACTION': 'Transação',
+        'OPEN_FINANCE': 'Open Finance',
+        'USER': 'Usuário',
+        'INVESTMENT': 'Investimento',
+        'GOAL': 'Meta',
+        'BUDGET': 'Orçamento'
+    };
+    return map[resource] || resource;
+};
+
+
 module.exports = {
-    getSummary,
-    getAlerts,
-    getCategoryBreakdown
+    getCategoryBreakdown,
+    getActivities
 };
