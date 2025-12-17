@@ -271,30 +271,39 @@ const calculateAllocation = (allPositions, totalValue) => {
 const getPortfolioEvolution = async (userId, months = 12) => {
     const { InvestmentSnapshot } = require('../../models');
 
-    const startDate = new Date();
-    startDate.setMonth(startDate.getMonth() - months);
+    const now = new Date();
+    const startYear = now.getFullYear();
+    const startMonth = now.getMonth() + 1; // JS months are 0-indexed
 
-    // Busca snapshots históricos ordenados por data
+    // Calculate cutoff date
+    const cutoffDate = new Date(now);
+    cutoffDate.setMonth(cutoffDate.getMonth() - months);
+    const cutoffYear = cutoffDate.getFullYear();
+    const cutoffMonth = cutoffDate.getMonth() + 1;
+
+    // Busca snapshots históricos ordenados por ano/mês
     const snapshots = await InvestmentSnapshot.findAll({
         where: {
             userId,
-            snapshotDate: { [Op.gte]: startDate }
+            [Op.or]: [
+                { year: { [Op.gt]: cutoffYear } },
+                {
+                    year: cutoffYear,
+                    month: { [Op.gte]: cutoffMonth }
+                }
+            ]
         },
-        order: [['snapshotDate', 'ASC']],
-        attributes: ['snapshotDate', 'totalValue', 'totalInvested', 'totalProfit', 'profitPercent']
+        order: [['year', 'ASC'], ['month', 'ASC']],
+        attributes: ['month', 'year', 'marketValue', 'totalCost', 'profit', 'profitPercent']
     });
 
-    // Se não houver snapshots, retorna dados vazios
+    // Se não houver snapshots, retorna dados simulados
     if (snapshots.length === 0) {
-        // Gera pontos básicos usando dados atuais do portfolio
         const portfolio = await getPortfolio(userId);
         const currentValue = portfolio.summary?.totalCurrentBalance || 0;
         const totalInvested = portfolio.summary?.totalInvested || 0;
 
-        // Retorna dados simulados baseados no valor atual
         const data = [];
-        const now = new Date();
-
         for (let i = months; i >= 0; i--) {
             const date = new Date(now);
             date.setMonth(date.getMonth() - i);
@@ -315,20 +324,24 @@ const getPortfolioEvolution = async (userId, months = 12) => {
             hasRealData: false,
             summary: {
                 returnPercent: portfolio.summary?.totalProfitPercent || 0,
-                cdiPercent: 100 // placeholder
+                cdiPercent: 100,
+                cdiForPeriod: (11.25 / 12) * months
             }
         };
     }
 
     // Mapeia snapshots reais para formato do gráfico
-    const data = snapshots.map(s => ({
-        date: s.snapshotDate,
-        displayDate: new Date(s.snapshotDate).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
-        value: parseFloat(s.totalValue) || 0,
-        invested: parseFloat(s.totalInvested) || 0,
-        profit: parseFloat(s.totalProfit) || 0,
-        profitPercent: parseFloat(s.profitPercent) || 0
-    }));
+    const data = snapshots.map(s => {
+        const snapshotDate = new Date(s.year, s.month - 1, 1);
+        return {
+            date: snapshotDate.toISOString().split('T')[0],
+            displayDate: snapshotDate.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+            value: parseFloat(s.marketValue) || 0,
+            invested: parseFloat(s.totalCost) || 0,
+            profit: parseFloat(s.profit) || 0,
+            profitPercent: parseFloat(s.profitPercent) || 0
+        };
+    });
 
     // Calcula rentabilidade do período
     const firstValue = data[0]?.invested || 1;
@@ -338,7 +351,7 @@ const getPortfolioEvolution = async (userId, months = 12) => {
     // CDI aproximado (11.25% ao ano)
     const cdiAnnual = 11.25;
     const cdiForPeriod = (cdiAnnual / 12) * months;
-    const cdiPercent = (returnPercent / cdiForPeriod) * 100;
+    const cdiPercent = returnPercent > 0 ? (returnPercent / cdiForPeriod) * 100 : 0;
 
     return {
         data,
