@@ -273,33 +273,57 @@ const getActivities = async (userId) => {
 // Helpers de tradução simples
 const translateAction = (action) => {
     const map = {
-        'USER_LOGIN': 'Login realizado',
-        'TRANSACTION_CREATE': 'Nova transação',
-        'TRANSACTION_UPDATE': 'Transação atualizada',
-        'TRANSACTION_DELETE': 'Transação removida',
-        'CONSENT_CREATE': 'Novo vínculo Open Finance',
-        'DATA_IMPORT': 'Sincronização bancária',
-        '_CREATE': 'Registro criado',
-        '_UPDATE': 'Registro atualizado',
-        '_DELETE': 'Registro removido'
+        'USER_LOGIN': 'Fez login',
+        'USER_REGISTER': 'Criou conta',
+        'TRANSACTION_CREATE': 'Adicionou transação',
+        'TRANSACTION_UPDATE': 'Atualizou transação',
+        'TRANSACTION_DELETE': 'Removeu transação',
+        'MANUAL_TRANSACTION_CREATE': 'Adicionou lançamento manual',
+        'MANUAL_TRANSACTION_UPDATE': 'Atualizou lançamento manual',
+        'MANUAL_TRANSACTION_DELETE': 'Removeu lançamento manual',
+        'SUBSCRIPTION_CREATE': 'Criou recorrência',
+        'SUBSCRIPTION_UPDATE': 'Atualizou recorrência',
+        'SUBSCRIPTION_CANCEL': 'Cancelou recorrência',
+        'SUBSCRIPTION_PAY': 'Pagou recorrência',
+        'INVESTMENT_CREATE': 'Registrou operação',
+        'INVESTMENT_UPDATE': 'Atualizou investimento',
+        'INVESTMENT_DELETE': 'Removeu investimento',
+        'GOAL_CREATE': 'Criou meta',
+        'GOAL_UPDATE': 'Atualizou meta',
+        'GOAL_DELETE': 'Removeu meta',
+        'BUDGET_CREATE': 'Criou orçamento',
+        'BUDGET_UPDATE': 'Atualizou orçamento',
+        'CONSENT_CREATE': 'Vinculou Open Finance',
+        'CONSENT_REVOKE': 'Revogou Open Finance',
+        'DATA_IMPORT': 'Sincronizou dados',
+        'CATEGORY_CREATE': 'Criou categoria',
+        'CATEGORY_UPDATE': 'Atualizou categoria',
+        'CATEGORY_DELETE': 'Removeu categoria'
     };
-    return map[action] || action;
+    return map[action] || action.replace(/_/g, ' ').toLowerCase();
 };
 
 const translateResource = (resource) => {
     const map = {
         'TRANSACTION': 'Transação',
+        'MANUAL_TRANSACTION': 'Lançamento',
         'OPEN_FINANCE': 'Open Finance',
-        'USER': 'Usuário',
+        'USER': 'Conta',
         'INVESTMENT': 'Investimento',
         'GOAL': 'Meta',
-        'BUDGET': 'Orçamento'
+        'BUDGET': 'Orçamento',
+        'SUBSCRIPTION': 'Recorrência',
+        'CATEGORY': 'Categoria',
+        'CARD': 'Cartão'
     };
     return map[resource] || resource;
 };
 
 
+
 module.exports = {
+    getSummary,
+    getAlerts,
     getCategoryBreakdown,
     getActivities
 };

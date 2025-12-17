@@ -23,6 +23,7 @@ router.delete('/consents/:id', openFinanceController.revokeConsent);
 
 // Listagem de Dados
 router.get('/accounts', openFinanceController.listAccounts);
+router.get('/cards', openFinanceController.listCards);
 
 // OAuth Callback
 router.get('/callback', openFinanceController.handleCallback);

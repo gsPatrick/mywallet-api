@@ -193,6 +193,21 @@ const importTransactions = async (req, res, next) => {
     } catch (error) {
         next(error);
     }
+};/**
+ * GET /open-finance/cards
+ * Lista cartões do usuário (proxy para cards service)
+ */
+const listCards = async (req, res, next) => {
+    try {
+        const { CreditCard } = require('../../models');
+        const cards = await CreditCard.findAll({
+            where: { userId: req.userId },
+            attributes: ['id', 'name', 'brand', 'lastFourDigits', 'color', 'closingDay', 'dueDay', 'limit', 'status']
+        });
+        res.json({ data: cards });
+    } catch (error) {
+        next(error);
+    }
 };
 
 module.exports = {
@@ -200,6 +215,7 @@ module.exports = {
     handleCallback,
     listConsents,
     listAccounts,
+    listCards,
     revokeConsent,
     importAccounts,
     importCards,
