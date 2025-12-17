@@ -87,9 +87,9 @@ const medals = [
         code: 'system_owner',
         name: 'Criador do MyWallet',
         description: 'O visionário que criou este sistema',
-        category: 'social',
+        category: 'special',
         icon: 'crown',
-        rarity: 'diamond',
+        rarity: 'ruby',
         requirement: 'isOwner',
         requirementValue: 1,
         xpReward: 9999,
@@ -99,7 +99,7 @@ const medals = [
         code: 'first_user',
         name: 'Pioneiro',
         description: 'Primeiro usuário registrado no MyWallet',
-        category: 'social',
+        category: 'special',
         icon: 'flag',
         rarity: 'diamond',
         requirement: 'isFirstUser',
@@ -111,9 +111,9 @@ const medals = [
         code: 'beta_tester',
         name: 'Beta Tester',
         description: 'Testou o MyWallet na fase beta',
-        category: 'social',
+        category: 'special',
         icon: 'zap',
-        rarity: 'platinum',
+        rarity: 'emerald',
         requirement: 'isBetaTester',
         requirementValue: 1,
         xpReward: 300,
@@ -302,7 +302,84 @@ const medals = [
         requirementValue: 5,
         xpReward: 200,
         order: 42
+    },
+
+    // ========================
+    // LEVEL - Medalhas de Nível
+    // ========================
+    {
+        code: 'level_10',
+        name: 'Bronze',
+        description: 'Alcance o nível 10',
+        category: 'level',
+        icon: 'medal',
+        rarity: 'bronze',
+        requirement: 'level',
+        requirementValue: 10,
+        xpReward: 100,
+        order: 50
+    },
+    {
+        code: 'level_20',
+        name: 'Prata',
+        description: 'Alcance o nível 20',
+        category: 'level',
+        icon: 'medal',
+        rarity: 'silver',
+        requirement: 'level',
+        requirementValue: 20,
+        xpReward: 200,
+        order: 51
+    },
+    {
+        code: 'level_25',
+        name: 'Ouro',
+        description: 'Alcance o nível 25',
+        category: 'level',
+        icon: 'award',
+        rarity: 'gold',
+        requirement: 'level',
+        requirementValue: 25,
+        xpReward: 300,
+        order: 52
+    },
+    {
+        code: 'level_50',
+        name: 'Platina',
+        description: 'Alcance o nível 50',
+        category: 'level',
+        icon: 'award',
+        rarity: 'platinum',
+        requirement: 'level',
+        requirementValue: 50,
+        xpReward: 500,
+        order: 53
+    },
+    {
+        code: 'level_70',
+        name: 'Diamante',
+        description: 'Alcance o nível 70',
+        category: 'level',
+        icon: 'diamond',
+        rarity: 'diamond',
+        requirement: 'level',
+        requirementValue: 70,
+        xpReward: 700,
+        order: 54
+    },
+    {
+        code: 'level_100',
+        name: 'Mestre Supremo',
+        description: 'Alcance o nível máximo 100',
+        category: 'level',
+        icon: 'crown',
+        rarity: 'legendary',
+        requirement: 'level',
+        requirementValue: 100,
+        xpReward: 1000,
+        order: 55
     }
 ];
 
 module.exports = medals;
+
