@@ -4,11 +4,11 @@
 
 const express = require('express');
 const router = express.Router();
-const { authenticate } = require('../../middlewares/auth');
+const { authMiddleware } = require('../../middlewares/authMiddleware');
 const whatsappController = require('./whatsapp.controller');
 
 // Todas as rotas requerem autenticação
-router.use(authenticate);
+router.use(authMiddleware);
 
 // POST /api/whatsapp/connect - Inicia conexão e retorna QR Code
 router.post('/connect', whatsappController.connect);
