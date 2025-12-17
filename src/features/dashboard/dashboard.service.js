@@ -10,7 +10,6 @@ const {
     Budget,
     Goal,
     CreditCard,
-    CreditCard,
     Asset,
     AuditLog
 } = require('../../models');
