@@ -9,4 +9,9 @@ router.get('/portfolio', reportsController.getPortfolio);
 router.get('/evolution', reportsController.getEvolution);
 router.get('/dividends', reportsController.getDividends);
 
+// Statement (Extrato Financeiro)
+router.get('/statement', reportsController.getStatement);
+router.get('/statement/years', reportsController.getStatementYears);
+
 module.exports = router;
+
