@@ -43,5 +43,7 @@ router.get('/me', authMiddleware, authController.getMe);
 router.put('/me', authMiddleware, authController.updateMe);
 router.post('/change-password', authMiddleware, validate(changePasswordSchema), authController.changePassword);
 router.put('/onboarding-complete', authMiddleware, authController.completeOnboarding);
+router.put('/onboarding-config', authMiddleware, authController.saveOnboardingConfig);
+router.put('/salary', authMiddleware, authController.updateSalary);
 
 module.exports = router;

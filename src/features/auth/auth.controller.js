@@ -150,6 +150,53 @@ const completeOnboarding = async (req, res, next) => {
     }
 };
 
+/**
+ * PUT /auth/onboarding-config
+ * Salva configurações do onboarding (saldo inicial, salário, etc)
+ */
+const saveOnboardingConfig = async (req, res, next) => {
+    try {
+        const { initialBalance, salary, salaryDay, salaryDescription } = req.body;
+
+        const result = await authService.saveOnboardingConfig(req.userId, {
+            initialBalance,
+            salary,
+            salaryDay,
+            salaryDescription
+        });
+
+        res.json({
+            message: 'Configurações salvas com sucesso',
+            data: result
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * PUT /auth/salary
+ * Atualiza configuração de salário
+ */
+const updateSalary = async (req, res, next) => {
+    try {
+        const { salary, salaryDay, salaryDescription } = req.body;
+
+        const result = await authService.updateSalary(req.userId, {
+            salary,
+            salaryDay,
+            salaryDescription
+        });
+
+        res.json({
+            message: 'Salário atualizado com sucesso',
+            data: result
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     register,
     login,
@@ -157,5 +204,7 @@ module.exports = {
     getMe,
     updateMe,
     changePassword,
-    completeOnboarding
+    completeOnboarding,
+    saveOnboardingConfig,
+    updateSalary
 };

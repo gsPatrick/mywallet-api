@@ -196,6 +196,85 @@ const completeOnboarding = async (userId) => {
     return { onboardingComplete: true };
 };
 
+/**
+ * Salva configurações do onboarding (saldo inicial, salário, etc)
+ * - Cria transação de saldo inicial
+ * - Salário tem descrição fixa
+ */
+const saveOnboardingConfig = async (userId, { initialBalance, salary, salaryDay }) => {
+    const { ManualTransaction } = require('../../models');
+
+    const user = await User.findByPk(userId);
+    if (!user) {
+        throw new AppError('Usuário não encontrado', 404, 'USER_NOT_FOUND');
+    }
+
+    // Atualizar campos do usuário
+    if (initialBalance !== undefined) user.initialBalance = initialBalance;
+    if (salary !== undefined) user.salary = salary;
+    if (salaryDay !== undefined) user.salaryDay = salaryDay;
+    user.salaryDescription = 'Salário'; // Descrição fixa
+
+    await user.save();
+
+    // Criar transação de saldo inicial se valor > 0
+    if (initialBalance && parseFloat(initialBalance) > 0) {
+        await ManualTransaction.create({
+            userId,
+            type: 'INCOME',
+            source: 'OTHER',
+            description: 'Saldo Inicial',
+            amount: parseFloat(initialBalance),
+            date: new Date()
+        });
+
+        logger.info(`Transação de saldo inicial criada: R$ ${initialBalance}`);
+    }
+
+    logger.info(`Onboarding config salva: ${user.email}`);
+
+    return {
+        initialBalance: user.initialBalance,
+        salary: user.salary,
+        salaryDay: user.salaryDay,
+        salaryDescription: user.salaryDescription
+    };
+};
+
+/**
+ * Atualiza configuração de salário
+ */
+const updateSalary = async (userId, { salary, salaryDay, salaryDescription }) => {
+    const user = await User.findByPk(userId);
+    if (!user) {
+        throw new AppError('Usuário não encontrado', 404, 'USER_NOT_FOUND');
+    }
+
+    // Atualizar campos
+    if (salary !== undefined) user.salary = salary;
+    if (salaryDay !== undefined) user.salaryDay = salaryDay;
+    if (salaryDescription !== undefined) user.salaryDescription = salaryDescription;
+
+    await user.save();
+
+    // Log de auditoria
+    await AuditLog.log({
+        userId: user.id,
+        action: 'SALARY_UPDATE',
+        resource: 'USER',
+        resourceId: user.id,
+        details: { salary, salaryDay, salaryDescription }
+    });
+
+    logger.info(`Salário atualizado: ${user.email}`);
+
+    return {
+        salary: user.salary,
+        salaryDay: user.salaryDay,
+        salaryDescription: user.salaryDescription
+    };
+};
+
 module.exports = {
     register,
     login,
@@ -203,5 +282,7 @@ module.exports = {
     getMe,
     updateUser,
     changePassword,
-    completeOnboarding
+    completeOnboarding,
+    saveOnboardingConfig,
+    updateSalary
 };

@@ -60,6 +60,18 @@ module.exports = (sequelize) => {
                 max: 31
             }
         },
+        // Descrição personalizada do salário (ex: "Salário - Empresa X")
+        salaryDescription: {
+            type: DataTypes.STRING,
+            allowNull: true,
+            defaultValue: 'Salário'
+        },
+        // Saldo inicial informado no onboarding
+        initialBalance: {
+            type: DataTypes.DECIMAL(15, 2),
+            allowNull: true,
+            defaultValue: 0
+        },
         // Onboarding
         onboardingComplete: {
             type: DataTypes.BOOLEAN,
@@ -109,6 +121,8 @@ module.exports = (sequelize) => {
             email: this.email,
             salary: this.salary,
             salaryDay: this.salaryDay,
+            salaryDescription: this.salaryDescription,
+            initialBalance: this.initialBalance,
             onboardingComplete: this.onboardingComplete,
             onboardingStep: this.onboardingStep,
             createdAt: this.createdAt,
