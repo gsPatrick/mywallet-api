@@ -34,6 +34,10 @@ const createManualTransaction = async (userId, data) => {
     if (cardId) {
         console.log('💳 [CREATE MANUAL TX] Creating CardTransaction for cardId:', cardId);
 
+        // Map status: ManualTransaction uses COMPLETED, CardTransaction uses PAID
+        let cardStatus = status || 'PENDING';
+        if (cardStatus === 'COMPLETED') cardStatus = 'PAID';
+
         const cardTransaction = await CardTransaction.create({
             userId,
             cardId,
@@ -43,7 +47,7 @@ const createManualTransaction = async (userId, data) => {
             category: category || 'OTHER',
             isRecurring: isRecurring || false,
             recurringFrequency: frequency || null,
-            status: status || 'PENDING'
+            status: cardStatus
         });
 
         console.log('✅ [CREATE MANUAL TX] CardTransaction created:', cardTransaction.id);
