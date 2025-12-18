@@ -59,6 +59,15 @@ module.exports = (sequelize) => {
             allowNull: false,
             defaultValue: false
         },
+        // Vinculação opcional com orçamento mensal
+        budgetAllocationId: {
+            type: DataTypes.UUID,
+            allowNull: true, // Vínculo 100% OPCIONAL!
+            references: {
+                model: 'budget_allocations',
+                key: 'id'
+            }
+        },
         // Ordem de exibição
         order: {
             type: DataTypes.INTEGER,

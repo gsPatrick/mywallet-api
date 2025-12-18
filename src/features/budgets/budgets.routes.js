@@ -19,9 +19,16 @@ const createSchema = {
     }
 };
 
+// Budget endpoints
 router.get('/', budgetsController.listBudgets);
 router.get('/current', budgetsController.getCurrentBudget);
 router.post('/', validate(createSchema), budgetsController.createBudget);
 router.put('/:id', budgetsController.updateBudget);
 
+// Budget Allocations endpoints
+router.get('/allocations/current', budgetsController.getCurrentAllocations);
+router.get('/allocations', budgetsController.getAllocations);
+router.post('/allocations', budgetsController.createAllocations);
+
 module.exports = router;
+

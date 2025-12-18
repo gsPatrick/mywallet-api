@@ -53,7 +53,9 @@ const markSubscriptionPaid = async (userId, subscriptionId, date = new Date()) =
                 description: subscription.name,
                 amount: subscription.amount,
                 date: payDate,
+                date: payDate,
                 category: subscription.category,
+                categoryId: subscription.categoryId,
                 isRecurring: true,
                 recurringFrequency: subscription.frequency,
                 status: 'PAID'
@@ -73,7 +75,9 @@ const markSubscriptionPaid = async (userId, subscriptionId, date = new Date()) =
             description: subscription.name,
             amount: subscription.amount,
             date: payDate,
+            date: payDate,
             category: subscription.category,
+            categoryId: subscription.categoryId,
             isRecurring: true,
             recurringFrequency: subscription.frequency
         });
@@ -162,7 +166,7 @@ const createSubscription = async (userId, data) => {
     console.log('📦 createSubscription called with data:', JSON.stringify(data, null, 2));
 
     const {
-        name, description, amount, frequency, category,
+        name, description, amount, frequency, category, categoryId,
         startDate, cardId, autoGenerate, alertDaysBefore,
         icon, color, notes, endDate
     } = data;
@@ -194,6 +198,7 @@ const createSubscription = async (userId, data) => {
         amount,
         frequency: frequency || 'MONTHLY',
         category: category || 'OTHER',
+        categoryId: categoryId || null,
         startDate,
         nextBillingDate,
         endDate,
@@ -221,6 +226,7 @@ const createSubscription = async (userId, data) => {
                     amount: parseFloat(amount),
                     date: startDate || new Date().toISOString().split('T')[0],
                     category: category || 'OTHER',
+                    categoryId: categoryId || null,
                     isRecurring: true,
                     recurringFrequency: frequency,
                     status: 'PENDING'
@@ -235,6 +241,7 @@ const createSubscription = async (userId, data) => {
                     amount: parseFloat(amount),
                     date: startDate || new Date().toISOString().split('T')[0],
                     category: category || 'OTHER',
+                    categoryId: categoryId || null,
                     source: 'SUBSCRIPTION',
                     status: 'PENDING',
                     isRecurring: true,
@@ -280,7 +287,7 @@ const updateSubscription = async (userId, subscriptionId, data) => {
 
     // Campos atualizáveis
     const updateableFields = [
-        'name', 'description', 'amount', 'frequency', 'category',
+        'name', 'description', 'amount', 'frequency', 'category', 'categoryId',
         'cardId', 'autoGenerate', 'alertDaysBefore', 'icon', 'color',
         'notes', 'endDate', 'status'
     ];
@@ -381,7 +388,9 @@ const generatePendingTransactions = async (userId) => {
                 description: sub.name,
                 amount: sub.amount,
                 date: sub.nextBillingDate,
+                date: sub.nextBillingDate,
                 category: sub.category,
+                categoryId: sub.categoryId,
                 isRecurring: true,
                 recurringFrequency: sub.frequency,
                 status: 'PENDING'

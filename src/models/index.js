@@ -37,6 +37,9 @@ const Category = require('./category')(sequelize);
 const Notification = require('./notification')(sequelize);
 const GoalHistory = require('./goalHistory')(sequelize);
 
+// Importar models - Fase 5 (Orçamentos Inteligentes)
+const BudgetAllocation = require('./budgetAllocation')(sequelize);
+
 // ===========================================
 // ASSOCIAÇÕES - Fase 1
 // ===========================================
@@ -194,6 +197,22 @@ Category.hasMany(ManualTransaction, { foreignKey: 'categoryId', as: 'transaction
 ManualTransaction.belongsTo(Category, { foreignKey: 'categoryId', as: 'category' });
 
 // ===========================================
+// ASSOCIAÇÕES - Fase 5 (Orçamentos Inteligentes)
+// ===========================================
+
+// User -> BudgetAllocations
+User.hasMany(BudgetAllocation, { foreignKey: 'userId', as: 'budgetAllocations' });
+BudgetAllocation.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+// BudgetAllocation -> Categories (vínculo opcional)
+BudgetAllocation.hasMany(Category, { foreignKey: 'budgetAllocationId', as: 'categories' });
+Category.belongsTo(BudgetAllocation, { foreignKey: 'budgetAllocationId', as: 'budgetAllocation' });
+
+// BudgetAllocation -> Goals (vínculo opcional)
+BudgetAllocation.hasMany(Goal, { foreignKey: 'budgetAllocationId', as: 'goals' });
+Goal.belongsTo(BudgetAllocation, { foreignKey: 'budgetAllocationId', as: 'budgetAllocation' });
+
+// ===========================================
 // EXPORTAÇÃO
 // ===========================================
 
@@ -226,5 +245,7 @@ module.exports = {
     // Fase 4 - Transações Aprimoradas
     Category,
     Notification,
-    GoalHistory
+    GoalHistory,
+    // Fase 5 - Orçamentos Inteligentes
+    BudgetAllocation
 };

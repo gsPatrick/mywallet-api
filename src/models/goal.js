@@ -33,14 +33,30 @@ module.exports = (sequelize) => {
             type: DataTypes.TEXT,
             allowNull: true
         },
-        // Valor alvo
+        // Meta infinita (Caixinha) - sem valor alvo
+        isInfinite: {
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: false
+        },
+        // Vinculação opcional com orçamento mensal
+        budgetAllocationId: {
+            type: DataTypes.UUID,
+            allowNull: true, // Vínculo 100% OPCIONAL!
+            references: {
+                model: 'budget_allocations',
+                key: 'id'
+            }
+        },
+        // Valor alvo (pode ser null se isInfinite = true)
         targetAmount: {
             type: DataTypes.DECIMAL(15, 2),
-            allowNull: false,
+            allowNull: true, // Permitir null para metas infinitas
             validate: {
-                min: {
-                    args: [0.01],
-                    msg: 'Valor alvo deve ser maior que zero'
+                customValidator(value) {
+                    if (!this.isInfinite && (!value || parseFloat(value) <= 0)) {
+                        throw new Error('Valor alvo deve ser maior que zero para metas com valor fixo');
+                    }
                 }
             }
         },

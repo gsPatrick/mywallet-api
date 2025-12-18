@@ -82,6 +82,15 @@ module.exports = (sequelize) => {
             allowNull: false,
             defaultValue: 'OTHER'
         },
+        // Categoria dinâmica (vinculada a Category model)
+        categoryId: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            references: {
+                model: 'categories',
+                key: 'id'
+            }
+        },
         // Data de início
         startDate: {
             type: DataTypes.DATEONLY,

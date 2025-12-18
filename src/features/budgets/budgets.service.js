@@ -160,9 +160,202 @@ const updateBudget = async (userId, budgetId, data) => {
     return budget;
 };
 
+// ===========================================
+// BUDGET ALLOCATIONS (Orçamentos Inteligentes)
+// ===========================================
+
+const { BudgetAllocation, Category, Goal, CardTransaction } = require('../../models');
+
+const DEFAULT_ALLOCATIONS = [
+    { name: 'Gastos Essenciais', percentage: 50, color: '#ef4444', icon: 'home' },
+    { name: 'Gastos Pessoais', percentage: 20, color: '#f59e0b', icon: 'user' },
+    { name: 'Investimentos', percentage: 15, color: '#22c55e', icon: 'trending-up' },
+    { name: 'Reserva de Emergência', percentage: 10, color: '#3b82f6', icon: 'shield' },
+    { name: 'Lazer', percentage: 5, color: '#8b5cf6', icon: 'smile' }
+];
+
+/**
+ * Cria alocações padrão para um usuário
+ */
+const createDefaultAllocations = async (userId, month, year) => {
+    const created = await Promise.all(DEFAULT_ALLOCATIONS.map(async (alloc) => {
+        // Calcular valor baseado em algo? Por enquanto zero, usuário ajusta depois ou baseia na renda
+        // Vamos pegar a renda esperada do orçamento se existir
+        const budget = await Budget.findOne({ where: { userId, month, year } });
+        const income = budget ? parseFloat(budget.incomeExpected) : 0;
+        const amount = (income * alloc.percentage) / 100;
+
+        return BudgetAllocation.create({
+            userId,
+            name: alloc.name,
+            percentage: alloc.percentage,
+            amount,
+            color: alloc.color,
+            icon: alloc.icon,
+            month,
+            year
+        });
+    }));
+    return created;
+};
+
+/**
+ * Lista alocações do mês/ano específico
+ */
+const getAllocations = async (userId, month, year) => {
+    let allocations = await BudgetAllocation.findAll({
+        where: { userId, month, year },
+        order: [['percentage', 'DESC']]
+    });
+
+    // SE NÃO EXISTIREM ALOCAÇÕES, CRIAR AS PADRÃO
+    if (allocations.length === 0) {
+        // Verificar se é mês atual ou futuro para criar (evitar criar histórico antigo sem querer)
+        // Mas o usuário pode querer ver old... vamos criar sempre que pedir e estiver vazio?
+        // Sim, melhor garantir que tenha dados.
+        await createDefaultAllocations(userId, month, year);
+
+        // Recarregar
+        allocations = await BudgetAllocation.findAll({
+            where: { userId, month, year },
+            order: [['percentage', 'DESC']]
+        });
+    }
+
+    // Para cada alocação, calcular o gasto atual
+    const result = await Promise.all(allocations.map(async (alloc) => {
+        const spent = await alloc.getSpent({ ManualTransaction, CardTransaction, Category, Goal });
+        return {
+            id: alloc.id,
+            name: alloc.name,
+            percentage: parseFloat(alloc.percentage),
+            amount: parseFloat(alloc.amount),
+            color: alloc.color,
+            icon: alloc.icon,
+            spent,
+            remaining: parseFloat(alloc.amount) - spent,
+            progress: alloc.amount > 0 ? Math.min(100, (spent / parseFloat(alloc.amount)) * 100) : 0
+        };
+    }));
+
+    return result;
+};
+
+/**
+ * Obtém alocações do mês atual
+ */
+const getCurrentAllocations = async (userId) => {
+    const now = new Date();
+    return getAllocations(userId, now.getMonth() + 1, now.getFullYear());
+};
+
+/**
+ * Cria ou atualiza alocações para um mês/ano
+ */
+const createOrUpdateAllocations = async (userId, data) => {
+    const { income, allocations, month, year } = data;
+
+    // Usar mês/ano atual se não fornecido
+    const now = new Date();
+    const targetMonth = month || now.getMonth() + 1;
+    const targetYear = year || now.getFullYear();
+
+    // Validar que soma = 100%
+    const totalPercent = allocations.reduce((sum, a) => sum + (parseFloat(a.percent) || 0), 0);
+    if (Math.abs(totalPercent - 100) > 0.01) {
+        throw new AppError('A soma das porcentagens deve ser 100%', 400, 'INVALID_PERCENTAGES');
+    }
+
+    // Deletar alocações antigas do mês
+    await BudgetAllocation.destroy({
+        where: { userId, month: targetMonth, year: targetYear }
+    });
+
+    // Criar novas alocações
+    const created = await Promise.all(allocations.map(async (alloc) => {
+        const percentage = parseFloat(alloc.percent) || 0;
+        const amount = (income * percentage) / 100;
+
+        return BudgetAllocation.create({
+            userId,
+            name: alloc.name,
+            percentage,
+            amount,
+            color: alloc.color || '#3b82f6',
+            icon: alloc.icon || 'dollar',
+            month: targetMonth,
+            year: targetYear
+        });
+    }));
+
+    return {
+        month: targetMonth,
+        year: targetYear,
+        allocations: created.map(a => ({
+            id: a.id,
+            name: a.name,
+            percentage: parseFloat(a.percentage),
+            amount: parseFloat(a.amount),
+            color: a.color,
+            icon: a.icon
+        }))
+    };
+};
+
+/**
+ * Verifica saúde do orçamento para uma categoria
+ * Retorna se a transação pode ser feita ou se vai estourar
+ */
+const checkBudgetHealth = async (userId, categoryId, amount) => {
+    // Buscar categoria
+    const category = await Category.findByPk(categoryId);
+
+    // Se não tem budgetAllocationId, permitir sempre
+    if (!category?.budgetAllocationId) {
+        return { allowed: true, linked: false };
+    }
+
+    // Buscar alocação
+    const allocation = await BudgetAllocation.findByPk(category.budgetAllocationId);
+    if (!allocation) {
+        return { allowed: true, linked: false };
+    }
+
+    // Calcular gasto atual
+    const spent = await allocation.getSpent({ ManualTransaction, CardTransaction, Category, Goal });
+    const newTotal = spent + parseFloat(amount);
+    const limit = parseFloat(allocation.amount);
+
+    // Verificar se estoura
+    if (newTotal > limit) {
+        return {
+            allowed: false,
+            linked: true,
+            warning: 'BUDGET_EXCEEDED',
+            allocation: {
+                id: allocation.id,
+                name: allocation.name,
+                limit,
+                color: allocation.color
+            },
+            spent,
+            newTotal,
+            overAmount: newTotal - limit
+        };
+    }
+
+    return { allowed: true, linked: true };
+};
+
 module.exports = {
     listBudgets,
     getCurrentBudget,
     createOrUpdateBudget,
-    updateBudget
+    updateBudget,
+    // Budget Allocations
+    getAllocations,
+    getCurrentAllocations,
+    createOrUpdateAllocations,
+    checkBudgetHealth
 };
+

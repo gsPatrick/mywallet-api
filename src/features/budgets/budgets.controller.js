@@ -54,4 +54,62 @@ const updateBudget = async (req, res, next) => {
     }
 };
 
-module.exports = { listBudgets, getCurrentBudget, createBudget, updateBudget };
+// ===========================================
+// BUDGET ALLOCATIONS
+// ===========================================
+
+/**
+ * Obtém alocações do mês atual
+ */
+const getCurrentAllocations = async (req, res, next) => {
+    try {
+        const allocations = await budgetsService.getCurrentAllocations(req.userId);
+        res.json({ data: { allocations } });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Obtém alocações de um mês/ano específico
+ */
+const getAllocations = async (req, res, next) => {
+    try {
+        const { month, year } = req.query;
+        const allocations = await budgetsService.getAllocations(
+            req.userId,
+            parseInt(month),
+            parseInt(year)
+        );
+        res.json({ data: { allocations } });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Cria ou atualiza alocações
+ */
+const createAllocations = async (req, res, next) => {
+    try {
+        const result = await budgetsService.createOrUpdateAllocations(req.userId, req.body);
+        res.status(201).json({
+            message: 'Alocações salvas com sucesso',
+            data: result
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+module.exports = {
+    listBudgets,
+    getCurrentBudget,
+    createBudget,
+    updateBudget,
+    // Budget Allocations
+    getCurrentAllocations,
+    getAllocations,
+    createAllocations
+};
+

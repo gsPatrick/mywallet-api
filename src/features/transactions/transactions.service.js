@@ -10,10 +10,13 @@ const {
     Subscription,
     TransactionMetadata,
     AuditLog,
-    CreditCard
+    CreditCard,
+    UserProfile,
+    Category
 } = require('../../models');
 const { AppError } = require('../../middlewares/errorHandler');
 const { Op } = require('sequelize');
+const budgetsService = require('../budgets/budgets.service');
 
 // ===========================================
 // TRANSAÇÕES MANUAIS (EDITÁVEIS)
@@ -25,18 +28,64 @@ const { Op } = require('sequelize');
 const createManualTransaction = async (userId, data) => {
     const {
         type, source, description, amount, date, category, tags, notes,
-        isRecurring, frequency, recurringDay, status, cardId
+        isRecurring, frequency, recurringDay, status, cardId, categoryId,
+        forceOverbudget
     } = data;
 
     console.log('📝 [CREATE MANUAL TX] Received data:', JSON.stringify(data, null, 2));
+
+    // ========================================
+    // VERIFICAÇÃO DE ORÇAMENTO (para despesas)
+    // ========================================
+    if (type === 'EXPENSE' && categoryId) {
+        const budgetCheck = await budgetsService.checkBudgetHealth(userId, categoryId, amount);
+
+        console.log('💰 [BUDGET CHECK] Result:', JSON.stringify(budgetCheck, null, 2));
+
+        if (!budgetCheck.allowed) {
+            if (!forceOverbudget) {
+                // Retornar erro com detalhes para o frontend abrir o modal
+                const error = new AppError(
+                    `Isso vai estourar o orçamento "${budgetCheck.allocation.name}"`,
+                    400,
+                    'BUDGET_EXCEEDED'
+                );
+                error.budgetData = budgetCheck;
+                throw error;
+            }
+
+            // Usuário confirmou - zerar streak
+            console.log('⚠️ [BUDGET CHECK] User forced overbudget, resetting streak...');
+            await UserProfile.update(
+                { streak: 0 },
+                { where: { userId } }
+            );
+
+            // Log de auditoria
+            await AuditLog.log({
+                userId,
+                action: 'STREAK_RESET',
+                resource: 'BUDGET',
+                details: {
+                    reason: 'Orçamento estourado',
+                    allocation: budgetCheck.allocation.name,
+                    limit: budgetCheck.allocation.limit,
+                    newTotal: budgetCheck.newTotal
+                }
+            });
+        }
+    }
 
     // Se tem cardId, criar como CardTransaction
     if (cardId) {
         console.log('💳 [CREATE MANUAL TX] Creating CardTransaction for cardId:', cardId);
 
-        // Map status: ManualTransaction uses COMPLETED, CardTransaction uses PAID
-        let cardStatus = status || 'PENDING';
-        if (cardStatus === 'COMPLETED') cardStatus = 'PAID';
+        // For recurring transactions, default to PENDING to show as "Agendado"
+        // Otherwise map COMPLETED to PAID
+        let cardStatus = 'PENDING';
+        if (!isRecurring) {
+            cardStatus = status === 'COMPLETED' ? 'PAID' : (status || 'PENDING');
+        }
 
         const cardTransaction = await CardTransaction.create({
             userId,
