@@ -145,6 +145,7 @@ const listSubscriptions = async (userId, filters = {}) => {
         alertDaysBefore: s.alertDaysBefore,
         icon: s.icon,
         color: s.color,
+        cardId: s.cardId, // Direct cardId for filtering
         card: s.card ? {
             id: s.card.id,
             name: s.card.name,
