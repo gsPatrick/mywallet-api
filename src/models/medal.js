@@ -26,7 +26,7 @@ module.exports = (sequelize) => {
             allowNull: false
         },
         category: {
-            type: DataTypes.ENUM('patrimony', 'investment', 'saving', 'consistency', 'social', 'milestone', 'special'),
+            type: DataTypes.ENUM('patrimony', 'investment', 'saving', 'consistency', 'social', 'milestone', 'special', 'level'),
             allowNull: false
         },
         icon: {
@@ -34,7 +34,7 @@ module.exports = (sequelize) => {
             defaultValue: 'trophy'
         },
         rarity: {
-            type: DataTypes.ENUM('bronze', 'silver', 'gold', 'platinum', 'diamond', 'ruby', 'emerald'),
+            type: DataTypes.ENUM('bronze', 'silver', 'gold', 'platinum', 'diamond', 'ruby', 'emerald', 'legendary'),
             defaultValue: 'bronze'
         },
         requirement: {
