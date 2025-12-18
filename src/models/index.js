@@ -137,6 +137,10 @@ Subscription.belongsTo(CreditCard, { foreignKey: 'cardId', as: 'card' });
 Subscription.hasMany(CardTransaction, { foreignKey: 'subscriptionId', as: 'transactions' });
 CardTransaction.belongsTo(Subscription, { foreignKey: 'subscriptionId', as: 'subscription' });
 
+// Subscription -> ManualTransactions
+Subscription.hasMany(ManualTransaction, { foreignKey: 'subscriptionId', as: 'manualTransactions' });
+ManualTransaction.belongsTo(Subscription, { foreignKey: 'subscriptionId', as: 'subscription' });
+
 // User -> Dividends
 User.hasMany(Dividend, { foreignKey: 'userId', as: 'dividends' });
 Dividend.belongsTo(User, { foreignKey: 'userId', as: 'user' });

@@ -158,21 +158,31 @@ const listSubscriptions = async (userId, filters = {}) => {
  * Cria uma nova assinatura
  */
 const createSubscription = async (userId, data) => {
+    console.log('📦 createSubscription called with data:', JSON.stringify(data, null, 2));
+
     const {
         name, description, amount, frequency, category,
         startDate, cardId, autoGenerate, alertDaysBefore,
         icon, color, notes, endDate
     } = data;
 
+    console.log('🔍 Extracted cardId:', cardId, '| Type:', typeof cardId);
+
     // Calcular próxima cobrança
     const nextBillingDate = calculateNextBillingDate(startDate, frequency);
+    console.log('📅 Calculated nextBillingDate:', nextBillingDate);
 
     // Verificar se cartão pertence ao usuário
     if (cardId) {
+        console.log('🔎 Checking if card exists for userId:', userId, 'cardId:', cardId);
         const card = await CreditCard.findOne({ where: { id: cardId, userId } });
         if (!card) {
+            console.log('❌ Card NOT FOUND!');
             throw new AppError('Cartão não encontrado', 404, 'CARD_NOT_FOUND');
         }
+        console.log('✅ Card found:', card.name);
+    } else {
+        console.log('⚠️ No cardId provided, subscription will not be linked to a card');
     }
 
     const subscription = await Subscription.create({
@@ -194,11 +204,15 @@ const createSubscription = async (userId, data) => {
         status: 'ACTIVE'
     });
 
+    console.log('✅ Subscription created:', subscription.id, '| cardId saved:', subscription.cardId);
+
     // Auto-criar primeira transação recorrente
     if (autoGenerate !== false) {
+        console.log('🔄 autoGenerate is true, will create transaction...');
         try {
             if (cardId) {
-                await CardTransaction.create({
+                console.log('💳 Creating CardTransaction for cardId:', cardId);
+                const cardTx = await CardTransaction.create({
                     userId,
                     cardId,
                     subscriptionId: subscription.id,
@@ -210,8 +224,10 @@ const createSubscription = async (userId, data) => {
                     recurringFrequency: frequency,
                     status: 'PENDING'
                 });
+                console.log('✅ CardTransaction created:', cardTx.id);
             } else {
-                await ManualTransaction.create({
+                console.log('📋 Creating ManualTransaction (no cardId)');
+                const manualTx = await ManualTransaction.create({
                     userId,
                     type: 'EXPENSE',
                     description: name,
@@ -225,11 +241,14 @@ const createSubscription = async (userId, data) => {
                     imageUrl: icon, // Icon from subscription
                     notes: `Assinatura: ${name}`
                 });
+                console.log('✅ ManualTransaction created:', manualTx.id);
             }
         } catch (txError) {
-            console.error('Error creating initial subscription transaction:', txError);
+            console.error('❌ Error creating initial subscription transaction:', txError);
             // Don't fail subscription creation if transaction fails
         }
+    } else {
+        console.log('⏭️ autoGenerate is false, skipping transaction creation');
     }
 
     // Log de auditoria
