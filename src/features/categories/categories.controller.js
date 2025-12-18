@@ -92,7 +92,7 @@ const list = async (req, res) => {
  */
 const create = async (req, res) => {
     try {
-        const { name, type, icon, color } = req.body;
+        const { name, type, icon, color, budgetAllocationId } = req.body;
 
         if (!name || !type) {
             return res.status(400).json({
@@ -123,7 +123,11 @@ const create = async (req, res) => {
             type,
             icon: icon || 'FiFolder',
             color: color || '#6366f1',
-            isDefault: false
+            type,
+            icon: icon || 'FiFolder',
+            color: color || '#6366f1',
+            isDefault: false,
+            budgetAllocationId: budgetAllocationId || null
         });
 
         res.status(201).json({
@@ -146,7 +150,7 @@ const create = async (req, res) => {
 const update = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, icon, color } = req.body;
+        const { name, icon, color, budgetAllocationId } = req.body;
 
         const category = await Category.findOne({
             where: {
@@ -166,6 +170,7 @@ const update = async (req, res) => {
         if (name) category.name = name.trim();
         if (icon) category.icon = icon;
         if (color) category.color = color;
+        if (budgetAllocationId !== undefined) category.budgetAllocationId = budgetAllocationId;
 
         await category.save();
 
