@@ -281,15 +281,15 @@ const listTransactions = async (userId, filters = {}) => {
     // Buscar metadata para todas as transações
     const ofIds = openFinanceTransactions.map(t => t.id);
     const manualIds = manualTransactions.map(t => t.id);
-    const cardIds = cardTransactions.map(t => t.id);
 
+    // Note: CardTransactions don't use TransactionMetadata (enum doesn't support 'CARD')
+    // They store category directly in the CardTransaction model
     const allMetadata = await TransactionMetadata.findAll({
         where: {
             userId,
             [Op.or]: [
                 { transactionType: 'OPEN_FINANCE', transactionId: { [Op.in]: ofIds } },
-                { transactionType: 'MANUAL', transactionId: { [Op.in]: manualIds } },
-                { transactionType: 'CARD', transactionId: { [Op.in]: cardIds } }
+                { transactionType: 'MANUAL', transactionId: { [Op.in]: manualIds } }
             ]
         }
     });
@@ -359,10 +359,14 @@ const listTransactions = async (userId, filters = {}) => {
         });
 
     // Formatar transações de cartão
+    // Note: CardTransactions don't use metadata, they store category/notes directly
     const formattedCard = cardTransactions
-        .filter(tx => filterByCategory(tx, 'CARD'))
+        .filter(tx => {
+            // Filter by category if specified - use tx.category directly
+            if (!category) return true;
+            return tx.category === category;
+        })
         .map(tx => {
-            const meta = metadataMap[`CARD_${tx.id}`];
             return {
                 id: tx.id,
                 source: 'CARD',
@@ -371,19 +375,20 @@ const listTransactions = async (userId, filters = {}) => {
                 description: tx.description,
                 amount: parseFloat(tx.amount),
                 date: tx.date,
-                category: meta?.category || tx.category || null,
-                tags: meta?.tags || [],
-                notes: meta?.notes || null,
-                isIgnored: meta?.isIgnored || false,
-                isImportant: meta?.isImportant || false,
-                imageUrl: null, // Card transactions don't have direct image url column usually
+                category: tx.category || null,
+                tags: tx.tags || [],
+                notes: tx.notes || null,
+                isIgnored: false,
+                isImportant: false,
+                imageUrl: tx.subscription?.icon || null, // Use subscription icon if available
                 subscriptionId: tx.subscriptionId,
                 subscription: tx.subscription ? { icon: tx.subscription.icon } : null,
                 isRecurring: tx.isRecurring,
                 recurringFrequency: tx.recurringFrequency,
-                editable: false, // Generally card transactions from sub are not fully editable here? or maybe they are metadata editable
+                editable: true, // Card transactions are editable
                 createdAt: tx.createdAt,
-                cardId: tx.cardId
+                cardId: tx.cardId,
+                status: tx.status
             };
         });
 
