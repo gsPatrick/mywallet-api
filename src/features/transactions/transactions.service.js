@@ -122,8 +122,10 @@ const createManualTransaction = async (userId, data) => {
         date,
         status: status || 'COMPLETED',
         isRecurring: isRecurring || false,
+        isRecurring: isRecurring || false,
         recurringFrequency: frequency || null,
-        recurringDay: recurringDay || null
+        recurringDay: recurringDay || null,
+        categoryId: categoryId || null // Ensure categoryId is saved for budget tracking
     });
 
     console.log('✅ [CREATE MANUAL TX] ManualTransaction created:', transaction.id);
@@ -172,36 +174,34 @@ const updateManualTransaction = async (userId, transactionId, data) => {
     const previousData = transaction.toJSON();
 
     // Atualizar campos permitidos
-    const allowedFields = ['type', 'source', 'description', 'amount', 'date'];
+    const allowedFields = ['type', 'source', 'description', 'amount', 'date', 'categoryId', 'status', 'isRecurring', 'recurringFrequency', 'recurringDay'];
     for (const field of allowedFields) {
-        if (data[field] !== undefined) {
-            transaction[field] = data[field];
-        }
+        transaction[field] = data[field];
     }
+}
+await transaction.save();
 
-    await transaction.save();
-
-    // Atualizar metadata
-    if (data.category !== undefined || data.tags !== undefined || data.notes !== undefined) {
-        await updateTransactionMetadata(userId, 'MANUAL', transactionId, {
-            category: data.category,
-            tags: data.tags,
-            notes: data.notes
-        });
-    }
-
-    // Log de auditoria
-    await AuditLog.log({
-        userId,
-        action: AuditLog.ACTIONS.TRANSACTION_UPDATE,
-        resource: 'MANUAL_TRANSACTION',
-        resourceId: transaction.id,
-        previousData,
-        newData: data
+// Atualizar metadata
+if (data.category !== undefined || data.tags !== undefined || data.notes !== undefined) {
+    await updateTransactionMetadata(userId, 'MANUAL', transactionId, {
+        category: data.category,
+        tags: data.tags,
+        notes: data.notes
     });
+}
 
-    return transaction;
-};
+// Log de auditoria
+await AuditLog.log({
+    userId,
+    action: AuditLog.ACTIONS.TRANSACTION_UPDATE,
+    resource: 'MANUAL_TRANSACTION',
+    resourceId: transaction.id,
+    previousData,
+    newData: data
+});
+
+return transaction;
+    };
 
 /**
  * Exclui uma transação manual
