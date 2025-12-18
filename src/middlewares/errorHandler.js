@@ -96,9 +96,11 @@ const errorHandler = (error, req, res, next) => {
 
     // Erro operacional (conhecido)
     if (error.isOperational) {
+        // Return all enumerable properties of the error object (including budgetData)
         return res.status(error.statusCode).json({
             error: error.message,
-            code: error.code
+            code: error.code,
+            ...error
         });
     }
 
