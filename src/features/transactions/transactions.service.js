@@ -6,8 +6,11 @@
 const {
     OpenFinanceTransaction,
     ManualTransaction,
+    CardTransaction,
+    Subscription,
     TransactionMetadata,
-    AuditLog
+    AuditLog,
+    CreditCard
 } = require('../../models');
 const { AppError } = require('../../middlewares/errorHandler');
 const { Op } = require('sequelize');
@@ -241,16 +244,52 @@ const listTransactions = async (userId, filters = {}) => {
         offset
     });
 
+    // Buscar transações de cartão
+    const cardWhere = { userId };
+    if (Object.keys(dateFilter).length) cardWhere.date = dateFilter;
+    if (Object.keys(amountFilter).length) cardWhere.amount = amountFilter;
+    // Card transactions are usually EXPENSE
+    if (type && type !== 'EXPENSE') {
+        // If filtering for INCOME or TRANSFER, CardTransactions shouldn't appear unless we treat refunds as INCOME?
+        // For now, assume CardTransactions are EXPENSE only or check status.
+        // If type is EXPENSE or undefined, we include.
+    }
+
+    // Simplification: Fetch if type is undefined or EXPENSE
+    let cardTransactions = [];
+    if (!type || type === 'EXPENSE') {
+        cardTransactions = await CardTransaction.findAll({
+            where: cardWhere,
+            include: [
+                {
+                    model: Subscription,
+                    as: 'subscription',
+                    attributes: ['id', 'name', 'icon']
+                },
+                {
+                    model: CreditCard,
+                    as: 'card',
+                    attributes: ['id', 'name', 'lastFourDigits']
+                }
+            ],
+            order: [['date', 'DESC']],
+            limit,
+            offset
+        });
+    }
+
     // Buscar metadata para todas as transações
     const ofIds = openFinanceTransactions.map(t => t.id);
     const manualIds = manualTransactions.map(t => t.id);
+    const cardIds = cardTransactions.map(t => t.id);
 
     const allMetadata = await TransactionMetadata.findAll({
         where: {
             userId,
             [Op.or]: [
                 { transactionType: 'OPEN_FINANCE', transactionId: { [Op.in]: ofIds } },
-                { transactionType: 'MANUAL', transactionId: { [Op.in]: manualIds } }
+                { transactionType: 'MANUAL', transactionId: { [Op.in]: manualIds } },
+                { transactionType: 'CARD', transactionId: { [Op.in]: cardIds } }
             ]
         }
     });
@@ -304,7 +343,7 @@ const listTransactions = async (userId, filters = {}) => {
                 description: tx.description,
                 amount: parseFloat(tx.amount),
                 date: tx.date,
-                category: meta?.category || null,
+                category: meta?.category || tx.category || null,
                 tags: meta?.tags || [],
                 notes: meta?.notes || null,
                 isIgnored: meta?.isIgnored || false,
@@ -319,8 +358,37 @@ const listTransactions = async (userId, filters = {}) => {
             };
         });
 
+    // Formatar transações de cartão
+    const formattedCard = cardTransactions
+        .filter(tx => filterByCategory(tx, 'CARD'))
+        .map(tx => {
+            const meta = metadataMap[`CARD_${tx.id}`];
+            return {
+                id: tx.id,
+                source: 'CARD',
+                sourceType: tx.card ? `${tx.card.name} (${tx.card.lastFourDigits})` : 'Credit Card',
+                type: 'EXPENSE',
+                description: tx.description,
+                amount: parseFloat(tx.amount),
+                date: tx.date,
+                category: meta?.category || tx.category || null,
+                tags: meta?.tags || [],
+                notes: meta?.notes || null,
+                isIgnored: meta?.isIgnored || false,
+                isImportant: meta?.isImportant || false,
+                imageUrl: null, // Card transactions don't have direct image url column usually
+                subscriptionId: tx.subscriptionId,
+                subscription: tx.subscription ? { icon: tx.subscription.icon } : null,
+                isRecurring: tx.isRecurring,
+                recurringFrequency: tx.recurringFrequency,
+                editable: false, // Generally card transactions from sub are not fully editable here? or maybe they are metadata editable
+                createdAt: tx.createdAt,
+                cardId: tx.cardId
+            };
+        });
+
     // Combinar e ordenar por data
-    const allTransactions = [...formattedOF, ...formattedManual]
+    const allTransactions = [...formattedOF, ...formattedManual, ...formattedCard]
         .sort((a, b) => new Date(b.date) - new Date(a.date));
 
     return {
@@ -356,6 +424,10 @@ const getTransaction = async (userId, transactionId, transactionType) => {
 
     if (transactionType === 'OPEN_FINANCE') {
         transaction = await OpenFinanceTransaction.findOne({
+            where: { id: transactionId, userId }
+        });
+    } else if (transactionType === 'CARD') {
+        transaction = await CardTransaction.findOne({
             where: { id: transactionId, userId }
         });
     } else {
