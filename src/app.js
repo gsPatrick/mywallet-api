@@ -41,7 +41,7 @@ const startServer = async () => {
 
     if (process.env.NODE_ENV === 'development') {
       // Cuidado com force: true, ele apaga os dados! Use alter: true ou nada se já tiver dados
-      await sequelize.sync({ force: false });
+      await sequelize.sync({ force: true });
       logger.info('✅ Models sincronizados');
     }
 
