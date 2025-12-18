@@ -183,7 +183,7 @@ const updateBudget = async (userId, budgetId, data) => {
 // BUDGET ALLOCATIONS (Orçamentos Inteligentes)
 // ===========================================
 
-const { BudgetAllocation, Category, Goal, CardTransaction } = require('../../models');
+const { BudgetAllocation, Category, Goal, CardTransaction, GoalHistory } = require('../../models');
 
 const DEFAULT_ALLOCATIONS = [
     { name: 'Gastos Essenciais', percentage: 50, color: '#ef4444', icon: 'home' },
@@ -244,7 +244,7 @@ const getAllocations = async (userId, month, year) => {
 
     // Para cada alocação, calcular o gasto atual
     const result = await Promise.all(allocations.map(async (alloc) => {
-        const spent = await alloc.getSpent({ ManualTransaction, CardTransaction, Category, Goal });
+        const spent = await alloc.getSpent({ ManualTransaction, CardTransaction, Category, Goal, GoalHistory });
         return {
             id: alloc.id,
             name: alloc.name,
@@ -342,7 +342,7 @@ const checkBudgetHealth = async (userId, categoryId, amount) => {
     }
 
     // Calcular gasto atual
-    const spent = await allocation.getSpent({ ManualTransaction, CardTransaction, Category, Goal });
+    const spent = await allocation.getSpent({ ManualTransaction, CardTransaction, Category, Goal, GoalHistory });
     const newTotal = spent + parseFloat(amount);
     const limit = parseFloat(allocation.amount);
 
