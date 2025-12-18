@@ -262,15 +262,22 @@ const checkAndUnlockMedals = async (userId) => {
             isComplete = user?.email === 'patrick@gmail.com' || user?.email === 'patrick123@gmail.com';
             progress = isComplete ? 100 : 0;
         } else if (req === 'isFirstUser') {
-            // Check if user is the first registered
-            const firstUser = await User.findOne({ order: [['createdAt', 'ASC']] });
-            isComplete = firstUser?.id === userId;
+            // Check if user is the first registered OR is the VIP (leonardo@gmail.com)
+            const user = await User.findByPk(userId);
+            const isLeonardoVIP = user?.email?.toLowerCase() === 'leonardo@gmail.com';
+            if (isLeonardoVIP) {
+                isComplete = true;
+            } else {
+                const firstUser = await User.findOne({ order: [['createdAt', 'ASC']] });
+                isComplete = firstUser?.id === userId;
+            }
             progress = isComplete ? 100 : 0;
         } else if (req === 'isBetaTester') {
-            // Beta testers: registered before 2025-02-01
+            // Beta testers: registered before 2025-02-01 OR is VIP (leonardo@gmail.com)
             const user = await User.findByPk(userId);
+            const isLeonardoVIP = user?.email?.toLowerCase() === 'leonardo@gmail.com';
             const betaEndDate = new Date('2025-02-01');
-            isComplete = user && new Date(user.createdAt) < betaEndDate;
+            isComplete = isLeonardoVIP || (user && new Date(user.createdAt) < betaEndDate);
             progress = isComplete ? 100 : 0;
         } else if (req.includes('has')) {
             // Check for specific asset types

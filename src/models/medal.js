@@ -34,7 +34,7 @@ module.exports = (sequelize) => {
             defaultValue: 'trophy'
         },
         rarity: {
-            type: DataTypes.ENUM('bronze', 'silver', 'gold', 'platinum', 'diamond', 'ruby'),
+            type: DataTypes.ENUM('bronze', 'silver', 'gold', 'platinum', 'diamond', 'ruby', 'emerald'),
             defaultValue: 'bronze'
         },
         requirement: {
