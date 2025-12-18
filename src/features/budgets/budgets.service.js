@@ -48,7 +48,26 @@ const getCurrentBudget = async (userId) => {
     });
 
     if (!budget) {
-        return null;
+        // Fallback: Verificar se existem alocações, se sim, retornar um objeto "virtual"
+        // para que o frontend não mostre "Sem orçamento"
+        const existingAllocations = await BudgetAllocation.findOne({ where: { userId, month, year } });
+
+        if (!existingAllocations) {
+            return null;
+        }
+
+        // Criar um budget virtual provisório
+        budget = {
+            id: 'virtual',
+            month,
+            year,
+            incomeExpected: 0,
+            investPercent: 30,
+            emergencyPercent: 10,
+            getRecommendedInvestment: () => 0,
+            getRecommendedEmergencyFund: () => 0,
+            getSpendingLimit: () => 0
+        };
     }
 
     // Buscar gastos reais do mês
@@ -182,7 +201,8 @@ const createDefaultAllocations = async (userId, month, year) => {
         // Calcular valor baseado em algo? Por enquanto zero, usuário ajusta depois ou baseia na renda
         // Vamos pegar a renda esperada do orçamento se existir
         const budget = await Budget.findOne({ where: { userId, month, year } });
-        const income = budget ? parseFloat(budget.incomeExpected) : 0;
+        // Use 3000 as fallback income if 0, so bars are not empty by default
+        const income = budget && parseFloat(budget.incomeExpected) > 0 ? parseFloat(budget.incomeExpected) : 3000;
         const amount = (income * alloc.percentage) / 100;
 
         return BudgetAllocation.create({
