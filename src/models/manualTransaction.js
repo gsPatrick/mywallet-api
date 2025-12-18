@@ -43,9 +43,23 @@ module.exports = (sequelize) => {
         },
         // Fonte/método de pagamento
         source: {
-            type: DataTypes.ENUM('PIX', 'CASH', 'WIRE_TRANSFER', 'BOLETO', 'SALARY', 'OTHER'),
+            type: DataTypes.ENUM('PIX', 'CASH', 'WIRE_TRANSFER', 'BOLETO', 'SALARY', 'SUBSCRIPTION', 'OTHER'),
             allowNull: false,
             defaultValue: 'OTHER'
+        },
+        // Link para assinatura (se gerada por subscription)
+        subscriptionId: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            references: {
+                model: 'subscriptions',
+                key: 'id'
+            }
+        },
+        // Imagem/Ícone do produto (opcional)
+        imageUrl: {
+            type: DataTypes.STRING(500),
+            allowNull: true
         },
         // Categoria
         categoryId: {
