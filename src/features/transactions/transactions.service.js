@@ -231,6 +231,11 @@ const listTransactions = async (userId, filters = {}) => {
 
     const manualTransactions = await ManualTransaction.findAll({
         where: manualWhere,
+        include: [{
+            model: Subscription,
+            as: 'subscription',
+            attributes: ['id', 'name', 'icon']
+        }],
         order: [['date', 'DESC']],
         limit,
         offset
@@ -304,6 +309,11 @@ const listTransactions = async (userId, filters = {}) => {
                 notes: meta?.notes || null,
                 isIgnored: meta?.isIgnored || false,
                 isImportant: meta?.isImportant || false,
+                imageUrl: tx.imageUrl,
+                subscriptionId: tx.subscriptionId,
+                subscription: tx.subscription ? { icon: tx.subscription.icon } : null,
+                isRecurring: tx.isRecurring,
+                recurringFrequency: tx.recurringFrequency,
                 editable: true, // Transações manuais são editáveis
                 createdAt: tx.createdAt
             };

@@ -199,7 +199,8 @@ const listCardTransactions = async (userId, cardId, filters = {}) => {
             status: t.status,
             subscription: t.subscription ? {
                 id: t.subscription.id,
-                name: t.subscription.name
+                name: t.subscription.name,
+                icon: t.subscription.icon
             } : null,
             tags: t.tags
         }))
@@ -392,6 +393,11 @@ const getCardStatement = async (userId, cardId, month, year) => {
                 ]
             }
         },
+        include: [{
+            model: Subscription,
+            as: 'subscription',
+            attributes: ['id', 'name', 'icon']
+        }],
         order: [['date', 'ASC']]
     });
 
@@ -431,7 +437,12 @@ const getCardStatement = async (userId, cardId, month, year) => {
             amount: parseFloat(t.amount),
             date: t.date,
             category: t.category,
-            isInstallment: t.isInstallment
+            date: t.date,
+            category: t.category,
+            isInstallment: t.isInstallment,
+            subscription: t.subscription ? {
+                icon: t.subscription.icon
+            } : null
         }))
     };
 };

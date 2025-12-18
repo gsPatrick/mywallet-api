@@ -197,20 +197,35 @@ const createSubscription = async (userId, data) => {
     // Auto-criar primeira transação recorrente
     if (autoGenerate !== false) {
         try {
-            await ManualTransaction.create({
-                userId,
-                type: 'EXPENSE',
-                description: name,
-                amount: parseFloat(amount),
-                date: startDate || new Date().toISOString().split('T')[0],
-                category: category || 'OTHER',
-                source: 'SUBSCRIPTION',
-                status: 'PENDING',
-                isRecurring: true,
-                subscriptionId: subscription.id,
-                imageUrl: icon, // Icon from subscription
-                notes: `Assinatura: ${name}`
-            });
+            if (cardId) {
+                await CardTransaction.create({
+                    userId,
+                    cardId,
+                    subscriptionId: subscription.id,
+                    description: name,
+                    amount: parseFloat(amount),
+                    date: startDate || new Date().toISOString().split('T')[0],
+                    category: category || 'OTHER',
+                    isRecurring: true,
+                    recurringFrequency: frequency,
+                    status: 'PENDING'
+                });
+            } else {
+                await ManualTransaction.create({
+                    userId,
+                    type: 'EXPENSE',
+                    description: name,
+                    amount: parseFloat(amount),
+                    date: startDate || new Date().toISOString().split('T')[0],
+                    category: category || 'OTHER',
+                    source: 'SUBSCRIPTION',
+                    status: 'PENDING',
+                    isRecurring: true,
+                    subscriptionId: subscription.id,
+                    imageUrl: icon, // Icon from subscription
+                    notes: `Assinatura: ${name}`
+                });
+            }
         } catch (txError) {
             console.error('Error creating initial subscription transaction:', txError);
             // Don't fail subscription creation if transaction fails
