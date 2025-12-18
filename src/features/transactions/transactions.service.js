@@ -23,17 +23,57 @@ const { Op } = require('sequelize');
  * Cria uma transação manual
  */
 const createManualTransaction = async (userId, data) => {
-    const { type, source, description, amount, date, category, tags, notes } = data;
+    const {
+        type, source, description, amount, date, category, tags, notes,
+        isRecurring, frequency, recurringDay, status, cardId
+    } = data;
 
-    // Criar transação
+    console.log('📝 [CREATE MANUAL TX] Received data:', JSON.stringify(data, null, 2));
+
+    // Se tem cardId, criar como CardTransaction
+    if (cardId) {
+        console.log('💳 [CREATE MANUAL TX] Creating CardTransaction for cardId:', cardId);
+
+        const cardTransaction = await CardTransaction.create({
+            userId,
+            cardId,
+            description,
+            amount,
+            date,
+            category: category || 'OTHER',
+            isRecurring: isRecurring || false,
+            recurringFrequency: frequency || null,
+            status: status || 'PENDING'
+        });
+
+        console.log('✅ [CREATE MANUAL TX] CardTransaction created:', cardTransaction.id);
+
+        return {
+            ...cardTransaction.toJSON(),
+            source: 'CARD',
+            category,
+            tags,
+            notes
+        };
+    }
+
+    // Criar transação manual normal
+    console.log('📋 [CREATE MANUAL TX] Creating ManualTransaction');
+
     const transaction = await ManualTransaction.create({
         userId,
         type,
         source: source || 'OTHER',
         description,
         amount,
-        date
+        date,
+        status: status || 'COMPLETED',
+        isRecurring: isRecurring || false,
+        recurringFrequency: frequency || null,
+        recurringDay: recurringDay || null
     });
+
+    console.log('✅ [CREATE MANUAL TX] ManualTransaction created:', transaction.id);
 
     // Criar metadata se categoria/tags fornecidos
     if (category || tags || notes) {
@@ -53,7 +93,7 @@ const createManualTransaction = async (userId, data) => {
         action: AuditLog.ACTIONS.TRANSACTION_CREATE,
         resource: 'MANUAL_TRANSACTION',
         resourceId: transaction.id,
-        newData: { type, source, amount, description }
+        newData: { type, source, amount, description, isRecurring, status }
     });
 
     return {
@@ -353,6 +393,7 @@ const listTransactions = async (userId, filters = {}) => {
                 subscription: tx.subscription ? { icon: tx.subscription.icon } : null,
                 isRecurring: tx.isRecurring,
                 recurringFrequency: tx.recurringFrequency,
+                status: tx.status, // PENDING, COMPLETED, CANCELLED
                 editable: true, // Transações manuais são editáveis
                 createdAt: tx.createdAt
             };
