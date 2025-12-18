@@ -6,9 +6,14 @@
 const Groq = require('groq-sdk');
 const { logger } = require('../../config/logger');
 
-const groq = new Groq({
-    apiKey: process.env.GROQ_API_KEY
-});
+// Inicialização segura do Groq
+let groq;
+try {
+    const apiKey = process.env.GROQ_API_KEY || 'dummy_key_for_dev';
+    groq = new Groq({ apiKey });
+} catch (error) {
+    logger.warn('⚠️ Falha ao inicializar Groq SDK:', error.message);
+}
 
 // Modelos
 const TEXT_MODEL = 'llama3-8b-8192';
