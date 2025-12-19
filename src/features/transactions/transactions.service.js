@@ -211,6 +211,7 @@ const updateManualTransaction = async (userId, profileId, transactionId, data) =
 /**
  * Exclui uma transação manual
  * ✅ PROFILE ISOLATION: profileId added
+ * ⚠️ SYSTEM PROTECTION: Transações com source='SYSTEM' não podem ser excluídas
  */
 const deleteManualTransaction = async (userId, profileId, transactionId) => {
     const whereClause = { id: transactionId, userId };
@@ -222,6 +223,15 @@ const deleteManualTransaction = async (userId, profileId, transactionId) => {
 
     if (!transaction) {
         throw new AppError('Transação não encontrada', 404, 'TRANSACTION_NOT_FOUND');
+    }
+
+    // ⚠️ Bloquear exclusão de transações do SISTEMA (Salário, DAS, Pró-labore)
+    if (transaction.source === 'SYSTEM') {
+        throw new AppError(
+            'Transações do sistema não podem ser excluídas. Você pode apenas editar o valor ou a data.',
+            403,
+            'SYSTEM_TRANSACTION_PROTECTED'
+        );
     }
 
     await TransactionMetadata.destroy({
@@ -347,8 +357,10 @@ const listTransactions = async (userId, profileId, filters = {}) => {
         offset
     });
 
-    // Buscar transações de cartão ✅ PROFILE ISOLATION
-    const cardWhere = { ...baseWhere };
+    // Buscar transações de cartão
+    // ⚠️ CardTransaction NÃO tem profile_id, então filtramos apenas por userId
+    // A isolação por perfil é feita via o cartão associado
+    const cardWhere = { userId }; // Não usar profileId aqui - tabela não tem essa coluna
     if (Object.keys(dateFilter).length) cardWhere.date = dateFilter;
     if (Object.keys(amountFilter).length) cardWhere.amount = amountFilter;
 

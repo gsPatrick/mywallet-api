@@ -150,27 +150,26 @@ class ProfileService {
                     console.log('💰 [SETUP] Personal initial balance:', initialBalance);
                 }
 
-                // SALÁRIO COMO SUBSCRIPTION
+                // SALÁRIO COMO TRANSAÇÃO FUTURA RECORRENTE (não pode excluir, apenas editar)
                 const salary = parseFloat(personalData.salary) || 0;
                 if (salary > 0) {
                     const salaryDay = parseInt(personalData.salaryDay) || 5;
-                    await Subscription.create({
+                    const nextSalaryDate = this._getNextDueDate(salaryDay);
+
+                    await ManualTransaction.create({
                         userId,
                         profileId: personalProfile.id,
-                        name: 'Salário',
-                        description: 'Receita mensal de salário',
+                        type: 'INCOME',
                         amount: salary,
-                        frequency: 'MONTHLY',
-                        startDate: this._getNextDueDate(salaryDay),
-                        nextBillingDate: this._getNextDueDate(salaryDay),
-                        category: 'OTHER', // ✅ Valid enum value
-                        status: 'ACTIVE',
-                        autoGenerate: false, // Não gera transação automática, apenas lembra
-                        alertDaysBefore: 3,
-                        icon: '💵',
-                        color: '#10B981'
+                        description: 'Salário',
+                        date: nextSalaryDate,
+                        status: 'PENDING', // Receita futura
+                        source: 'SYSTEM',  // Não pode excluir, apenas editar
+                        isRecurring: true,
+                        recurringFrequency: 'MONTHLY',
+                        recurringDay: salaryDay
                     });
-                    console.log('💵 [SETUP] Salary subscription created:', salary);
+                    console.log('💵 [SETUP] Salary transaction created (PENDING):', salary);
                 }
 
                 createdProfiles.push(personalProfile);
@@ -227,51 +226,49 @@ class ProfileService {
                     console.log('💰 [SETUP] Business initial balance:', initialBalance);
                 }
 
-                // DAS COMO SUBSCRIPTION
+                // DAS COMO TRANSAÇÃO FUTURA RECORRENTE (não pode excluir, apenas editar)
                 const dasValue = parseFloat(businessData.dasValue) || 0;
                 if (dasValue > 0) {
                     const dasDueDay = parseInt(businessData.dasDueDay) || 20;
-                    await Subscription.create({
+                    const nextDasDate = this._getNextDueDate(dasDueDay);
+
+                    await ManualTransaction.create({
                         userId,
                         profileId: businessProfile.id,
-                        name: subtype === 'MEI' ? 'DAS MEI' : 'DAS Simples Nacional',
-                        description: 'Imposto mensal do Simples Nacional',
+                        type: 'EXPENSE',
                         amount: dasValue,
-                        frequency: 'MONTHLY',
-                        startDate: this._getNextDueDate(dasDueDay),
-                        nextBillingDate: this._getNextDueDate(dasDueDay),
-                        category: 'UTILITIES', // ✅ Valid enum value for taxes
-                        status: 'ACTIVE',
-                        autoGenerate: true,
-                        alertDaysBefore: 5,
-                        icon: '📋',
-                        color: '#EF4444'
+                        description: subtype === 'MEI' ? 'DAS MEI' : 'DAS Simples Nacional',
+                        date: nextDasDate,
+                        status: 'PENDING', // Despesa futura
+                        source: 'SYSTEM',  // Não pode excluir, apenas editar
+                        isRecurring: true,
+                        recurringFrequency: 'MONTHLY',
+                        recurringDay: dasDueDay
                     });
-                    console.log('📋 [SETUP] DAS subscription created:', dasValue);
+                    console.log('📋 [SETUP] DAS transaction created (PENDING):', dasValue);
                 }
 
-                // PRÓ-LABORE (ME only)
+                // PRÓ-LABORE como transação futura recorrente (ME only)
                 if (subtype === 'ME') {
                     const proLabore = parseFloat(businessData.proLabore) || 0;
                     if (proLabore > 0) {
                         const proLaboreDay = parseInt(businessData.proLaboreDay) || 5;
-                        await Subscription.create({
+                        const nextProLaboreDate = this._getNextDueDate(proLaboreDay);
+
+                        await ManualTransaction.create({
                             userId,
                             profileId: businessProfile.id,
-                            name: 'Pró-labore',
-                            description: 'Retirada mensal de pró-labore',
+                            type: 'EXPENSE',
                             amount: proLabore,
-                            frequency: 'MONTHLY',
-                            startDate: this._getNextDueDate(proLaboreDay),
-                            nextBillingDate: this._getNextDueDate(proLaboreDay),
-                            category: 'OTHER', // ✅ Valid enum value
-                            status: 'ACTIVE',
-                            autoGenerate: true,
-                            alertDaysBefore: 3,
-                            icon: '💵',
-                            color: '#6366F1'
+                            description: 'Pró-labore',
+                            date: nextProLaboreDate,
+                            status: 'PENDING', // Despesa futura
+                            source: 'SYSTEM',  // Não pode excluir, apenas editar
+                            isRecurring: true,
+                            recurringFrequency: 'MONTHLY',
+                            recurringDay: proLaboreDay
                         });
-                        console.log('💵 [SETUP] Pro-labore subscription created:', proLabore);
+                        console.log('💵 [SETUP] Pro-labore transaction created (PENDING):', proLabore);
                     }
                 }
 
