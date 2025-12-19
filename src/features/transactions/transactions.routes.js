@@ -1,16 +1,22 @@
 /**
  * Transactions Routes
+ * ========================================
+ * ✅ PROFILE ISOLATION: Now uses profileMiddleware
+ * ========================================
  */
 
 const { Router } = require('express');
 const transactionsController = require('./transactions.controller');
 const { authMiddleware } = require('../../middlewares/authMiddleware');
+const { profileMiddleware } = require('../../middlewares/profileMiddleware');
 const { auditLogger } = require('../../middlewares/auditLogger');
 const { validate } = require('../../utils/validators');
 
 const router = Router();
 
+// ✅ Auth first, then profile isolation
 router.use(authMiddleware);
+router.use(profileMiddleware);
 
 // Schemas de validação
 const createTransactionSchema = {
@@ -22,7 +28,7 @@ const createTransactionSchema = {
     }
 };
 
-// Rotas
+// Rotas - all now have profileId via middleware
 router.get('/categories', transactionsController.listCategories);
 router.get('/', transactionsController.listTransactions);
 router.post('/manual', validate(createTransactionSchema), auditLogger('TRANSACTION'), transactionsController.createManualTransaction);

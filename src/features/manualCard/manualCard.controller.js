@@ -1,5 +1,8 @@
 /**
  * Manual Card Controller
+ * ========================================
+ * ✅ PROFILE ISOLATION: All methods now pass profileId
+ * ========================================
  */
 
 const manualCardService = require('./manualCard.service');
@@ -10,7 +13,8 @@ const manualCardService = require('./manualCard.service');
 
 const listCards = async (req, res, next) => {
     try {
-        const data = await manualCardService.listCards(req.userId, req.query);
+        // ✅ PROFILE ISOLATION: Pass profileId
+        const data = await manualCardService.listCards(req.userId, req.profileId, req.query);
         res.json({ data });
     } catch (error) {
         next(error);
@@ -19,10 +23,11 @@ const listCards = async (req, res, next) => {
 
 const createCard = async (req, res, next) => {
     try {
-        const card = await manualCardService.createManualCard(req.userId, req.body);
+        // ✅ PROFILE ISOLATION: Pass profileId
+        const card = await manualCardService.createManualCard(req.userId, req.profileId, req.body);
         res.status(201).json({
             message: 'Cartão criado com sucesso',
-            data: card
+            card: card // Return 'card' key for frontend to extract ID
         });
     } catch (error) {
         next(error);
@@ -31,7 +36,7 @@ const createCard = async (req, res, next) => {
 
 const updateCard = async (req, res, next) => {
     try {
-        const card = await manualCardService.updateManualCard(req.userId, req.params.id, req.body);
+        const card = await manualCardService.updateManualCard(req.userId, req.profileId, req.params.id, req.body);
         res.json({
             message: 'Cartão atualizado',
             data: card
@@ -43,7 +48,7 @@ const updateCard = async (req, res, next) => {
 
 const deactivateCard = async (req, res, next) => {
     try {
-        const result = await manualCardService.deactivateCard(req.userId, req.params.id);
+        const result = await manualCardService.deactivateCard(req.userId, req.profileId, req.params.id);
         res.json(result);
     } catch (error) {
         next(error);
@@ -58,6 +63,7 @@ const listTransactions = async (req, res, next) => {
     try {
         const data = await manualCardService.listCardTransactions(
             req.userId,
+            req.profileId,
             req.params.cardId,
             req.query
         );
@@ -71,6 +77,7 @@ const createTransaction = async (req, res, next) => {
     try {
         const result = await manualCardService.createCardTransaction(
             req.userId,
+            req.profileId,
             req.params.cardId,
             req.body
         );
@@ -87,6 +94,7 @@ const updateTransaction = async (req, res, next) => {
     try {
         const transaction = await manualCardService.updateCardTransaction(
             req.userId,
+            req.profileId,
             req.params.transactionId,
             req.body
         );
@@ -103,6 +111,7 @@ const deleteTransaction = async (req, res, next) => {
     try {
         const result = await manualCardService.deleteCardTransaction(
             req.userId,
+            req.profileId,
             req.params.transactionId
         );
         res.json(result);
@@ -115,6 +124,7 @@ const deleteInstallmentGroup = async (req, res, next) => {
     try {
         const result = await manualCardService.deleteInstallmentGroup(
             req.userId,
+            req.profileId,
             req.params.groupId
         );
         res.json(result);
@@ -134,6 +144,7 @@ const getStatement = async (req, res, next) => {
 
         const data = await manualCardService.getCardStatement(
             req.userId,
+            req.profileId,
             req.params.cardId,
             month,
             year

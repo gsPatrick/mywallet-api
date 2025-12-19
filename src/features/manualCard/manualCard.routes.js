@@ -1,15 +1,21 @@
 /**
  * Manual Card Routes
+ * ========================================
+ * ✅ PROFILE ISOLATION: Now uses profileMiddleware
+ * ========================================
  */
 
 const { Router } = require('express');
 const manualCardController = require('./manualCard.controller');
 const { authMiddleware } = require('../../middlewares/authMiddleware');
+const { profileMiddleware } = require('../../middlewares/profileMiddleware');
 const { validate } = require('../../utils/validators');
 
 const router = Router();
 
+// ✅ Auth first, then profile isolation
 router.use(authMiddleware);
+router.use(profileMiddleware);
 
 // Schemas de validação
 const createCardSchema = {

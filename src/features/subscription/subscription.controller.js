@@ -1,12 +1,16 @@
 /**
  * Subscription Controller
+ * ========================================
+ * ✅ PROFILE ISOLATION: All methods now pass profileId
+ * ========================================
  */
 
 const subscriptionService = require('./subscription.service');
 
 const listSubscriptions = async (req, res, next) => {
     try {
-        const data = await subscriptionService.listSubscriptions(req.userId, req.query);
+        // ✅ PROFILE ISOLATION: Pass profileId
+        const data = await subscriptionService.listSubscriptions(req.userId, req.profileId, req.query);
         res.json({ data });
     } catch (error) {
         next(error);
@@ -15,7 +19,8 @@ const listSubscriptions = async (req, res, next) => {
 
 const createSubscription = async (req, res, next) => {
     try {
-        const subscription = await subscriptionService.createSubscription(req.userId, req.body);
+        // ✅ PROFILE ISOLATION: Pass profileId
+        const subscription = await subscriptionService.createSubscription(req.userId, req.profileId, req.body);
         res.status(201).json({
             message: 'Assinatura criada com sucesso',
             data: subscription
@@ -29,6 +34,7 @@ const updateSubscription = async (req, res, next) => {
     try {
         const subscription = await subscriptionService.updateSubscription(
             req.userId,
+            req.profileId,
             req.params.id,
             req.body
         );
@@ -43,7 +49,7 @@ const updateSubscription = async (req, res, next) => {
 
 const cancelSubscription = async (req, res, next) => {
     try {
-        const result = await subscriptionService.cancelSubscription(req.userId, req.params.id);
+        const result = await subscriptionService.cancelSubscription(req.userId, req.profileId, req.params.id);
         res.json(result);
     } catch (error) {
         next(error);
@@ -52,7 +58,7 @@ const cancelSubscription = async (req, res, next) => {
 
 const generateTransactions = async (req, res, next) => {
     try {
-        const result = await subscriptionService.generatePendingTransactions(req.userId);
+        const result = await subscriptionService.generatePendingTransactions(req.userId, req.profileId);
         res.json({
             message: `${result.generated} lançamentos gerados`,
             data: result
@@ -64,7 +70,7 @@ const generateTransactions = async (req, res, next) => {
 
 const getSummary = async (req, res, next) => {
     try {
-        const data = await subscriptionService.getSubscriptionsSummary(req.userId);
+        const data = await subscriptionService.getSubscriptionsSummary(req.userId, req.profileId);
         res.json({ data });
     } catch (error) {
         next(error);
@@ -74,7 +80,7 @@ const getSummary = async (req, res, next) => {
 const getUpcoming = async (req, res, next) => {
     try {
         const days = parseInt(req.query.days) || 30;
-        const data = await subscriptionService.getUpcomingCharges(req.userId, days);
+        const data = await subscriptionService.getUpcomingCharges(req.userId, req.profileId, days);
         res.json({ data });
     } catch (error) {
         next(error);
@@ -83,7 +89,7 @@ const getUpcoming = async (req, res, next) => {
 
 const getAlerts = async (req, res, next) => {
     try {
-        const alerts = await subscriptionService.getSubscriptionAlerts(req.userId);
+        const alerts = await subscriptionService.getSubscriptionAlerts(req.userId, req.profileId);
         res.json({ data: alerts });
     } catch (error) {
         next(error);
@@ -93,7 +99,7 @@ const getAlerts = async (req, res, next) => {
 const markPaid = async (req, res, next) => {
     try {
         const { date } = req.body;
-        const transaction = await subscriptionService.markSubscriptionPaid(req.userId, req.params.id, date);
+        const transaction = await subscriptionService.markSubscriptionPaid(req.userId, req.profileId, req.params.id, date);
         res.json({ data: transaction, message: 'Assinatura marcada como paga' });
     } catch (error) {
         next(error);

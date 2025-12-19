@@ -1,15 +1,21 @@
 /**
  * Investments Routes
+ * ========================================
+ * ✅ PROFILE ISOLATION: Now uses profileMiddleware
+ * ========================================
  */
 
 const { Router } = require('express');
 const investmentsController = require('./investments.controller');
 const { authMiddleware } = require('../../middlewares/authMiddleware');
+const { profileMiddleware } = require('../../middlewares/profileMiddleware');
 const { validate } = require('../../utils/validators');
 
 const router = Router();
 
+// ✅ Auth first, then profile isolation
 router.use(authMiddleware);
+router.use(profileMiddleware);
 
 const createSchema = {
     body: {

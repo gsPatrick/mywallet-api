@@ -29,6 +29,9 @@ const register = async (req, res, next) => {
 /**
  * POST /auth/login
  * Realiza login
+ * ========================================
+ * ✅ TRIGGERS: Dividendos + Assinaturas pendentes
+ * ========================================
  */
 const login = async (req, res, next) => {
     try {
@@ -38,10 +41,22 @@ const login = async (req, res, next) => {
 
         const result = await authService.login({ email, password, ipAddress, userAgent });
 
-        // --- GATILHO DE DIVIDENDOS (Fire and Forget) ---
-        // Não usamos 'await' aqui propositalmente para o login ser rápido
+        // --- GATILHOS EM BACKGROUND (Fire and Forget) ---
+        // Não usamos 'await' para o login ser rápido
+
+        // 1. Sync de dividendos
         dividendsService.syncUserDividends(result.user.id)
-            .catch(err => console.error('Erro no sync de dividendos em background:', err));
+            .catch(err => console.error('❌ [LOGIN] Erro sync dividendos:', err));
+
+        // 2. ✅ Gerar transações de assinaturas vencidas (DAS, salário, etc)
+        const subscriptionService = require('../subscription/subscription.service');
+        subscriptionService.generatePendingTransactions(result.user.id, null) // null = todos os perfis
+            .then(res => {
+                if (res.generated > 0) {
+                    console.log(`📦 [LOGIN] ${res.generated} transações de assinaturas geradas`);
+                }
+            })
+            .catch(err => console.error('❌ [LOGIN] Erro gerando assinaturas:', err));
         // ------------------------------------------------
 
         res.json({
