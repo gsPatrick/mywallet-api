@@ -79,15 +79,22 @@ class ProfileService {
     /**
      * Setup inicial de perfis (onboarding)
      * Cria perfis baseado no tipo selecionado
+     * 
+     * NOVO: Cada perfil tem seus próprios dados financeiros
+     * - profiles.personal: { name, salary, salaryDay, initialBalance }
+     * - profiles.business: { name, subtype, cnpj, dasValue, dasDueDay, proLabore, proLaboreDay, initialBalance }
      */
     async setupProfiles(userId, setupData) {
-        const { profileType, profiles: profilesData, defaultProfileType, financialData } = setupData;
+        const { profileType, profiles: profilesData, defaultProfileType } = setupData;
 
         const createdProfiles = [];
 
-        // Criar perfil pessoal se necessário
+        // ========================================
+        // CRIAR PERFIL PESSOAL se necessário
+        // ========================================
         if (profileType === 'PERSONAL' || profileType === 'HYBRID') {
             const personalData = profilesData?.personal || {};
+
             const personalProfile = await Profile.create({
                 userId,
                 type: 'PERSONAL',
@@ -96,36 +103,62 @@ class ProfileService {
                 color: '#3B82F6',
                 isDefault: defaultProfileType === 'PERSONAL',
                 settings: {
-                    salary: defaultProfileType === 'PERSONAL' ? financialData?.salary : null,
-                    salaryDay: defaultProfileType === 'PERSONAL' ? financialData?.salaryDay : null,
+                    // Dados financeiros do perfil pessoal
+                    salary: personalData.salary || null,
+                    salaryDay: personalData.salaryDay || null,
                     salaryDescription: 'Salário',
-                    initialBalance: defaultProfileType === 'PERSONAL' ? financialData?.initialBalance : 0
+                    initialBalance: personalData.initialBalance || 0
                 }
             });
+
+            console.log('✅ [SETUP] Perfil Pessoal criado:', {
+                id: personalProfile.id,
+                name: personalProfile.name,
+                settings: personalProfile.settings
+            });
+
             createdProfiles.push(personalProfile);
         }
 
-        // Criar perfil empresarial se necessário
+        // ========================================
+        // CRIAR PERFIL EMPRESARIAL se necessário
+        // ========================================
         if (profileType === 'BUSINESS' || profileType === 'HYBRID') {
             const businessData = profilesData?.business || {};
+            const subtype = businessData.subtype || 'MEI';
+
             const businessProfile = await Profile.create({
                 userId,
                 type: 'BUSINESS',
-                subtype: businessData.subtype || 'MEI',
+                subtype: subtype,
                 name: businessData.name || 'Minha Empresa',
                 document: businessData.cnpj || null,
                 icon: '💼',
                 color: '#10B981',
                 isDefault: defaultProfileType === 'BUSINESS',
-                revenueLimit: businessData.subtype === 'MEI' ? 81000 : null,
+                revenueLimit: subtype === 'MEI' ? 81000 : null,
                 settings: {
-                    salary: defaultProfileType === 'BUSINESS' ? financialData?.salary : null,
-                    salaryDay: defaultProfileType === 'BUSINESS' ? financialData?.salaryDay : null,
-                    salaryDescription: 'Pró-labore',
-                    initialBalance: defaultProfileType === 'BUSINESS' ? financialData?.initialBalance : 0,
-                    dueDay: businessData.dueDay || 20 // Dia do DAS
+                    // DAS (imposto)
+                    dasValue: businessData.dasValue || null,
+                    dasDueDay: businessData.dasDueDay || 20,
+
+                    // Pró-labore (apenas para ME)
+                    proLabore: subtype === 'ME' ? (businessData.proLabore || null) : null,
+                    proLaboreDay: businessData.proLaboreDay || 5,
+                    salaryDescription: subtype === 'ME' ? 'Pró-labore' : null,
+
+                    // Saldo inicial da empresa
+                    initialBalance: businessData.initialBalance || 0
                 }
             });
+
+            console.log('✅ [SETUP] Perfil Empresarial criado:', {
+                id: businessProfile.id,
+                name: businessProfile.name,
+                subtype: businessProfile.subtype,
+                settings: businessProfile.settings
+            });
+
             createdProfiles.push(businessProfile);
         }
 
@@ -145,6 +178,8 @@ class ProfileService {
                 streak: 1
             });
         }
+
+        console.log('✅ [SETUP] Onboarding completo. Perfis criados:', createdProfiles.length);
 
         return createdProfiles;
     }
