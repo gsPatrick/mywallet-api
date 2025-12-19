@@ -225,10 +225,20 @@ const deleteManualTransaction = async (userId, profileId, transactionId) => {
         throw new AppError('Transação não encontrada', 404, 'TRANSACTION_NOT_FOUND');
     }
 
-    // ⚠️ Bloquear exclusão de transações do SISTEMA (Salário, DAS, Pró-labore)
-    if (transaction.source === 'SYSTEM') {
+    // ⚠️ Bloquear exclusão de transações recorrentes do sistema (Salário, DAS, Pró-labore)
+    // Essas transações são geradas automaticamente e só podem ser editadas
+    const isSystemTransaction = transaction.isRecurring && (
+        transaction.source === 'SALARY' ||
+        (transaction.description && (
+            transaction.description.includes('DAS') ||
+            transaction.description === 'Salário' ||
+            transaction.description === 'Pró-labore'
+        ))
+    );
+
+    if (isSystemTransaction) {
         throw new AppError(
-            'Transações do sistema não podem ser excluídas. Você pode apenas editar o valor ou a data.',
+            'Transações recorrentes do sistema (Salário, DAS, Pró-labore) não podem ser excluídas. Você pode apenas editar o valor ou a data.',
             403,
             'SYSTEM_TRANSACTION_PROTECTED'
         );

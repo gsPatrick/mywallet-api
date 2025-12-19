@@ -164,7 +164,7 @@ class ProfileService {
                         description: 'Salário',
                         date: nextSalaryDate,
                         status: 'PENDING', // Receita futura
-                        source: 'SYSTEM',  // Não pode excluir, apenas editar
+                        source: 'SALARY',  // ✅ Valid enum value
                         isRecurring: true,
                         recurringFrequency: 'MONTHLY',
                         recurringDay: salaryDay
@@ -240,7 +240,7 @@ class ProfileService {
                         description: subtype === 'MEI' ? 'DAS MEI' : 'DAS Simples Nacional',
                         date: nextDasDate,
                         status: 'PENDING', // Despesa futura
-                        source: 'SYSTEM',  // Não pode excluir, apenas editar
+                        source: 'OTHER',   // ✅ Valid enum value
                         isRecurring: true,
                         recurringFrequency: 'MONTHLY',
                         recurringDay: dasDueDay
@@ -263,7 +263,7 @@ class ProfileService {
                             description: 'Pró-labore',
                             date: nextProLaboreDate,
                             status: 'PENDING', // Despesa futura
-                            source: 'SYSTEM',  // Não pode excluir, apenas editar
+                            source: 'SALARY',   // ✅ Valid enum value (pró-labore é salário)
                             isRecurring: true,
                             recurringFrequency: 'MONTHLY',
                             recurringDay: proLaboreDay
