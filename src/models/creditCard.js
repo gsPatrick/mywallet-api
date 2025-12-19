@@ -89,6 +89,21 @@ module.exports = (sequelize) => {
             type: DataTypes.STRING(255),
             allowNull: true
         },
+        // Nome do titular do cartão
+        holderName: {
+            type: DataTypes.STRING(255),
+            allowNull: true
+        },
+        // Ícone/logo do banco (URL)
+        bankIcon: {
+            type: DataTypes.STRING(500),
+            allowNull: true
+        },
+        // Ícone/logo da bandeira (URL)
+        brandIcon: {
+            type: DataTypes.STRING(500),
+            allowNull: true
+        },
         // Limite total
         creditLimit: {
             type: DataTypes.DECIMAL(15, 2),
@@ -98,6 +113,12 @@ module.exports = (sequelize) => {
         availableLimit: {
             type: DataTypes.DECIMAL(15, 2),
             allowNull: true
+        },
+        // Limite bloqueado (reservado, não quer usar)
+        blockedLimit: {
+            type: DataTypes.DECIMAL(15, 2),
+            allowNull: true,
+            defaultValue: 0
         },
         // Dia de fechamento da fatura
         closingDay: {

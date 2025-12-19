@@ -35,7 +35,9 @@ const listCards = async (userId, profileId, filters = {}) => {
         id: c.id,
         name: c.name,
         bankName: c.bankName,
+        bankIcon: c.bankIcon,
         brand: c.brand,
+        brandIcon: c.brandIcon,
         lastFourDigits: c.lastFourDigits,
         creditLimit: parseFloat(c.creditLimit) || 0,
         availableLimit: parseFloat(c.availableLimit) || 0,
@@ -44,6 +46,7 @@ const listCards = async (userId, profileId, filters = {}) => {
         source: c.source,
         isVirtual: c.isVirtual,
         color: c.color,
+        holderName: c.holderName,
         isActive: c.isActive
     }));
 };
@@ -54,8 +57,8 @@ const listCards = async (userId, profileId, filters = {}) => {
  */
 const createManualCard = async (userId, profileId, data) => {
     const {
-        name, bankName, brand, lastFourDigits,
-        creditLimit, closingDay, dueDay, isVirtual, color
+        name, bankName, bankIcon, brand, brandIcon, lastFourDigits,
+        creditLimit, availableLimit, closingDay, dueDay, isVirtual, color, holderName
     } = data;
 
     const card = await CreditCard.create({
@@ -64,14 +67,17 @@ const createManualCard = async (userId, profileId, data) => {
         source: 'MANUAL',
         name,
         bankName,
+        bankIcon,
         brand: brand || 'OTHER',
+        brandIcon,
         lastFourDigits,
         creditLimit: creditLimit || 0,
-        availableLimit: creditLimit || 0,
+        availableLimit: availableLimit || creditLimit || 0,
         closingDay,
         dueDay,
         isVirtual: isVirtual || false,
         color: color || '#1E40AF',
+        holderName: holderName || '',
         isActive: true
     });
 
