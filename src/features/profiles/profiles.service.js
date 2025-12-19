@@ -163,7 +163,7 @@ class ProfileService {
                         frequency: 'MONTHLY',
                         startDate: this._getNextDueDate(salaryDay),
                         nextBillingDate: this._getNextDueDate(salaryDay),
-                        category: 'Salário',
+                        category: 'OTHER', // ✅ Valid enum value
                         status: 'ACTIVE',
                         autoGenerate: false, // Não gera transação automática, apenas lembra
                         alertDaysBefore: 3,
@@ -240,7 +240,7 @@ class ProfileService {
                         frequency: 'MONTHLY',
                         startDate: this._getNextDueDate(dasDueDay),
                         nextBillingDate: this._getNextDueDate(dasDueDay),
-                        category: 'Impostos',
+                        category: 'UTILITIES', // ✅ Valid enum value for taxes
                         status: 'ACTIVE',
                         autoGenerate: true,
                         alertDaysBefore: 5,
@@ -264,7 +264,7 @@ class ProfileService {
                             frequency: 'MONTHLY',
                             startDate: this._getNextDueDate(proLaboreDay),
                             nextBillingDate: this._getNextDueDate(proLaboreDay),
-                            category: 'Salário',
+                            category: 'OTHER', // ✅ Valid enum value
                             status: 'ACTIVE',
                             autoGenerate: true,
                             alertDaysBefore: 3,
