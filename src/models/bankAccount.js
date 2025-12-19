@@ -20,6 +20,15 @@ module.exports = (sequelize) => {
                 key: 'id'
             }
         },
+        // Perfil ao qual a conta bancária pertence (isolamento multi-contexto)
+        profileId: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            references: {
+                model: 'profiles',
+                key: 'id'
+            }
+        },
         consentId: {
             type: DataTypes.UUID,
             allowNull: true,

@@ -7,6 +7,7 @@ const { sequelize } = require('../config/database');
 
 // Importar models - Fase 1
 const User = require('./user')(sequelize);
+const Profile = require('./profile')(sequelize); // Multi-Context Profile
 const Consent = require('./consent')(sequelize);
 const BankAccount = require('./bankAccount')(sequelize);
 const CreditCard = require('./creditCard')(sequelize);
@@ -47,6 +48,42 @@ const BudgetAllocation = require('./budgetAllocation')(sequelize);
 // User -> Consents
 User.hasMany(Consent, { foreignKey: 'userId', as: 'consents' });
 Consent.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+// ===========================================
+// ASSOCIAÇÕES - Multi-Context Profiles
+// ===========================================
+
+// User -> Profiles
+User.hasMany(Profile, { foreignKey: 'userId', as: 'profiles' });
+Profile.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+// Profile -> Financial Data (Profile Isolation)
+Profile.hasMany(ManualTransaction, { foreignKey: 'profileId', as: 'manualTransactions' });
+ManualTransaction.belongsTo(Profile, { foreignKey: 'profileId', as: 'profile' });
+
+Profile.hasMany(Category, { foreignKey: 'profileId', as: 'categories' });
+Category.belongsTo(Profile, { foreignKey: 'profileId', as: 'profile' });
+
+Profile.hasMany(Goal, { foreignKey: 'profileId', as: 'goals' });
+Goal.belongsTo(Profile, { foreignKey: 'profileId', as: 'profile' });
+
+Profile.hasMany(Budget, { foreignKey: 'profileId', as: 'budgets' });
+Budget.belongsTo(Profile, { foreignKey: 'profileId', as: 'profile' });
+
+Profile.hasMany(CreditCard, { foreignKey: 'profileId', as: 'creditCards' });
+CreditCard.belongsTo(Profile, { foreignKey: 'profileId', as: 'profile' });
+
+Profile.hasMany(BankAccount, { foreignKey: 'profileId', as: 'bankAccounts' });
+BankAccount.belongsTo(Profile, { foreignKey: 'profileId', as: 'profile' });
+
+Profile.hasMany(Subscription, { foreignKey: 'profileId', as: 'subscriptions' });
+Subscription.belongsTo(Profile, { foreignKey: 'profileId', as: 'profile' });
+
+Profile.hasMany(BudgetAllocation, { foreignKey: 'profileId', as: 'budgetAllocations' });
+BudgetAllocation.belongsTo(Profile, { foreignKey: 'profileId', as: 'profile' });
+
+Profile.hasMany(Investment, { foreignKey: 'profileId', as: 'investments' });
+Investment.belongsTo(Profile, { foreignKey: 'profileId', as: 'profile' });
 
 // User -> BankAccounts
 User.hasMany(BankAccount, { foreignKey: 'userId', as: 'bankAccounts' });
@@ -220,6 +257,7 @@ module.exports = {
     sequelize,
     // Fase 1
     User,
+    Profile,  // Multi-Context Profile
     Consent,
     BankAccount,
     CreditCard,

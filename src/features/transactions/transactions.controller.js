@@ -1,5 +1,9 @@
 /**
  * Transactions Controller
+ * ========================================
+ * MULTI-PROFILE ISOLATION ENABLED
+ * ========================================
+ * All methods now pass profileId for data isolation
  */
 
 const transactionsService = require('./transactions.service');
@@ -21,7 +25,8 @@ const listTransactions = async (req, res, next) => {
             limit: parseInt(req.query.limit) || 50
         };
 
-        const result = await transactionsService.listTransactions(req.userId, filters);
+        // ✅ PROFILE ISOLATION: Pass profileId
+        const result = await transactionsService.listTransactions(req.userId, req.profileId, filters);
 
         res.json({ data: result });
     } catch (error) {
@@ -34,7 +39,8 @@ const listTransactions = async (req, res, next) => {
  */
 const listCategories = async (req, res, next) => {
     try {
-        const categories = await transactionsService.listCategories(req.userId);
+        // ✅ PROFILE ISOLATION: Pass profileId
+        const categories = await transactionsService.listCategories(req.userId, req.profileId);
         res.json({ data: categories });
     } catch (error) {
         next(error);
@@ -46,7 +52,8 @@ const listCategories = async (req, res, next) => {
  */
 const createManualTransaction = async (req, res, next) => {
     try {
-        const transaction = await transactionsService.createManualTransaction(req.userId, req.body);
+        // ✅ PROFILE ISOLATION: Pass profileId
+        const transaction = await transactionsService.createManualTransaction(req.userId, req.profileId, req.body);
 
         res.status(201).json({
             message: 'Transação criada com sucesso',
@@ -69,6 +76,7 @@ const updateTransaction = async (req, res, next) => {
         if (transactionType === 'OPEN_FINANCE') {
             const metadata = await transactionsService.updateTransactionMetadata(
                 req.userId,
+                req.profileId,
                 'OPEN_FINANCE',
                 id,
                 req.body
@@ -83,6 +91,7 @@ const updateTransaction = async (req, res, next) => {
         // Se for manual, pode atualizar tudo
         const transaction = await transactionsService.updateManualTransaction(
             req.userId,
+            req.profileId,
             id,
             req.body
         );
@@ -103,7 +112,8 @@ const deleteTransaction = async (req, res, next) => {
     try {
         const { id } = req.params;
 
-        const result = await transactionsService.deleteManualTransaction(req.userId, id);
+        // ✅ PROFILE ISOLATION: Pass profileId
+        const result = await transactionsService.deleteManualTransaction(req.userId, req.profileId, id);
 
         res.json(result);
     } catch (error) {
@@ -119,8 +129,10 @@ const updateMetadata = async (req, res, next) => {
         const { id } = req.params;
         const { transactionType } = req.body;
 
+        // ✅ PROFILE ISOLATION: Pass profileId
         const metadata = await transactionsService.updateTransactionMetadata(
             req.userId,
+            req.profileId,
             transactionType || 'MANUAL',
             id,
             req.body

@@ -20,6 +20,15 @@ module.exports = (sequelize) => {
                 key: 'id'
             }
         },
+        // Perfil ao qual a alocação pertence (isolamento multi-contexto)
+        profileId: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            references: {
+                model: 'profiles',
+                key: 'id'
+            }
+        },
         // Nome da alocação (ex: "Gastos Essenciais", "Investimentos")
         name: {
             type: DataTypes.STRING(100),

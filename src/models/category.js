@@ -27,6 +27,15 @@ module.exports = (sequelize) => {
                 key: 'id'
             }
         },
+        // Perfil ao qual a categoria pertence (isolamento multi-contexto)
+        profileId: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            references: {
+                model: 'profiles',
+                key: 'id'
+            }
+        },
         // Nome da categoria
         name: {
             type: DataTypes.STRING(100),

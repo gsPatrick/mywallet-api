@@ -44,6 +44,11 @@ const { notificationsRoutes } = require('../features/notifications');
 // ===========================================
 const { whatsappRoutes } = require('../features/whatsapp');
 
+// ===========================================
+// ROTAS - FASE 6 (MULTI-CONTEXT PROFILES)
+// ===========================================
+const { profilesRoutes } = require('../features/profiles');
+
 const router = Router();
 
 // Rotas públicas
@@ -92,6 +97,11 @@ router.use('/notifications', notificationsRoutes);
 // REGISTRAR ROTAS - FASE 5 (WHATSAPP)
 // ===========================================
 router.use('/whatsapp', whatsappRoutes);
+
+// ===========================================
+// REGISTRAR ROTAS - FASE 6 (MULTI-CONTEXT PROFILES)
+// ===========================================
+router.use('/profiles', profilesRoutes);
 
 // ===========================================
 // DOCUMENTAÇÃO DA API

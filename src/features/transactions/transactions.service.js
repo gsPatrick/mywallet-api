@@ -1,6 +1,9 @@
 /**
  * Transactions Service
- * Lógica de negócio para transações (Open Finance + Manual)
+ * ========================================
+ * MULTI-PROFILE ISOLATION ENABLED
+ * ========================================
+ * All queries now filter by profileId for data isolation
  */
 
 const {
@@ -24,8 +27,9 @@ const budgetsService = require('../budgets/budgets.service');
 
 /**
  * Cria uma transação manual
+ * ✅ PROFILE ISOLATION: profileId added
  */
-const createManualTransaction = async (userId, data) => {
+const createManualTransaction = async (userId, profileId, data) => {
     const {
         type, source, description, amount, date, category, tags, notes,
         isRecurring, frequency, recurringDay, status, cardId, categoryId,
@@ -33,18 +37,18 @@ const createManualTransaction = async (userId, data) => {
     } = data;
 
     console.log('📝 [CREATE MANUAL TX] Received data:', JSON.stringify(data, null, 2));
+    console.log('🎯 [CREATE MANUAL TX] Profile:', profileId);
 
     // ========================================
     // VERIFICAÇÃO DE ORÇAMENTO (para despesas)
     // ========================================
     if (type === 'EXPENSE' && categoryId) {
-        const budgetCheck = await budgetsService.checkBudgetHealth(userId, categoryId, amount);
+        const budgetCheck = await budgetsService.checkBudgetHealth(userId, profileId, categoryId, amount);
 
         console.log('💰 [BUDGET CHECK] Result:', JSON.stringify(budgetCheck, null, 2));
 
         if (!budgetCheck.allowed) {
             if (!forceOverbudget) {
-                // Retornar erro com detalhes para o frontend abrir o modal
                 const error = new AppError(
                     `Isso vai estourar o orçamento "${budgetCheck.allocation.name}"`,
                     400,
@@ -54,20 +58,20 @@ const createManualTransaction = async (userId, data) => {
                 throw error;
             }
 
-            // Usuário confirmou - zerar streak
+            // Usuário confirmou - zerar streak (gamificação fica no User, não no Profile)
             console.log('⚠️ [BUDGET CHECK] User forced overbudget, resetting streak...');
             await UserProfile.update(
                 { streak: 0 },
                 { where: { userId } }
             );
 
-            // Log de auditoria
             await AuditLog.log({
                 userId,
                 action: 'STREAK_RESET',
                 resource: 'BUDGET',
                 details: {
                     reason: 'Orçamento estourado',
+                    profileId,
                     allocation: budgetCheck.allocation.name,
                     limit: budgetCheck.allocation.limit,
                     newTotal: budgetCheck.newTotal
@@ -80,8 +84,6 @@ const createManualTransaction = async (userId, data) => {
     if (cardId) {
         console.log('💳 [CREATE MANUAL TX] Creating CardTransaction for cardId:', cardId);
 
-        // For recurring transactions, default to PENDING to show as "Agendado"
-        // Otherwise map COMPLETED to PAID
         let cardStatus = 'PENDING';
         if (!isRecurring) {
             cardStatus = status === 'COMPLETED' ? 'PAID' : (status || 'PENDING');
@@ -89,6 +91,7 @@ const createManualTransaction = async (userId, data) => {
 
         const cardTransaction = await CardTransaction.create({
             userId,
+            profileId, // ✅ PROFILE ISOLATION
             cardId,
             description,
             amount,
@@ -115,6 +118,7 @@ const createManualTransaction = async (userId, data) => {
 
     const transaction = await ManualTransaction.create({
         userId,
+        profileId, // ✅ PROFILE ISOLATION
         type,
         source: source || 'OTHER',
         description,
@@ -122,10 +126,9 @@ const createManualTransaction = async (userId, data) => {
         date,
         status: status || 'COMPLETED',
         isRecurring: isRecurring || false,
-        isRecurring: isRecurring || false,
         recurringFrequency: frequency || null,
         recurringDay: recurringDay || null,
-        categoryId: categoryId || null // Ensure categoryId is saved for budget tracking
+        categoryId: categoryId || null
     });
 
     console.log('✅ [CREATE MANUAL TX] ManualTransaction created:', transaction.id);
@@ -142,13 +145,12 @@ const createManualTransaction = async (userId, data) => {
         });
     }
 
-    // Log de auditoria
     await AuditLog.log({
         userId,
         action: AuditLog.ACTIONS.TRANSACTION_CREATE,
         resource: 'MANUAL_TRANSACTION',
         resourceId: transaction.id,
-        newData: { type, source, amount, description, isRecurring, status }
+        newData: { type, source, amount, description, isRecurring, status, profileId }
     });
 
     return {
@@ -161,10 +163,14 @@ const createManualTransaction = async (userId, data) => {
 
 /**
  * Atualiza uma transação manual
+ * ✅ PROFILE ISOLATION: profileId added
  */
-const updateManualTransaction = async (userId, transactionId, data) => {
+const updateManualTransaction = async (userId, profileId, transactionId, data) => {
+    const whereClause = { id: transactionId, userId };
+    if (profileId) whereClause.profileId = profileId; // ✅ PROFILE ISOLATION
+
     const transaction = await ManualTransaction.findOne({
-        where: { id: transactionId, userId }
+        where: whereClause
     });
 
     if (!transaction) {
@@ -173,7 +179,6 @@ const updateManualTransaction = async (userId, transactionId, data) => {
 
     const previousData = transaction.toJSON();
 
-    // Atualizar campos permitidos
     const allowedFields = ['type', 'source', 'description', 'amount', 'date', 'categoryId', 'status', 'isRecurring', 'recurringFrequency', 'recurringDay'];
     for (const field of allowedFields) {
         if (data[field] !== undefined) {
@@ -183,16 +188,14 @@ const updateManualTransaction = async (userId, transactionId, data) => {
 
     await transaction.save();
 
-    // Atualizar metadata
     if (data.category !== undefined || data.tags !== undefined || data.notes !== undefined) {
-        await updateTransactionMetadata(userId, 'MANUAL', transactionId, {
+        await updateTransactionMetadata(userId, profileId, 'MANUAL', transactionId, {
             category: data.category,
             tags: data.tags,
             notes: data.notes
         });
     }
 
-    // Log de auditoria
     await AuditLog.log({
         userId,
         action: AuditLog.ACTIONS.TRANSACTION_UPDATE,
@@ -207,17 +210,20 @@ const updateManualTransaction = async (userId, transactionId, data) => {
 
 /**
  * Exclui uma transação manual
+ * ✅ PROFILE ISOLATION: profileId added
  */
-const deleteManualTransaction = async (userId, transactionId) => {
+const deleteManualTransaction = async (userId, profileId, transactionId) => {
+    const whereClause = { id: transactionId, userId };
+    if (profileId) whereClause.profileId = profileId; // ✅ PROFILE ISOLATION
+
     const transaction = await ManualTransaction.findOne({
-        where: { id: transactionId, userId }
+        where: whereClause
     });
 
     if (!transaction) {
         throw new AppError('Transação não encontrada', 404, 'TRANSACTION_NOT_FOUND');
     }
 
-    // Excluir metadata associada
     await TransactionMetadata.destroy({
         where: {
             transactionType: 'MANUAL',
@@ -225,10 +231,8 @@ const deleteManualTransaction = async (userId, transactionId) => {
         }
     });
 
-    // Excluir transação
     await transaction.destroy();
 
-    // Log de auditoria
     await AuditLog.log({
         userId,
         action: AuditLog.ACTIONS.TRANSACTION_DELETE,
@@ -244,10 +248,10 @@ const deleteManualTransaction = async (userId, transactionId) => {
 // ===========================================
 
 /**
- * Atualiza metadata de uma transação (Open Finance ou Manual)
- * NOTA: Única forma de "editar" transações Open Finance
+ * Atualiza metadata de uma transação
+ * ✅ PROFILE ISOLATION: profileId added
  */
-const updateTransactionMetadata = async (userId, transactionType, transactionId, data) => {
+const updateTransactionMetadata = async (userId, profileId, transactionType, transactionId, data) => {
     const { metadata } = await TransactionMetadata.findOrCreateForTransaction(
         userId,
         transactionType,
@@ -262,13 +266,12 @@ const updateTransactionMetadata = async (userId, transactionType, transactionId,
 
     await metadata.save();
 
-    // Log de auditoria
     await AuditLog.log({
         userId,
         action: AuditLog.ACTIONS.METADATA_UPDATE,
         resource: 'TRANSACTION_METADATA',
         resourceId: metadata.id,
-        details: { transactionType, transactionId }
+        details: { transactionType, transactionId, profileId }
     });
 
     return metadata;
@@ -279,9 +282,10 @@ const updateTransactionMetadata = async (userId, transactionType, transactionId,
 // ===========================================
 
 /**
- * Lista todas as transações do usuário (Open Finance + Manual)
+ * Lista todas as transações do usuário
+ * ✅ PROFILE ISOLATION: profileId filter on all queries
  */
-const listTransactions = async (userId, filters = {}) => {
+const listTransactions = async (userId, profileId, filters = {}) => {
     const {
         startDate,
         endDate,
@@ -305,8 +309,12 @@ const listTransactions = async (userId, filters = {}) => {
     if (minAmount) amountFilter[Op.gte] = minAmount;
     if (maxAmount) amountFilter[Op.lte] = maxAmount;
 
+    // ✅ PROFILE ISOLATION: Base where clause includes profileId
+    const baseWhere = { userId };
+    if (profileId) baseWhere.profileId = profileId;
+
     // Buscar transações Open Finance
-    const ofWhere = { userId };
+    const ofWhere = { userId }; // OF não tem profileId por enquanto
     if (Object.keys(dateFilter).length) ofWhere.date = dateFilter;
     if (Object.keys(amountFilter).length) ofWhere.amount = amountFilter;
     if (type === 'CREDIT' || type === 'DEBIT') ofWhere.type = type;
@@ -318,8 +326,8 @@ const listTransactions = async (userId, filters = {}) => {
         offset
     });
 
-    // Buscar transações manuais
-    const manualWhere = { userId };
+    // Buscar transações manuais ✅ PROFILE ISOLATION
+    const manualWhere = { ...baseWhere };
     if (Object.keys(dateFilter).length) manualWhere.date = dateFilter;
     if (Object.keys(amountFilter).length) manualWhere.amount = amountFilter;
     if (type === 'INCOME' || type === 'EXPENSE' || type === 'TRANSFER') {
@@ -339,18 +347,11 @@ const listTransactions = async (userId, filters = {}) => {
         offset
     });
 
-    // Buscar transações de cartão
-    const cardWhere = { userId };
+    // Buscar transações de cartão ✅ PROFILE ISOLATION
+    const cardWhere = { ...baseWhere };
     if (Object.keys(dateFilter).length) cardWhere.date = dateFilter;
     if (Object.keys(amountFilter).length) cardWhere.amount = amountFilter;
-    // Card transactions are usually EXPENSE
-    if (type && type !== 'EXPENSE') {
-        // If filtering for INCOME or TRANSFER, CardTransactions shouldn't appear unless we treat refunds as INCOME?
-        // For now, assume CardTransactions are EXPENSE only or check status.
-        // If type is EXPENSE or undefined, we include.
-    }
 
-    // Simplification: Fetch if type is undefined or EXPENSE
     let cardTransactions = [];
     if (!type || type === 'EXPENSE') {
         cardTransactions = await CardTransaction.findAll({
@@ -377,8 +378,6 @@ const listTransactions = async (userId, filters = {}) => {
     const ofIds = openFinanceTransactions.map(t => t.id);
     const manualIds = manualTransactions.map(t => t.id);
 
-    // Note: CardTransactions don't use TransactionMetadata (enum doesn't support 'CARD')
-    // They store category directly in the CardTransaction model
     const allMetadata = await TransactionMetadata.findAll({
         where: {
             userId,
@@ -389,13 +388,11 @@ const listTransactions = async (userId, filters = {}) => {
         }
     });
 
-    // Mapear metadata
     const metadataMap = {};
     for (const m of allMetadata) {
         metadataMap[`${m.transactionType}_${m.transactionId}`] = m;
     }
 
-    // Filtrar por categoria se especificado
     const filterByCategory = (tx, txType) => {
         if (!category) return true;
         const meta = metadataMap[`${txType}_${tx.id}`];
@@ -420,7 +417,7 @@ const listTransactions = async (userId, filters = {}) => {
                 notes: meta?.notes || null,
                 isIgnored: meta?.isIgnored || false,
                 isImportant: meta?.isImportant || false,
-                editable: false, // Transações OF são imutáveis
+                editable: false,
                 createdAt: tx.createdAt
             };
         });
@@ -448,17 +445,15 @@ const listTransactions = async (userId, filters = {}) => {
                 subscription: tx.subscription ? { icon: tx.subscription.icon } : null,
                 isRecurring: tx.isRecurring,
                 recurringFrequency: tx.recurringFrequency,
-                status: tx.status, // PENDING, COMPLETED, CANCELLED
-                editable: true, // Transações manuais são editáveis
+                status: tx.status,
+                editable: true,
                 createdAt: tx.createdAt
             };
         });
 
     // Formatar transações de cartão
-    // Note: CardTransactions don't use metadata, they store category/notes directly
     const formattedCard = cardTransactions
         .filter(tx => {
-            // Filter by category if specified - use tx.category directly
             if (!category) return true;
             return tx.category === category;
         })
@@ -476,12 +471,12 @@ const listTransactions = async (userId, filters = {}) => {
                 notes: tx.notes || null,
                 isIgnored: false,
                 isImportant: false,
-                imageUrl: tx.subscription?.icon || null, // Use subscription icon if available
+                imageUrl: tx.subscription?.icon || null,
                 subscriptionId: tx.subscriptionId,
                 subscription: tx.subscription ? { icon: tx.subscription.icon } : null,
                 isRecurring: tx.isRecurring,
                 recurringFrequency: tx.recurringFrequency,
-                editable: true, // Card transactions are editable
+                editable: true,
                 createdAt: tx.createdAt,
                 cardId: tx.cardId,
                 status: tx.status
@@ -504,9 +499,21 @@ const listTransactions = async (userId, filters = {}) => {
 
 /**
  * Lista todas as categorias utilizadas pelo usuário
+ * ✅ PROFILE ISOLATION: profileId filter
  */
-const listCategories = async (userId) => {
-    const categories = await TransactionMetadata.findAll({
+const listCategories = async (userId, profileId) => {
+    // Primeiro buscar categorias do sistema de Categories
+    const categoryWhere = { userId };
+    if (profileId) categoryWhere.profileId = profileId;
+
+    const userCategories = await Category.findAll({
+        where: categoryWhere,
+        attributes: ['id', 'name', 'icon', 'color', 'type'],
+        order: [['name', 'ASC']]
+    });
+
+    // Também buscar do metadata legado
+    const metadataCategories = await TransactionMetadata.findAll({
         attributes: [
             [TransactionMetadata.sequelize.fn('DISTINCT', TransactionMetadata.sequelize.col('category')), 'category']
         ],
@@ -514,26 +521,42 @@ const listCategories = async (userId) => {
         order: [['category', 'ASC']]
     });
 
-    return categories.map(c => c.category);
+    // Combinar ambos
+    const allCategories = [
+        ...userCategories.map(c => ({
+            id: c.id,
+            name: c.name,
+            icon: c.icon,
+            color: c.color,
+            type: c.type
+        })),
+        ...metadataCategories.map(c => c.category).filter(Boolean)
+    ];
+
+    return allCategories;
 };
 
 /**
  * Obtém uma transação específica
+ * ✅ PROFILE ISOLATION: profileId filter
  */
-const getTransaction = async (userId, transactionId, transactionType) => {
+const getTransaction = async (userId, profileId, transactionId, transactionType) => {
     let transaction;
+
+    const baseWhere = { id: transactionId, userId };
+    if (profileId) baseWhere.profileId = profileId;
 
     if (transactionType === 'OPEN_FINANCE') {
         transaction = await OpenFinanceTransaction.findOne({
-            where: { id: transactionId, userId }
+            where: { id: transactionId, userId } // OF não tem profileId
         });
     } else if (transactionType === 'CARD') {
         transaction = await CardTransaction.findOne({
-            where: { id: transactionId, userId }
+            where: baseWhere
         });
     } else {
         transaction = await ManualTransaction.findOne({
-            where: { id: transactionId, userId }
+            where: baseWhere
         });
     }
 
@@ -541,7 +564,6 @@ const getTransaction = async (userId, transactionId, transactionType) => {
         throw new AppError('Transação não encontrada', 404, 'TRANSACTION_NOT_FOUND');
     }
 
-    // Buscar metadata
     const metadata = await TransactionMetadata.findOne({
         where: {
             transactionType,

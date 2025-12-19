@@ -1,5 +1,9 @@
 /**
  * Budgets Service
+ * ========================================
+ * MULTI-PROFILE ISOLATION ENABLED
+ * ========================================
+ * All queries now filter by profileId
  */
 
 const { Budget, OpenFinanceTransaction, ManualTransaction } = require('../../models');
@@ -8,11 +12,13 @@ const { Op } = require('sequelize');
 
 /**
  * Lista orçamentos do usuário
+ * ✅ PROFILE ISOLATION
  */
-const listBudgets = async (userId, filters = {}) => {
+const listBudgets = async (userId, profileId, filters = {}) => {
     const { year, page = 1, limit = 12 } = filters;
 
     const where = { userId };
+    if (profileId) where.profileId = profileId;
     if (year) where.year = parseInt(year);
 
     const budgets = await Budget.findAll({
@@ -37,26 +43,29 @@ const listBudgets = async (userId, filters = {}) => {
 
 /**
  * Obtém orçamento do mês atual
+ * ✅ PROFILE ISOLATION
  */
-const getCurrentBudget = async (userId) => {
+const getCurrentBudget = async (userId, profileId) => {
     const now = new Date();
     const month = now.getMonth() + 1;
     const year = now.getFullYear();
 
+    const budgetWhere = { userId, month, year };
+    if (profileId) budgetWhere.profileId = profileId;
+
     let budget = await Budget.findOne({
-        where: { userId, month, year }
+        where: budgetWhere
     });
 
     if (!budget) {
-        // Fallback: Verificar se existem alocações, se sim, retornar um objeto "virtual"
-        // para que o frontend não mostre "Sem orçamento"
-        const existingAllocations = await BudgetAllocation.findOne({ where: { userId, month, year } });
+        const allocWhere = { userId, month, year };
+        if (profileId) allocWhere.profileId = profileId;
+        const existingAllocations = await BudgetAllocation.findOne({ where: allocWhere });
 
         if (!existingAllocations) {
             return null;
         }
 
-        // Criar um budget virtual provisório
         budget = {
             id: 'virtual',
             month,
@@ -70,19 +79,22 @@ const getCurrentBudget = async (userId) => {
         };
     }
 
-    // Buscar gastos reais do mês
+    // ✅ PROFILE ISOLATION: Filter expenses by profile
     const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
     const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+
+    const baseWhere = { userId };
+    if (profileId) baseWhere.profileId = profileId;
 
     const [ofExpenses, manualExpenses, manualIncome] = await Promise.all([
         OpenFinanceTransaction.sum('amount', {
             where: { userId, type: 'DEBIT', date: { [Op.between]: [startDate, endDate] } }
         }),
         ManualTransaction.sum('amount', {
-            where: { userId, type: 'EXPENSE', date: { [Op.between]: [startDate, endDate] } }
+            where: { ...baseWhere, type: 'EXPENSE', date: { [Op.between]: [startDate, endDate] } }
         }),
         ManualTransaction.sum('amount', {
-            where: { userId, type: 'INCOME', date: { [Op.between]: [startDate, endDate] } }
+            where: { ...baseWhere, type: 'INCOME', date: { [Op.between]: [startDate, endDate] } }
         })
     ]);
 
@@ -93,6 +105,7 @@ const getCurrentBudget = async (userId) => {
         id: budget.id,
         month: budget.month,
         year: budget.year,
+        profileId,
         incomeExpected: parseFloat(budget.incomeExpected),
         incomeActual: totalIncome,
         investPercent: parseFloat(budget.investPercent),
@@ -108,11 +121,11 @@ const getCurrentBudget = async (userId) => {
 
 /**
  * Cria ou atualiza um orçamento
+ * ✅ PROFILE ISOLATION
  */
-const createOrUpdateBudget = async (userId, data) => {
+const createOrUpdateBudget = async (userId, profileId, data) => {
     const { month, year, incomeExpected, investPercent, emergencyPercent, notes } = data;
 
-    // Validar percentuais
     const invest = parseFloat(investPercent) || 30;
     const emergency = parseFloat(emergencyPercent) || 10;
 
@@ -120,10 +133,14 @@ const createOrUpdateBudget = async (userId, data) => {
         throw new AppError('Soma dos percentuais não pode exceder 100%', 400, 'INVALID_PERCENTAGES');
     }
 
+    const whereClause = { userId, month, year };
+    if (profileId) whereClause.profileId = profileId;
+
     const [budget, created] = await Budget.findOrCreate({
-        where: { userId, month, year },
+        where: whereClause,
         defaults: {
             userId,
+            profileId, // ✅ PROFILE ISOLATION
             month,
             year,
             incomeExpected,
@@ -145,6 +162,7 @@ const createOrUpdateBudget = async (userId, data) => {
         id: budget.id,
         month: budget.month,
         year: budget.year,
+        profileId: budget.profileId,
         incomeExpected: parseFloat(budget.incomeExpected),
         investPercent: parseFloat(budget.investPercent),
         emergencyPercent: parseFloat(budget.emergencyPercent),
@@ -157,10 +175,14 @@ const createOrUpdateBudget = async (userId, data) => {
 
 /**
  * Atualiza um orçamento existente
+ * ✅ PROFILE ISOLATION
  */
-const updateBudget = async (userId, budgetId, data) => {
+const updateBudget = async (userId, profileId, budgetId, data) => {
+    const whereClause = { id: budgetId, userId };
+    if (profileId) whereClause.profileId = profileId;
+
     const budget = await Budget.findOne({
-        where: { id: budgetId, userId }
+        where: whereClause
     });
 
     if (!budget) {
@@ -180,7 +202,7 @@ const updateBudget = async (userId, budgetId, data) => {
 };
 
 // ===========================================
-// BUDGET ALLOCATIONS (Orçamentos Inteligentes)
+// BUDGET ALLOCATIONS
 // ===========================================
 
 const { BudgetAllocation, Category, Goal, CardTransaction, GoalHistory } = require('../../models');
@@ -195,18 +217,21 @@ const DEFAULT_ALLOCATIONS = [
 
 /**
  * Cria alocações padrão para um usuário
+ * ✅ PROFILE ISOLATION
  */
-const createDefaultAllocations = async (userId, month, year) => {
+const createDefaultAllocations = async (userId, profileId, month, year) => {
+    const budgetWhere = { userId, month, year };
+    if (profileId) budgetWhere.profileId = profileId;
+
+    const budget = await Budget.findOne({ where: budgetWhere });
+    const income = budget && parseFloat(budget.incomeExpected) > 0 ? parseFloat(budget.incomeExpected) : 3000;
+
     const created = await Promise.all(DEFAULT_ALLOCATIONS.map(async (alloc) => {
-        // Calcular valor baseado em algo? Por enquanto zero, usuário ajusta depois ou baseia na renda
-        // Vamos pegar a renda esperada do orçamento se existir
-        const budget = await Budget.findOne({ where: { userId, month, year } });
-        // Use 3000 as fallback income if 0, so bars are not empty by default
-        const income = budget && parseFloat(budget.incomeExpected) > 0 ? parseFloat(budget.incomeExpected) : 3000;
         const amount = (income * alloc.percentage) / 100;
 
         return BudgetAllocation.create({
             userId,
+            profileId, // ✅ PROFILE ISOLATION
             name: alloc.name,
             percentage: alloc.percentage,
             amount,
@@ -221,28 +246,25 @@ const createDefaultAllocations = async (userId, month, year) => {
 
 /**
  * Lista alocações do mês/ano específico
+ * ✅ PROFILE ISOLATION
  */
-const getAllocations = async (userId, month, year) => {
+const getAllocations = async (userId, profileId, month, year) => {
+    const whereClause = { userId, month, year };
+    if (profileId) whereClause.profileId = profileId;
+
     let allocations = await BudgetAllocation.findAll({
-        where: { userId, month, year },
+        where: whereClause,
         order: [['percentage', 'DESC']]
     });
 
-    // SE NÃO EXISTIREM ALOCAÇÕES, CRIAR AS PADRÃO
     if (allocations.length === 0) {
-        // Verificar se é mês atual ou futuro para criar (evitar criar histórico antigo sem querer)
-        // Mas o usuário pode querer ver old... vamos criar sempre que pedir e estiver vazio?
-        // Sim, melhor garantir que tenha dados.
-        await createDefaultAllocations(userId, month, year);
-
-        // Recarregar
+        await createDefaultAllocations(userId, profileId, month, year);
         allocations = await BudgetAllocation.findAll({
-            where: { userId, month, year },
+            where: whereClause,
             order: [['percentage', 'DESC']]
         });
     }
 
-    // Para cada alocação, calcular o gasto atual
     const result = await Promise.all(allocations.map(async (alloc) => {
         const spent = await alloc.getSpent({ ManualTransaction, CardTransaction, Category, Goal, GoalHistory });
         return {
@@ -263,41 +285,43 @@ const getAllocations = async (userId, month, year) => {
 
 /**
  * Obtém alocações do mês atual
+ * ✅ PROFILE ISOLATION
  */
-const getCurrentAllocations = async (userId) => {
+const getCurrentAllocations = async (userId, profileId) => {
     const now = new Date();
-    return getAllocations(userId, now.getMonth() + 1, now.getFullYear());
+    return getAllocations(userId, profileId, now.getMonth() + 1, now.getFullYear());
 };
 
 /**
  * Cria ou atualiza alocações para um mês/ano
+ * ✅ PROFILE ISOLATION
  */
-const createOrUpdateAllocations = async (userId, data) => {
+const createOrUpdateAllocations = async (userId, profileId, data) => {
     const { income, allocations, month, year } = data;
 
-    // Usar mês/ano atual se não fornecido
     const now = new Date();
     const targetMonth = month || now.getMonth() + 1;
     const targetYear = year || now.getFullYear();
 
-    // Validar que soma = 100%
     const totalPercent = allocations.reduce((sum, a) => sum + (parseFloat(a.percent) || 0), 0);
     if (Math.abs(totalPercent - 100) > 0.01) {
         throw new AppError('A soma das porcentagens deve ser 100%', 400, 'INVALID_PERCENTAGES');
     }
 
-    // Deletar alocações antigas do mês
+    const deleteWhere = { userId, month: targetMonth, year: targetYear };
+    if (profileId) deleteWhere.profileId = profileId;
+
     await BudgetAllocation.destroy({
-        where: { userId, month: targetMonth, year: targetYear }
+        where: deleteWhere
     });
 
-    // Criar novas alocações
     const created = await Promise.all(allocations.map(async (alloc) => {
         const percentage = parseFloat(alloc.percent) || 0;
         const amount = (income * percentage) / 100;
 
         return BudgetAllocation.create({
             userId,
+            profileId, // ✅ PROFILE ISOLATION
             name: alloc.name,
             percentage,
             amount,
@@ -311,6 +335,7 @@ const createOrUpdateAllocations = async (userId, data) => {
     return {
         month: targetMonth,
         year: targetYear,
+        profileId,
         allocations: created.map(a => ({
             id: a.id,
             name: a.name,
@@ -324,29 +349,29 @@ const createOrUpdateAllocations = async (userId, data) => {
 
 /**
  * Verifica saúde do orçamento para uma categoria
- * Retorna se a transação pode ser feita ou se vai estourar
+ * ✅ PROFILE ISOLATION
  */
-const checkBudgetHealth = async (userId, categoryId, amount) => {
-    // Buscar categoria
+const checkBudgetHealth = async (userId, profileId, categoryId, amount) => {
     const category = await Category.findByPk(categoryId);
 
-    // Se não tem budgetAllocationId, permitir sempre
     if (!category?.budgetAllocationId) {
         return { allowed: true, linked: false };
     }
 
-    // Buscar alocação
     const allocation = await BudgetAllocation.findByPk(category.budgetAllocationId);
     if (!allocation) {
         return { allowed: true, linked: false };
     }
 
-    // Calcular gasto atual
+    // Verify allocation belongs to correct profile
+    if (profileId && allocation.profileId && allocation.profileId !== profileId) {
+        return { allowed: true, linked: false };
+    }
+
     const spent = await allocation.getSpent({ ManualTransaction, CardTransaction, Category, Goal, GoalHistory });
     const newTotal = spent + parseFloat(amount);
     const limit = parseFloat(allocation.amount);
 
-    // Verificar se estoura
     if (newTotal > limit) {
         return {
             allowed: false,
@@ -372,10 +397,8 @@ module.exports = {
     getCurrentBudget,
     createOrUpdateBudget,
     updateBudget,
-    // Budget Allocations
     getAllocations,
     getCurrentAllocations,
     createOrUpdateAllocations,
     checkBudgetHealth
 };
-

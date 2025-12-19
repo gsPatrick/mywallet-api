@@ -30,6 +30,15 @@ module.exports = (sequelize) => {
                 key: 'id'
             }
         },
+        // Perfil ao qual a transação pertence (isolamento multi-contexto)
+        profileId: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            references: {
+                model: 'profiles',
+                key: 'id'
+            }
+        },
         // Tipo da transação
         type: {
             type: DataTypes.ENUM('INCOME', 'EXPENSE', 'TRANSFER'),

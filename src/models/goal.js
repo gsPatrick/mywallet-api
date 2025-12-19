@@ -20,6 +20,15 @@ module.exports = (sequelize) => {
                 key: 'id'
             }
         },
+        // Perfil ao qual a meta pertence (isolamento multi-contexto)
+        profileId: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            references: {
+                model: 'profiles',
+                key: 'id'
+            }
+        },
         // Nome da meta
         name: {
             type: DataTypes.STRING(255),

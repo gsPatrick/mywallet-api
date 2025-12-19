@@ -1,6 +1,9 @@
 /**
  * Dashboard Service
- * Resumo financeiro completo
+ * ========================================
+ * MULTI-PROFILE ISOLATION ENABLED
+ * ========================================
+ * All financial queries now filter by profileId
  */
 
 const {
@@ -19,23 +22,29 @@ const { Op } = require('sequelize');
 
 /**
  * Obtém resumo financeiro do mês atual
+ * ✅ PROFILE ISOLATION: Filter by profileId
  */
-const getSummary = async (userId) => {
+const getSummary = async (userId, profileId) => {
     const now = new Date();
     const month = now.getMonth() + 1;
     const year = now.getFullYear();
     const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
     const endDate = new Date(year, month, 0).toISOString().split('T')[0];
 
-    // Buscar orçamento atual
+    // ✅ PROFILE ISOLATION: Base where clause
+    const baseWhere = { userId };
+    if (profileId) baseWhere.profileId = profileId;
+
+    // Buscar orçamento atual (filtrado por perfil)
+    const budgetWhere = { userId, month, year };
+    if (profileId) budgetWhere.profileId = profileId;
     const budget = await Budget.findOne({
-        where: { userId, month, year }
+        where: budgetWhere
     });
 
-    // Buscar transações do mês
     const dateFilter = { [Op.between]: [startDate, endDate] };
 
-    // Open Finance
+    // Open Finance (não tem profileId por enquanto)
     const [ofCredits, ofDebits] = await Promise.all([
         OpenFinanceTransaction.sum('amount', {
             where: { userId, type: 'CREDIT', date: dateFilter }
@@ -45,7 +54,6 @@ const getSummary = async (userId) => {
         })
     ]);
 
-    // Transações de cartão
     const cardExpenses = await OpenFinanceTransaction.sum('amount', {
         where: {
             userId,
@@ -55,30 +63,20 @@ const getSummary = async (userId) => {
         }
     });
 
-    // Manuais
+    // ✅ PROFILE ISOLATION: Manuais e Investimentos filtrados por perfil
+    const manualIncomeWhere = { ...baseWhere, type: 'INCOME', date: dateFilter };
+    const manualExpenseWhere = { ...baseWhere, type: 'EXPENSE', date: dateFilter };
+    const investmentWhere = { ...baseWhere, operationType: 'BUY', date: dateFilter };
+
     const [manualIncome, manualExpenses, manualInvestments] = await Promise.all([
-        ManualTransaction.sum('amount', {
-            where: { userId, type: 'INCOME', date: dateFilter }
-        }),
-        ManualTransaction.sum('amount', {
-            where: { userId, type: 'EXPENSE', date: dateFilter }
-        }),
-        Investment.sum('quantity', {
-            where: {
-                userId,
-                operationType: 'BUY',
-                date: dateFilter
-            }
-        })
+        ManualTransaction.sum('amount', { where: manualIncomeWhere }),
+        ManualTransaction.sum('amount', { where: manualExpenseWhere }),
+        Investment.sum('quantity', { where: investmentWhere })
     ]);
 
-    // Calcular totais de investimentos do mês
+    // Calcular totais de investimentos do mês ✅ PROFILE ISOLATION
     const investmentsThisMonth = await Investment.findAll({
-        where: {
-            userId,
-            operationType: 'BUY',
-            date: dateFilter
-        }
+        where: investmentWhere
     });
 
     let investedThisMonth = 0;
@@ -100,7 +98,6 @@ const getSummary = async (userId) => {
     const spendingLimit = budget ? budget.getSpendingLimit() : income * 0.6;
 
     // Gerar alertas
-    // Generate alerts
     const alerts = generateAlerts({
         income,
         expenses,
@@ -110,14 +107,13 @@ const getSummary = async (userId) => {
         budget
     });
 
-    // Calculate All-Time Manual Balance for Total Equity
+    // ✅ PROFILE ISOLATION: Calculate All-Time Manual Balance for this profile
+    const allManualIncomeWhere = { ...baseWhere, type: 'INCOME' };
+    const allManualExpenseWhere = { ...baseWhere, type: 'EXPENSE' };
+
     const [allManualIncome, allManualExpenses] = await Promise.all([
-        ManualTransaction.sum('amount', {
-            where: { userId, type: 'INCOME' }
-        }),
-        ManualTransaction.sum('amount', {
-            where: { userId, type: 'EXPENSE' }
-        })
+        ManualTransaction.sum('amount', { where: allManualIncomeWhere }),
+        ManualTransaction.sum('amount', { where: allManualExpenseWhere })
     ]);
     const manualTotalBalance = (parseFloat(allManualIncome) || 0) - (parseFloat(allManualExpenses) || 0);
 
@@ -128,6 +124,7 @@ const getSummary = async (userId) => {
             startDate,
             endDate
         },
+        profileId, // Include for frontend reference
         income,
         expenses,
         cardExpenses: cardExpensesTotal,
@@ -139,7 +136,7 @@ const getSummary = async (userId) => {
         spendingLimit,
         remainingBudget: spendingLimit - expenses,
         balance: income - expenses - investedThisMonth,
-        manualTotalBalance, // Added field
+        manualTotalBalance,
         hasBudget: !!budget,
         alerts
     };
@@ -151,7 +148,6 @@ const getSummary = async (userId) => {
 const generateAlerts = (data) => {
     const alerts = [];
 
-    // Alerta de gastos acima do limite
     if (data.expenses > data.spendingLimit) {
         alerts.push({
             type: 'OVER_BUDGET',
@@ -166,7 +162,6 @@ const generateAlerts = (data) => {
         });
     }
 
-    // Alerta de investimento abaixo do recomendado
     if (data.investedThisMonth < data.recommendedInvestment * 0.5) {
         alerts.push({
             type: 'LOW_INVESTMENT',
@@ -175,7 +170,6 @@ const generateAlerts = (data) => {
         });
     }
 
-    // Alerta de orçamento não configurado
     if (!data.budget) {
         alerts.push({
             type: 'NO_BUDGET',
@@ -189,31 +183,35 @@ const generateAlerts = (data) => {
 
 /**
  * Obtém alertas financeiros
+ * ✅ PROFILE ISOLATION
  */
-const getAlerts = async (userId) => {
-    const summary = await getSummary(userId);
+const getAlerts = async (userId, profileId) => {
+    const summary = await getSummary(userId, profileId);
     return summary.alerts;
 };
 
 /**
  * Obtém visão geral por categoria
+ * ✅ PROFILE ISOLATION
  */
-const getCategoryBreakdown = async (userId) => {
+const getCategoryBreakdown = async (userId, profileId) => {
     const now = new Date();
     const month = now.getMonth() + 1;
     const year = now.getFullYear();
     const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
     const endDate = new Date(year, month, 0).toISOString().split('T')[0];
 
-    // Buscar transações com metadata
     const { TransactionMetadata } = require('../../models');
+
+    // ✅ PROFILE ISOLATION: Filter manual transactions by profile
+    const baseWhere = { userId };
+    if (profileId) baseWhere.profileId = profileId;
 
     const metadata = await TransactionMetadata.findAll({
         where: { userId, category: { [Op.not]: null } },
         attributes: ['category', 'transactionType', 'transactionId']
     });
 
-    // Agregar por categoria
     const categories = {};
 
     for (const m of metadata) {
@@ -228,11 +226,14 @@ const getCategoryBreakdown = async (userId) => {
             });
             if (tx) amount = parseFloat(tx.amount);
         } else {
+            const manualWhere = {
+                id: m.transactionId,
+                date: { [Op.between]: [startDate, endDate] }
+            };
+            if (profileId) manualWhere.profileId = profileId;
+
             const tx = await ManualTransaction.findOne({
-                where: {
-                    id: m.transactionId,
-                    date: { [Op.between]: [startDate, endDate] }
-                }
+                where: manualWhere
             });
             if (tx) amount = parseFloat(tx.amount);
         }
@@ -251,10 +252,9 @@ const getCategoryBreakdown = async (userId) => {
 
 /**
  * Obtém atividades recentes do usuário
- * Filtra apenas ações de usuário, exclui erros e imports automáticos
+ * Activities are user-level (not profile-specific)
  */
-const getActivities = async (userId) => {
-    // Lista de ações que queremos mostrar (ações do usuário)
+const getActivities = async (userId, profileId) => {
     const allowedActions = [
         'TRANSACTION_CREATE',
         'TRANSACTION_UPDATE',
@@ -282,6 +282,8 @@ const getActivities = async (userId) => {
         'CARD_DELETE'
     ];
 
+    // Note: Activities could optionally filter by profileId in details
+    // For now, show all user activities
     const logs = await AuditLog.findAll({
         where: {
             userId,
@@ -302,8 +304,6 @@ const getActivities = async (userId) => {
     }));
 };
 
-
-// Helpers de tradução simples
 const translateAction = (action) => {
     const map = {
         'USER_LOGIN': 'Fez login',
@@ -351,13 +351,17 @@ const translateResource = (resource) => {
     };
     return map[resource] || resource;
 };
+
 /**
  * Obtém transações recentes com detalhes completos
- * Para exibir na aba Manual do Dashboard
+ * ✅ PROFILE ISOLATION
  */
-const getRecentTransactions = async (userId) => {
+const getRecentTransactions = async (userId, profileId) => {
+    const whereClause = { userId };
+    if (profileId) whereClause.profileId = profileId;
+
     const transactions = await ManualTransaction.findAll({
-        where: { userId },
+        where: whereClause,
         include: [{
             model: Category,
             as: 'category',
@@ -372,8 +376,8 @@ const getRecentTransactions = async (userId) => {
         id: t.id,
         description: t.description || 'Sem descrição',
         amount: parseFloat(t.amount),
-        type: t.type, // INCOME, EXPENSE, TRANSFER
-        status: t.status, // PENDING, COMPLETED, CANCELLED
+        type: t.type,
+        status: t.status,
         date: t.date,
         source: t.source,
         category: t.category ? {
@@ -385,8 +389,6 @@ const getRecentTransactions = async (userId) => {
         createdAt: t.createdAt
     }));
 };
-
-
 
 module.exports = {
     getSummary,

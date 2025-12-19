@@ -1,12 +1,16 @@
 /**
  * Budgets Controller
+ * ========================================
+ * MULTI-PROFILE ISOLATION ENABLED
+ * ========================================
  */
 
 const budgetsService = require('./budgets.service');
 
 const listBudgets = async (req, res, next) => {
     try {
-        const budgets = await budgetsService.listBudgets(req.userId, req.query);
+        // ✅ PROFILE ISOLATION: Pass profileId
+        const budgets = await budgetsService.listBudgets(req.userId, req.profileId, req.query);
         res.json({ data: budgets });
     } catch (error) {
         next(error);
@@ -15,7 +19,8 @@ const listBudgets = async (req, res, next) => {
 
 const getCurrentBudget = async (req, res, next) => {
     try {
-        const budget = await budgetsService.getCurrentBudget(req.userId);
+        // ✅ PROFILE ISOLATION: Pass profileId
+        const budget = await budgetsService.getCurrentBudget(req.userId, req.profileId);
 
         if (!budget) {
             return res.status(404).json({
@@ -32,7 +37,8 @@ const getCurrentBudget = async (req, res, next) => {
 
 const createBudget = async (req, res, next) => {
     try {
-        const budget = await budgetsService.createOrUpdateBudget(req.userId, req.body);
+        // ✅ PROFILE ISOLATION: Pass profileId
+        const budget = await budgetsService.createOrUpdateBudget(req.userId, req.profileId, req.body);
         res.status(budget.created ? 201 : 200).json({
             message: budget.created ? 'Orçamento criado' : 'Orçamento atualizado',
             data: budget
@@ -44,7 +50,8 @@ const createBudget = async (req, res, next) => {
 
 const updateBudget = async (req, res, next) => {
     try {
-        const budget = await budgetsService.updateBudget(req.userId, req.params.id, req.body);
+        // ✅ PROFILE ISOLATION: Pass profileId
+        const budget = await budgetsService.updateBudget(req.userId, req.profileId, req.params.id, req.body);
         res.json({
             message: 'Orçamento atualizado',
             data: budget
@@ -58,26 +65,23 @@ const updateBudget = async (req, res, next) => {
 // BUDGET ALLOCATIONS
 // ===========================================
 
-/**
- * Obtém alocações do mês atual
- */
 const getCurrentAllocations = async (req, res, next) => {
     try {
-        const allocations = await budgetsService.getCurrentAllocations(req.userId);
+        // ✅ PROFILE ISOLATION: Pass profileId
+        const allocations = await budgetsService.getCurrentAllocations(req.userId, req.profileId);
         res.json({ data: { allocations } });
     } catch (error) {
         next(error);
     }
 };
 
-/**
- * Obtém alocações de um mês/ano específico
- */
 const getAllocations = async (req, res, next) => {
     try {
         const { month, year } = req.query;
+        // ✅ PROFILE ISOLATION: Pass profileId
         const allocations = await budgetsService.getAllocations(
             req.userId,
+            req.profileId,
             parseInt(month),
             parseInt(year)
         );
@@ -87,12 +91,10 @@ const getAllocations = async (req, res, next) => {
     }
 };
 
-/**
- * Cria ou atualiza alocações
- */
 const createAllocations = async (req, res, next) => {
     try {
-        const result = await budgetsService.createOrUpdateAllocations(req.userId, req.body);
+        // ✅ PROFILE ISOLATION: Pass profileId
+        const result = await budgetsService.createOrUpdateAllocations(req.userId, req.profileId, req.body);
         res.status(201).json({
             message: 'Alocações salvas com sucesso',
             data: result
@@ -107,9 +109,7 @@ module.exports = {
     getCurrentBudget,
     createBudget,
     updateBudget,
-    // Budget Allocations
     getCurrentAllocations,
     getAllocations,
     createAllocations
 };
-

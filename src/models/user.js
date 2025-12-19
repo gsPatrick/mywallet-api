@@ -1,6 +1,12 @@
 /**
  * Model User
- * Representa um usuário do sistema
+ * ========================================
+ * A CONTA (O JOGADOR)
+ * ========================================
+ * 
+ * - Login, Dados Pessoais
+ * - Gamificação é gerenciada no UserProfile
+ * - Dados financeiros ficam no Profile
  */
 
 const { DataTypes } = require('sequelize');
@@ -46,31 +52,22 @@ module.exports = (sequelize) => {
                 }
             }
         },
-        // Salário mensal (para receita fixa)
-        salary: {
-            type: DataTypes.DECIMAL(15, 2),
+        // CPF do usuário
+        cpf: {
+            type: DataTypes.STRING(14),
+            allowNull: true,
+            comment: 'CPF formatado: 000.000.000-00'
+        },
+        // Telefone do usuário
+        phone: {
+            type: DataTypes.STRING(20),
+            allowNull: true,
+            comment: 'Telefone: (00) 00000-0000'
+        },
+        // Avatar URL
+        avatar: {
+            type: DataTypes.STRING(500),
             allowNull: true
-        },
-        // Dia do pagamento do salário (1-31)
-        salaryDay: {
-            type: DataTypes.INTEGER,
-            allowNull: true,
-            validate: {
-                min: 1,
-                max: 31
-            }
-        },
-        // Descrição personalizada do salário (ex: "Salário - Empresa X")
-        salaryDescription: {
-            type: DataTypes.STRING,
-            allowNull: true,
-            defaultValue: 'Salário'
-        },
-        // Saldo inicial informado no onboarding
-        initialBalance: {
-            type: DataTypes.DECIMAL(15, 2),
-            allowNull: true,
-            defaultValue: 0
         },
         // Onboarding
         onboardingComplete: {
@@ -119,10 +116,9 @@ module.exports = (sequelize) => {
             id: this.id,
             name: this.name,
             email: this.email,
-            salary: this.salary,
-            salaryDay: this.salaryDay,
-            salaryDescription: this.salaryDescription,
-            initialBalance: this.initialBalance,
+            cpf: this.cpf,
+            phone: this.phone,
+            avatar: this.avatar,
             onboardingComplete: this.onboardingComplete,
             onboardingStep: this.onboardingStep,
             createdAt: this.createdAt,
