@@ -368,11 +368,15 @@ const listTransactions = async (userId, profileId, filters = {}) => {
     });
 
     // Buscar transações de cartão
-    // ⚠️ CardTransaction NÃO tem profile_id, então filtramos apenas por userId
-    // A isolação por perfil é feita via o cartão associado
-    const cardWhere = { userId }; // Não usar profileId aqui - tabela não tem essa coluna
+    // ✅ PROFILE ISOLATION: CardTransaction não tem profile_id direto
+    // A isolação é feita via o cartão associado (CreditCard.profileId)
+    const cardWhere = { userId };
     if (Object.keys(dateFilter).length) cardWhere.date = dateFilter;
     if (Object.keys(amountFilter).length) cardWhere.amount = amountFilter;
+
+    // Filtro para o cartão associado (para isolar por perfil)
+    const cardIncludeWhere = {};
+    if (profileId) cardIncludeWhere.profileId = profileId;
 
     let cardTransactions = [];
     if (!type || type === 'EXPENSE') {
@@ -387,7 +391,9 @@ const listTransactions = async (userId, profileId, filters = {}) => {
                 {
                     model: CreditCard,
                     as: 'card',
-                    attributes: ['id', 'name', 'lastFourDigits']
+                    attributes: ['id', 'name', 'lastFourDigits', 'profileId'],
+                    where: Object.keys(cardIncludeWhere).length > 0 ? cardIncludeWhere : undefined,
+                    required: !!profileId // ✅ Se profileId foi passado, exigir cartão do perfil correto
                 }
             ],
             order: [['date', 'DESC']],
