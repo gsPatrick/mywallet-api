@@ -102,10 +102,18 @@ router.post('/setup', async (req, res) => {
             profiles: createdProfiles
         });
     } catch (error) {
-        console.error('Error setting up profiles:', error);
+        console.error('═══════════════════════════════════════════════════');
+        console.error('❌ [PROFILES SETUP] ERROR DETAILS:');
+        console.error('   - Message:', error.message);
+        console.error('   - Name:', error.name);
+        console.error('   - Stack:', error.stack);
+        console.error('═══════════════════════════════════════════════════');
+
         res.status(500).json({
             success: false,
-            error: 'Erro ao configurar perfis'
+            error: 'Erro ao configurar perfis',
+            details: error.message,  // ← Retorna mensagem real para debug
+            errorName: error.name
         });
     }
 });
