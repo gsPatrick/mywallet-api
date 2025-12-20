@@ -147,11 +147,29 @@ const updateMetadata = async (req, res, next) => {
     }
 };
 
+/**
+ * POST /transactions/internal-transfer
+ * Create an internal transfer between profiles/accounts
+ */
+const createInternalTransfer = async (req, res, next) => {
+    try {
+        const result = await transactionsService.createInternalTransfer(req.userId, req.body);
+
+        res.status(201).json({
+            message: 'Transferência interna realizada com sucesso',
+            data: result
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     listTransactions,
     listCategories,
     createManualTransaction,
     updateTransaction,
     deleteTransaction,
-    updateMetadata
+    updateMetadata,
+    createInternalTransfer
 };

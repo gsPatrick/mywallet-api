@@ -1,6 +1,6 @@
 /**
  * Model BankAccount
- * Contas bancárias importadas do Open Finance
+ * Contas bancárias manuais ou importadas do Open Finance
  */
 
 const { DataTypes } = require('sequelize');
@@ -23,11 +23,17 @@ module.exports = (sequelize) => {
         // Perfil ao qual a conta bancária pertence (isolamento multi-contexto)
         profileId: {
             type: DataTypes.UUID,
-            allowNull: true,
+            allowNull: false, // CHANGED: Now required for profile isolation
             references: {
                 model: 'profiles',
                 key: 'id'
             }
+        },
+        // Fonte da conta: Manual ou Open Finance
+        source: {
+            type: DataTypes.ENUM('MANUAL', 'OPEN_FINANCE'),
+            allowNull: false,
+            defaultValue: 'MANUAL'
         },
         consentId: {
             type: DataTypes.UUID,
@@ -51,13 +57,29 @@ module.exports = (sequelize) => {
             type: DataTypes.STRING(10),
             allowNull: true
         },
+        // Apelido da conta (ex: "Conta Principal", "Reserva de Emergência")
+        nickname: {
+            type: DataTypes.STRING(100),
+            allowNull: true
+        },
+        // Cor do banco (para UI, do cardBanks.json)
+        color: {
+            type: DataTypes.STRING(20),
+            allowNull: true
+        },
+        // Ícone/logo do banco (URL do cardBanks.json)
+        icon: {
+            type: DataTypes.STRING(500),
+            allowNull: true
+        },
         // Tipo de conta
         type: {
             type: DataTypes.ENUM(
                 'CONTA_CORRENTE',
                 'CONTA_POUPANCA',
                 'CONTA_PAGAMENTO',
-                'CONTA_SALARIO'
+                'CONTA_SALARIO',
+                'CARTEIRA' // For general wallet
             ),
             allowNull: false,
             defaultValue: 'CONTA_CORRENTE'
@@ -75,7 +97,7 @@ module.exports = (sequelize) => {
         // Saldo atual
         balance: {
             type: DataTypes.DECIMAL(15, 2),
-            allowNull: true,
+            allowNull: false,
             defaultValue: 0
         },
         // Moeda
@@ -94,12 +116,19 @@ module.exports = (sequelize) => {
             type: DataTypes.BOOLEAN,
             allowNull: false,
             defaultValue: true
+        },
+        // Conta padrão para o perfil (pré-selecionada em novas transações)
+        isDefault: {
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: false
         }
     }, {
         tableName: 'bank_accounts',
         timestamps: true,
         indexes: [
             { fields: ['user_id'] },
+            { fields: ['profile_id'] },
             { fields: ['consent_id'] },
             { fields: ['open_finance_id'], unique: true }
         ]

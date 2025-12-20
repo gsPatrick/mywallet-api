@@ -117,6 +117,17 @@ OpenFinanceTransaction.belongsTo(CreditCard, { foreignKey: 'relatedCardId', as: 
 BankAccount.hasMany(OpenFinanceTransaction, { foreignKey: 'relatedAccountId', as: 'transactions' });
 OpenFinanceTransaction.belongsTo(BankAccount, { foreignKey: 'relatedAccountId', as: 'bankAccount' });
 
+// BankAccount -> ManualTransactions (NEW)
+BankAccount.hasMany(ManualTransaction, { foreignKey: 'bankAccountId', as: 'manualTransactions' });
+ManualTransaction.belongsTo(BankAccount, { foreignKey: 'bankAccountId', as: 'bankAccount' });
+
+// BankAccount -> CreditCards (for invoice payment) (NEW)
+BankAccount.hasMany(CreditCard, { foreignKey: 'bankAccountId', as: 'linkedCreditCards' });
+CreditCard.belongsTo(BankAccount, { foreignKey: 'bankAccountId', as: 'paymentAccount' });
+
+// ManualTransaction self-reference for INTERNAL_TRANSFER linking (NEW)
+ManualTransaction.belongsTo(ManualTransaction, { foreignKey: 'linkedTransferId', as: 'linkedTransfer' });
+
 // User -> ManualTransactions
 User.hasMany(ManualTransaction, { foreignKey: 'userId', as: 'manualTransactions' });
 ManualTransaction.belongsTo(User, { foreignKey: 'userId', as: 'user' });

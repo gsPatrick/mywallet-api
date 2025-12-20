@@ -21,7 +21,7 @@ router.use(profileMiddleware);
 // Schemas de validação
 const createTransactionSchema = {
     body: {
-        type: { required: true, enum: ['INCOME', 'EXPENSE', 'TRANSFER'] },
+        type: { required: true, enum: ['INCOME', 'EXPENSE', 'TRANSFER', 'INTERNAL_TRANSFER'] },
         description: { required: true, minLength: 1 },
         amount: { required: true, min: 0.01 },
         date: { required: true, type: 'date' }
@@ -32,6 +32,7 @@ const createTransactionSchema = {
 router.get('/categories', transactionsController.listCategories);
 router.get('/', transactionsController.listTransactions);
 router.post('/manual', validate(createTransactionSchema), auditLogger('TRANSACTION'), transactionsController.createManualTransaction);
+router.post('/internal-transfer', auditLogger('INTERNAL_TRANSFER'), transactionsController.createInternalTransfer);
 router.put('/:id', auditLogger('TRANSACTION'), transactionsController.updateTransaction);
 router.delete('/:id', auditLogger('TRANSACTION'), transactionsController.deleteTransaction);
 router.put('/:id/metadata', auditLogger('TRANSACTION_METADATA'), transactionsController.updateMetadata);

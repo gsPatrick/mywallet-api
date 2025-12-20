@@ -29,6 +29,15 @@ module.exports = (sequelize) => {
                 key: 'id'
             }
         },
+        // Conta bancária para pagamento da fatura (opcional)
+        bankAccountId: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            references: {
+                model: 'bank_accounts',
+                key: 'id'
+            }
+        },
         consentId: {
             type: DataTypes.UUID,
             allowNull: true,

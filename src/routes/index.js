@@ -49,6 +49,11 @@ const { whatsappRoutes } = require('../features/whatsapp');
 // ===========================================
 const { profilesRoutes } = require('../features/profiles');
 
+// ===========================================
+// ROTAS - FASE 7 (BANK ACCOUNTS)
+// ===========================================
+const bankAccountsRoutes = require('../features/bankAccounts/bankAccounts.routes');
+
 const router = Router();
 
 // Rotas públicas
@@ -102,6 +107,11 @@ router.use('/whatsapp', whatsappRoutes);
 // REGISTRAR ROTAS - FASE 6 (MULTI-CONTEXT PROFILES)
 // ===========================================
 router.use('/profiles', profilesRoutes);
+
+// ===========================================
+// REGISTRAR ROTAS - FASE 7 (BANK ACCOUNTS)
+// ===========================================
+router.use('/bank-accounts', bankAccountsRoutes);
 
 // ===========================================
 // DOCUMENTAÇÃO DA API

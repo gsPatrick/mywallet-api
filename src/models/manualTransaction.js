@@ -11,6 +11,7 @@
  * - Podem ser editados
  * - Podem ser excluídos
  * - Suporta transações futuras/agendadas
+ * - Suporta transferências internas entre perfis
  */
 
 const { DataTypes } = require('sequelize');
@@ -39,9 +40,27 @@ module.exports = (sequelize) => {
                 key: 'id'
             }
         },
+        // Conta bancária vinculada (obrigatório para novas transações manuais)
+        bankAccountId: {
+            type: DataTypes.UUID,
+            allowNull: true, // Allow null for backward compatibility with existing data
+            references: {
+                model: 'bank_accounts',
+                key: 'id'
+            }
+        },
+        // ID da transação par (para INTERNAL_TRANSFER - liga as duas pontas)
+        linkedTransferId: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            references: {
+                model: 'manual_transactions',
+                key: 'id'
+            }
+        },
         // Tipo da transação
         type: {
-            type: DataTypes.ENUM('INCOME', 'EXPENSE', 'TRANSFER'),
+            type: DataTypes.ENUM('INCOME', 'EXPENSE', 'TRANSFER', 'INTERNAL_TRANSFER'),
             allowNull: false
         },
         // Status da transação (para agendados)
@@ -139,6 +158,9 @@ module.exports = (sequelize) => {
         timestamps: true,
         indexes: [
             { fields: ['user_id'] },
+            { fields: ['profile_id'] },
+            { fields: ['bank_account_id'] },
+            { fields: ['linked_transfer_id'] },
             { fields: ['date'] },
             { fields: ['type'] },
             { fields: ['source'] },
