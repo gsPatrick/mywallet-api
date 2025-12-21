@@ -21,8 +21,11 @@ class MercadoPagoService {
             const plan = PLANS_CONFIG[planType];
             if (!plan) throw new Error('Plano inválido');
 
-            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
-            const apiUrl = process.env.API_URL || 'http://localhost:3000';
+            const frontendUrl = process.env.FRONTEND_URL || 'https://mywallet-front.vercel.app';
+            const apiUrl = process.env.API_URL || 'https://geral-mywallet-api.r954jc.easypanel.host';
+
+            // Check if using localhost (MP doesn't accept localhost for auto_return)
+            const isLocalhost = frontendUrl.includes('localhost');
 
             const preference = {
                 items: [{
@@ -37,22 +40,25 @@ class MercadoPagoService {
                     email: user.email,
                     name: user.name || 'Cliente'
                 },
-                back_urls: {
-                    success: `${frontendUrl}/checkout?status=success&plan=${planType}`,
-                    failure: `${frontendUrl}/checkout?status=failure&plan=${planType}`,
-                    pending: `${frontendUrl}/checkout?status=pending&plan=${planType}`
-                },
-                auto_return: 'approved',
                 external_reference: `${user.id}:${planType}`,
-                notification_url: `${apiUrl}/api/webhooks/mercadopago`,
                 statement_descriptor: 'MYWALLET',
-                // Para planos recorrentes, marcar metadata
                 metadata: {
                     user_id: user.id,
                     plan_type: planType,
                     is_subscription: plan.frequency ? true : false
                 }
             };
+
+            // Only add back_urls and auto_return for non-localhost
+            if (!isLocalhost) {
+                preference.back_urls = {
+                    success: `${frontendUrl}/checkout?status=success&plan=${planType}`,
+                    failure: `${frontendUrl}/checkout?status=failure&plan=${planType}`,
+                    pending: `${frontendUrl}/checkout?status=pending&plan=${planType}`
+                };
+                preference.auto_return = 'approved';
+                preference.notification_url = `${apiUrl}/api/webhooks/mercadopago`;
+            }
 
             console.log('Criando preferência MP:', JSON.stringify(preference, null, 2));
 
