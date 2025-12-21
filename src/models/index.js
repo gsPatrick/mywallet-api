@@ -41,6 +41,9 @@ const GoalHistory = require('./goalHistory')(sequelize);
 // Importar models - Fase 5 (Orçamentos Inteligentes)
 const BudgetAllocation = require('./budgetAllocation')(sequelize);
 
+// Importar models - Fase 6 (Central do DAS)
+const DasGuide = require('./dasGuide')(sequelize);
+
 // ===========================================
 // ASSOCIAÇÕES - Fase 1
 // ===========================================
@@ -152,6 +155,10 @@ Budget.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 User.hasMany(Goal, { foreignKey: 'userId', as: 'goals' });
 Goal.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
+// BankAccount -> Goals (goals linked to this account for "reserved balance")
+BankAccount.hasMany(Goal, { foreignKey: 'bankAccountId', as: 'linkedGoals' });
+Goal.belongsTo(BankAccount, { foreignKey: 'bankAccountId', as: 'bankAccount' });
+
 // Goal -> GoalHistory
 Goal.hasMany(GoalHistory, { foreignKey: 'goalId', as: 'history' });
 GoalHistory.belongsTo(Goal, { foreignKey: 'goalId', as: 'goal' });
@@ -261,6 +268,21 @@ BudgetAllocation.hasMany(Goal, { foreignKey: 'budgetAllocationId', as: 'goals' }
 Goal.belongsTo(BudgetAllocation, { foreignKey: 'budgetAllocationId', as: 'budgetAllocation' });
 
 // ===========================================
+// ASSOCIAÇÕES - Fase 6 (Central do DAS)
+// ===========================================
+
+// Profile -> DasGuides
+Profile.hasMany(DasGuide, { foreignKey: 'profileId', as: 'dasGuides' });
+DasGuide.belongsTo(Profile, { foreignKey: 'profileId', as: 'profile' });
+
+// BankAccount -> DasGuides
+BankAccount.hasMany(DasGuide, { foreignKey: 'bankAccountId', as: 'dasGuides' });
+DasGuide.belongsTo(BankAccount, { foreignKey: 'bankAccountId', as: 'bankAccount' });
+
+// ManualTransaction -> DasGuide (1:1 optional)
+DasGuide.belongsTo(ManualTransaction, { foreignKey: 'transactionId', as: 'transaction' });
+
+// ===========================================
 // EXPORTAÇÃO
 // ===========================================
 
@@ -296,5 +318,7 @@ module.exports = {
     Notification,
     GoalHistory,
     // Fase 5 - Orçamentos Inteligentes
-    BudgetAllocation
+    BudgetAllocation,
+    // Fase 6 - Central do DAS
+    DasGuide
 };

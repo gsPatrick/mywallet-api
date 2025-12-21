@@ -96,18 +96,28 @@ module.exports = (sequelize) => {
             allowNull: false,
             defaultValue: 'OTHER'
         },
-        // Tipo de armazenamento
-        storageType: {
-            type: DataTypes.ENUM('manual', 'openfinance'),
-            allowNull: false,
-            defaultValue: 'manual'
+        // Conta bancária vinculada (onde o dinheiro da meta está guardado)
+        // Substitui linkedAccountId e manualBank por referência direta
+        bankAccountId: {
+            type: DataTypes.UUID,
+            allowNull: true, // Opcional - permite metas sem conta vinculada
+            references: {
+                model: 'bank_accounts',
+                key: 'id'
+            }
         },
-        // ID da conta vinculada (se openfinance)
+        // DEPRECATED: Mantido para compatibilidade, usar bankAccountId
+        storageType: {
+            type: DataTypes.ENUM('manual', 'openfinance', 'linked'),
+            allowNull: false,
+            defaultValue: 'linked' // Novo padrão é vinculado a conta
+        },
+        // DEPRECATED: Mantido para compatibilidade
         linkedAccountId: {
             type: DataTypes.UUID,
             allowNull: true
         },
-        // Nome do banco manual (se manual)
+        // DEPRECATED: Mantido para compatibilidade
         manualBank: {
             type: DataTypes.STRING(100),
             allowNull: true

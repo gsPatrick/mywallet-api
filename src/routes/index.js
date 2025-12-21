@@ -54,6 +54,11 @@ const { profilesRoutes } = require('../features/profiles');
 // ===========================================
 const bankAccountsRoutes = require('../features/bankAccounts/bankAccounts.routes');
 
+// ===========================================
+// ROTAS - FASE 8 (CENTRAL DO DAS)
+// ===========================================
+const dasRoutes = require('../features/das/das.routes');
+
 const router = Router();
 
 // Rotas públicas
@@ -112,6 +117,11 @@ router.use('/profiles', profilesRoutes);
 // REGISTRAR ROTAS - FASE 7 (BANK ACCOUNTS)
 // ===========================================
 router.use('/bank-accounts', bankAccountsRoutes);
+
+// ===========================================
+// REGISTRAR ROTAS - FASE 8 (CENTRAL DO DAS)
+// ===========================================
+router.use('/das', dasRoutes);
 
 // ===========================================
 // DOCUMENTAÇÃO DA API
