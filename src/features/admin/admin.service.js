@@ -243,7 +243,7 @@ const createUser = async ({ name, email, password, plan }) => {
         plan,
         subscriptionStatus: 'ACTIVE',
         subscriptionExpiresAt: expiresAt,
-        onboardingComplete: true
+        onboardingComplete: false // User will go through onboarding
     });
 
     // Criar registro no histórico
