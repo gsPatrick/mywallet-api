@@ -103,6 +103,12 @@ const startServer = async () => {
       logger.info('👑 Admin OWNER verificado: patricksiqueira.developer@admin.com');
     }
 
+    // =====================================================
+    // 💳 SETUP MERCADO PAGO PLANS (Auto-create if missing)
+    // =====================================================
+    const { setupMPPlansIfNeeded } = require('./features/subscription/mpPlansSetup');
+    await setupMPPlansIfNeeded();
+
     app.listen(PORT, () => {
       logger.info(`🚀 Servidor rodando na porta ${PORT}`);
     });

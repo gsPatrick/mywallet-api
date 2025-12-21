@@ -47,6 +47,9 @@ const DasGuide = require('./dasGuide')(sequelize);
 // Importar models - Fase 7 (SaaS - Payment History)
 const PaymentHistory = require('./paymentHistory')(sequelize);
 
+// Importar models - Fase 8 (Settings/Config)
+const Setting = require('./setting')(sequelize);
+
 // ===========================================
 // ASSOCIAÇÕES - Fase 1
 // ===========================================
@@ -325,5 +328,7 @@ module.exports = {
     // Fase 6 - Central do DAS
     DasGuide,
     // Fase 7 - SaaS
-    PaymentHistory
+    PaymentHistory,
+    // Fase 8 - Settings
+    Setting
 };
