@@ -4,9 +4,8 @@
  * INTEGRAÇÃO COM MERCADO PAGO
  * ========================================
  * 
- * - Criação de assinaturas recorrentes
- * - Criação de pagamentos únicos (Lifetime)
- * - Consulta de status
+ * Usando Checkout Pro (redirect) para todos os planos
+ * Mais simples e funciona com sandbox
  */
 
 const axios = require('axios');
@@ -14,16 +13,21 @@ const { MP_ACCESS_TOKEN, PLANS_CONFIG, getHeaders, BASE_URL } = require('../../c
 
 class MercadoPagoService {
     /**
-     * Cria uma preferência de pagamento único (para Lifetime)
+     * Cria uma preferência de pagamento (Checkout Pro)
+     * Funciona para todos os planos - redirect para MP
      */
     async createPreference(planType, user) {
         try {
             const plan = PLANS_CONFIG[planType];
             if (!plan) throw new Error('Plano inválido');
 
+            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+            const apiUrl = process.env.API_URL || 'http://localhost:3000';
+
             const preference = {
                 items: [{
-                    title: plan.name,
+                    id: planType,
+                    title: `MyWallet - ${plan.name}`,
                     description: plan.description,
                     unit_price: plan.price,
                     quantity: 1,
@@ -31,17 +35,26 @@ class MercadoPagoService {
                 }],
                 payer: {
                     email: user.email,
-                    name: user.name
+                    name: user.name || 'Cliente'
                 },
                 back_urls: {
-                    success: `${process.env.FRONTEND_URL}/checkout/success`,
-                    failure: `${process.env.FRONTEND_URL}/checkout/failure`,
-                    pending: `${process.env.FRONTEND_URL}/checkout/pending`
+                    success: `${frontendUrl}/checkout?status=success&plan=${planType}`,
+                    failure: `${frontendUrl}/checkout?status=failure&plan=${planType}`,
+                    pending: `${frontendUrl}/checkout?status=pending&plan=${planType}`
                 },
                 auto_return: 'approved',
                 external_reference: `${user.id}:${planType}`,
-                notification_url: `${process.env.API_URL}/api/webhooks/mercadopago`
+                notification_url: `${apiUrl}/api/webhooks/mercadopago`,
+                statement_descriptor: 'MYWALLET',
+                // Para planos recorrentes, marcar metadata
+                metadata: {
+                    user_id: user.id,
+                    plan_type: planType,
+                    is_subscription: plan.frequency ? true : false
+                }
             };
+
+            console.log('Criando preferência MP:', JSON.stringify(preference, null, 2));
 
             const response = await axios.post(
                 `${BASE_URL}/checkout/preferences`,
@@ -49,67 +62,10 @@ class MercadoPagoService {
                 { headers: getHeaders() }
             );
 
+            console.log('Preferência criada:', response.data.id);
             return response.data;
         } catch (error) {
             console.error('Erro ao criar preferência:', error.response?.data || error.message);
-            throw error;
-        }
-    }
-
-    /**
-     * Cria uma assinatura recorrente (Mensal/Anual)
-     */
-    async createPreApproval(planType, user, cardTokenId) {
-        try {
-            const plan = PLANS_CONFIG[planType];
-            if (!plan || !plan.frequency) {
-                throw new Error('Plano inválido para assinatura recorrente');
-            }
-
-            const startDate = new Date();
-            startDate.setMinutes(startDate.getMinutes() + 5);
-
-            const subscriptionData = {
-                reason: plan.name,
-                external_reference: user.id,
-                payer_email: user.email,
-                card_token_id: cardTokenId,
-                auto_recurring: {
-                    frequency: plan.frequency,
-                    frequency_type: plan.frequencyType,
-                    transaction_amount: plan.price,
-                    currency_id: 'BRL',
-                    start_date: startDate.toISOString()
-                },
-                back_url: `${process.env.FRONTEND_URL}/checkout/success`,
-                status: 'authorized'
-            };
-
-            const response = await axios.post(
-                `${BASE_URL}/preapproval`,
-                subscriptionData,
-                { headers: getHeaders() }
-            );
-
-            return response.data;
-        } catch (error) {
-            console.error('Erro ao criar assinatura:', error.response?.data || error.message);
-            throw error;
-        }
-    }
-
-    /**
-     * Consulta status de uma assinatura
-     */
-    async getSubscription(subscriptionId) {
-        try {
-            const response = await axios.get(
-                `${BASE_URL}/preapproval/${subscriptionId}`,
-                { headers: getHeaders() }
-            );
-            return response.data;
-        } catch (error) {
-            console.error('Erro ao consultar assinatura:', error.response?.data || error.message);
             throw error;
         }
     }
@@ -131,18 +87,17 @@ class MercadoPagoService {
     }
 
     /**
-     * Cancela uma assinatura
+     * Busca pagamentos por external_reference
      */
-    async cancelSubscription(subscriptionId) {
+    async getPaymentsByReference(externalReference) {
         try {
-            const response = await axios.put(
-                `${BASE_URL}/preapproval/${subscriptionId}`,
-                { status: 'cancelled' },
+            const response = await axios.get(
+                `${BASE_URL}/v1/payments/search?external_reference=${externalReference}`,
                 { headers: getHeaders() }
             );
             return response.data;
         } catch (error) {
-            console.error('Erro ao cancelar assinatura:', error.response?.data || error.message);
+            console.error('Erro ao buscar pagamentos:', error.response?.data || error.message);
             throw error;
         }
     }

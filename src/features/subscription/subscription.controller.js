@@ -3,6 +3,7 @@
  * ========================================
  * ENDPOINTS DE ASSINATURA
  * ========================================
+ * Usando Checkout Pro (redirect) para todos os planos
  */
 
 const mercadopagoService = require('./mercadopago.service');
@@ -10,7 +11,7 @@ const { User, PaymentHistory } = require('../../models');
 const { PLANS_CONFIG } = require('../../config/mercadopago');
 
 /**
- * GET /subscription/plans
+ * GET /subscriptions/plans
  * Lista planos disponíveis
  */
 const getPlans = async (req, res) => {
@@ -33,53 +34,27 @@ const getPlans = async (req, res) => {
 };
 
 /**
- * POST /subscription/subscribe
- * Cria uma nova assinatura
+ * POST /subscriptions/subscribe
+ * Cria preferência de pagamento (Checkout Pro)
+ * Retorna URL para redirect ao Mercado Pago
  */
 const subscribe = async (req, res) => {
     try {
-        const { planType, cardTokenId } = req.body;
+        const { planType } = req.body;
         const user = req.user;
 
         if (!planType || !PLANS_CONFIG[planType]) {
             return res.status(400).json({ error: 'Plano inválido' });
         }
 
-        let result;
+        // Criar preferência de pagamento (Checkout Pro)
+        const preference = await mercadopagoService.createPreference(planType, user);
 
-        // Lifetime = Pagamento único
-        if (planType === 'LIFETIME') {
-            result = await mercadopagoService.createPreference(planType, user);
-
-            return res.json({
-                type: 'preference',
-                id: result.id,
-                initPoint: result.init_point,
-                sandboxInitPoint: result.sandbox_init_point
-            });
-        }
-
-        // Mensal/Anual = Assinatura recorrente
-        if (!cardTokenId) {
-            return res.status(400).json({ error: 'Token do cartão é obrigatório para assinaturas' });
-        }
-
-        result = await mercadopagoService.createPreApproval(planType, user, cardTokenId);
-
-        // Atualizar usuário com subscription ID
-        await User.update({
-            subscriptionId: result.id,
-            subscriptionStatus: result.status === 'authorized' ? 'ACTIVE' : 'INACTIVE',
-            plan: planType
-        }, {
-            where: { id: user.id }
-        });
-
-        res.json({
-            type: 'subscription',
-            id: result.id,
-            status: result.status,
-            message: 'Assinatura criada com sucesso!'
+        return res.json({
+            type: 'preference',
+            id: preference.id,
+            initPoint: preference.init_point,
+            sandboxInitPoint: preference.sandbox_init_point
         });
 
     } catch (error) {
@@ -89,7 +64,7 @@ const subscribe = async (req, res) => {
 };
 
 /**
- * GET /subscription/status
+ * GET /subscriptions/status
  * Retorna status da assinatura do usuário
  */
 const getStatus = async (req, res) => {
@@ -110,19 +85,14 @@ const getStatus = async (req, res) => {
 };
 
 /**
- * POST /subscription/cancel
+ * POST /subscriptions/cancel
  * Cancela assinatura do usuário
  */
 const cancel = async (req, res) => {
     try {
         const user = await User.findByPk(req.user.id);
 
-        if (!user.subscriptionId) {
-            return res.status(400).json({ error: 'Nenhuma assinatura ativa' });
-        }
-
-        await mercadopagoService.cancelSubscription(user.subscriptionId);
-
+        // Apenas atualizar status local (sem MP preapproval)
         await User.update({
             subscriptionStatus: 'CANCELLED'
         }, {
@@ -137,7 +107,7 @@ const cancel = async (req, res) => {
 };
 
 /**
- * GET /subscription/history
+ * GET /subscriptions/history
  * Histórico de pagamentos do usuário
  */
 const getHistory = async (req, res) => {
