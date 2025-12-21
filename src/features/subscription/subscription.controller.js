@@ -223,6 +223,22 @@ const simulateWebhook = async (req, res) => {
     }
 };
 
+/**
+ * GET /subscriptions
+ * Lista assinaturas (Despesas Recorrentes) do usuário
+ * TODO: Implementar lógica real de buscar transações recorrentes ou tabela específica
+ */
+const listSubscriptions = async (req, res) => {
+    try {
+        // Por enquanto retorna vazio para não quebrar o frontend
+        // Futuramente buscar de RecurringExpense ou Transaction where isRecurring=true
+        res.json({ data: [] });
+    } catch (error) {
+        console.error('Erro ao listar assinaturas:', error);
+        res.status(500).json({ error: 'Erro ao listar assinaturas' });
+    }
+};
+
 module.exports = {
     getPlans,
     subscribe,
@@ -230,5 +246,6 @@ module.exports = {
     cancel,
     getHistory,
     activateTest,
-    simulateWebhook
+    simulateWebhook,
+    listSubscriptions
 };

@@ -20,6 +20,7 @@ router.post('/subscribe', authMiddleware, subscriptionController.subscribe);
 router.get('/status', authMiddleware, subscriptionController.getStatus);
 router.post('/cancel', authMiddleware, subscriptionController.cancel);
 router.get('/history', authMiddleware, subscriptionController.getHistory);
+router.get('/', authMiddleware, subscriptionController.listSubscriptions);
 
 // ⚠️ TESTE: Rotas para ativar assinatura manualmente
 router.post('/activate-test', authMiddleware, subscriptionController.activateTest);
