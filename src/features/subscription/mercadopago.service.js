@@ -14,6 +14,7 @@ class MercadoPagoService {
     /**
      * Cria assinatura recorrente com card_token_id
      * Endpoint: POST /preapproval
+     * ALTERNATIVA: Sem preapproval_plan_id (direto)
      */
     async createSubscription(planType, user, cardTokenId) {
         try {
@@ -26,23 +27,19 @@ class MercadoPagoService {
             const plan = PLANS_CONFIG[planType];
             if (!plan) throw new Error('Plano inválido');
 
-            // 1. Obter ID do plano (do banco ou criar)
-            const preapprovalPlanId = await getOrCreatePlanId(planType);
-            logger.info(`✅ Plano encontrado: ${preapprovalPlanId}`);
-
-            // 2. Validar card token
+            // Validar card token
             if (!cardTokenId) {
                 throw new Error('Card token não fornecido');
             }
             logger.info(`✅ Card token válido: ${cardTokenId.substring(0, 10)}...`);
 
-            // 3. Data de início
+            // Data de início
             const startDate = new Date();
             startDate.setHours(startDate.getHours() + 1);
 
-            // 4. Montar dados da assinatura
+            // Montar dados da assinatura DIRETO (sem preapproval_plan_id)
             const subscriptionData = {
-                preapproval_plan_id: preapprovalPlanId,
+                reason: `MyWallet - ${plan.name}`,
                 payer_email: user.email,
                 card_token_id: cardTokenId,
                 auto_recurring: {
