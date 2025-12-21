@@ -3,7 +3,7 @@
  * ========================================
  * ENDPOINTS DE ASSINATURA
  * ========================================
- * Usando Checkout Pro (redirect) para todos os planos
+ * Usando card_token_id com preapproval_plan
  */
 
 const mercadopagoService = require('./mercadopago.service');
@@ -35,31 +35,49 @@ const getPlans = async (req, res) => {
 
 /**
  * POST /subscriptions/subscribe
- * Cria preferência de pagamento (Checkout Pro)
- * Retorna URL para redirect ao Mercado Pago
+ * Cria assinatura com card_token_id
  */
 const subscribe = async (req, res) => {
     try {
-        const { planType } = req.body;
+        const { planType, cardTokenId } = req.body;
         const user = req.user;
 
         if (!planType || !PLANS_CONFIG[planType]) {
             return res.status(400).json({ error: 'Plano inválido' });
         }
 
-        // Criar preferência de pagamento (Checkout Pro)
-        const preference = await mercadopagoService.createPreference(planType, user);
+        if (!cardTokenId) {
+            return res.status(400).json({ error: 'Token do cartão é obrigatório' });
+        }
 
-        return res.json({
-            type: 'preference',
-            id: preference.id,
-            initPoint: preference.init_point,
-            sandboxInitPoint: preference.sandbox_init_point
+        // Criar assinatura no MP
+        const subscription = await mercadopagoService.createSubscription(planType, user, cardTokenId);
+
+        // Atualizar usuário se assinatura autorizada
+        if (subscription.status === 'authorized') {
+            await User.update({
+                subscriptionId: subscription.id,
+                subscriptionStatus: 'ACTIVE',
+                plan: planType
+            }, {
+                where: { id: user.id }
+            });
+        }
+
+        res.json({
+            success: true,
+            type: 'subscription',
+            id: subscription.id,
+            status: subscription.status,
+            message: subscription.status === 'authorized'
+                ? 'Assinatura criada com sucesso!'
+                : 'Assinatura pendente de aprovação'
         });
 
     } catch (error) {
         console.error('Erro ao criar assinatura:', error);
-        res.status(500).json({ error: error.message || 'Erro ao criar assinatura' });
+        const errorMessage = error.response?.data?.message || error.message || 'Erro ao criar assinatura';
+        res.status(500).json({ error: errorMessage });
     }
 };
 
@@ -92,7 +110,10 @@ const cancel = async (req, res) => {
     try {
         const user = await User.findByPk(req.user.id);
 
-        // Apenas atualizar status local (sem MP preapproval)
+        if (user.subscriptionId) {
+            await mercadopagoService.cancelSubscription(user.subscriptionId);
+        }
+
         await User.update({
             subscriptionStatus: 'CANCELLED'
         }, {
