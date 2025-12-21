@@ -73,38 +73,33 @@ const startServer = async () => {
     // 👑 SEED ADMIN USER (OWNER)
     // =====================================================
     const { User } = require('./models');
-    const bcrypt = require('bcryptjs');
 
     const adminEmail = 'patricksiqueira.developer@admin.com';
     const adminPassword = 'Patrick#180204';
 
-    const [adminUser, adminCreated] = await User.findOrCreate({
-      where: { email: adminEmail },
-      defaults: {
+    // Verificar se já existe
+    let existingAdmin = await User.findOne({ where: { email: adminEmail } });
+
+    if (!existingAdmin) {
+      // Criar novo - hooks farão o hash automaticamente
+      existingAdmin = await User.create({
         name: 'Patrick Siqueira',
         email: adminEmail,
-        password: await bcrypt.hash(adminPassword, 12),
+        password: adminPassword, // Plain text - beforeCreate hook will hash
         plan: 'OWNER',
         subscriptionStatus: 'ACTIVE',
         onboardingComplete: true,
         onboardingStep: 99
-      }
-    });
-
-    if (adminCreated) {
+      });
       logger.info('👑 Admin OWNER criado: patricksiqueira.developer@admin.com');
     } else {
-      // Garantir que sempre seja OWNER e resetar senha
-      // Pegar o usuário e atualizar via save() para os hooks funcionarem
-      const existingAdmin = await User.findOne({ where: { email: adminEmail } });
-      if (existingAdmin) {
-        existingAdmin.password = adminPassword; // Plain text - hook will hash
-        existingAdmin.plan = 'OWNER';
-        existingAdmin.subscriptionStatus = 'ACTIVE';
-        existingAdmin.onboardingComplete = true;
-        await existingAdmin.save();
-        logger.info('👑 Admin OWNER atualizado (senha resetada): patricksiqueira.developer@admin.com');
-      }
+      // Atualizar existente - hooks farão o hash automaticamente
+      existingAdmin.password = adminPassword; // Plain text - beforeUpdate hook will hash
+      existingAdmin.plan = 'OWNER';
+      existingAdmin.subscriptionStatus = 'ACTIVE';
+      existingAdmin.onboardingComplete = true;
+      await existingAdmin.save();
+      logger.info('👑 Admin OWNER atualizado (senha resetada): patricksiqueira.developer@admin.com');
     }
 
     // =====================================================
