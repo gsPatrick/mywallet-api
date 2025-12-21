@@ -7,7 +7,7 @@ const express = require('express');
 const router = express.Router();
 const subscriptionController = require('./subscription.controller');
 const webhookController = require('./webhook.controller');
-const { authenticateToken } = require('../../middlewares/auth');
+const { authMiddleware } = require('../../middlewares/authMiddleware');
 
 // Rotas públicas
 router.get('/plans', subscriptionController.getPlans);
@@ -16,9 +16,10 @@ router.get('/plans', subscriptionController.getPlans);
 router.post('/webhook', webhookController.handleWebhook);
 
 // Rotas autenticadas
-router.post('/subscribe', authenticateToken, subscriptionController.subscribe);
-router.get('/status', authenticateToken, subscriptionController.getStatus);
-router.post('/cancel', authenticateToken, subscriptionController.cancel);
-router.get('/history', authenticateToken, subscriptionController.getHistory);
+router.post('/subscribe', authMiddleware, subscriptionController.subscribe);
+router.get('/status', authMiddleware, subscriptionController.getStatus);
+router.post('/cancel', authMiddleware, subscriptionController.cancel);
+router.get('/history', authMiddleware, subscriptionController.getHistory);
 
 module.exports = router;
+

@@ -6,11 +6,11 @@
 const express = require('express');
 const router = express.Router();
 const adminController = require('./admin.controller');
-const { authenticateToken } = require('../../middlewares/auth');
+const { authMiddleware } = require('../../middlewares/authMiddleware');
 const { requireOwner } = require('../../middlewares/subscriptionMiddleware');
 
 // Todas as rotas admin requerem autenticação + OWNER
-router.use(authenticateToken);
+router.use(authMiddleware);
 router.use(requireOwner);
 
 // Dashboard
@@ -22,3 +22,4 @@ router.post('/users/:id/grant', adminController.grantPlan);
 router.post('/users/:id/revoke', adminController.revokePlan);
 
 module.exports = router;
+
