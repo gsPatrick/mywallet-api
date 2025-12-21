@@ -95,14 +95,16 @@ const startServer = async () => {
       logger.info('👑 Admin OWNER criado: patricksiqueira.developer@admin.com');
     } else {
       // Garantir que sempre seja OWNER e resetar senha
-      const hashedPassword = await bcrypt.hash(adminPassword, 12);
-      await User.update({
-        password: hashedPassword,
-        plan: 'OWNER',
-        subscriptionStatus: 'ACTIVE',
-        onboardingComplete: true
-      }, { where: { email: adminEmail }, individualHooks: true });
-      logger.info('👑 Admin OWNER atualizado (senha resetada): patricksiqueira.developer@admin.com');
+      // Pegar o usuário e atualizar via save() para os hooks funcionarem
+      const existingAdmin = await User.findOne({ where: { email: adminEmail } });
+      if (existingAdmin) {
+        existingAdmin.password = adminPassword; // Plain text - hook will hash
+        existingAdmin.plan = 'OWNER';
+        existingAdmin.subscriptionStatus = 'ACTIVE';
+        existingAdmin.onboardingComplete = true;
+        await existingAdmin.save();
+        logger.info('👑 Admin OWNER atualizado (senha resetada): patricksiqueira.developer@admin.com');
+      }
     }
 
     // =====================================================
