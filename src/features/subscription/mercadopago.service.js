@@ -21,8 +21,8 @@ class MercadoPagoService {
             const plan = PLANS_CONFIG[planType];
             if (!plan) throw new Error('Plano inválido');
 
-            const frontendUrl = process.env.FRONTEND_URL || 'https://mywallet-front.vercel.app';
-            const apiUrl = process.env.API_URL || 'https://geral-mywallet-api.r954jc.easypanel.host';
+            const frontendUrl = 'https://mywallet.codebypatrick.dev';
+            const apiUrl = 'https://geral-mywallet-api.r954jc.easypanel.host';
 
             // Check if using localhost (MP doesn't accept localhost for auto_return)
             const isLocalhost = frontendUrl.includes('localhost');
