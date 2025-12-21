@@ -78,9 +78,30 @@ const revokePlan = async (req, res) => {
     }
 };
 
+/**
+ * POST /admin/users/create
+ * Cria um novo usuário com plano
+ */
+const createUser = async (req, res) => {
+    try {
+        const { name, email, password, plan } = req.body;
+
+        if (!name || !email || !password || !plan) {
+            return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
+        }
+
+        const user = await adminService.createUser({ name, email, password, plan });
+        res.status(201).json({ message: 'Usuário criado com sucesso', user });
+    } catch (error) {
+        console.error('Erro ao criar usuário:', error);
+        res.status(400).json({ error: error.message || 'Erro ao criar usuário' });
+    }
+};
+
 module.exports = {
     getDashboard,
     getUsers,
     grantPlan,
-    revokePlan
+    revokePlan,
+    createUser
 };

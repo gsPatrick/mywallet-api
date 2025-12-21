@@ -18,6 +18,7 @@ router.get('/dashboard', adminController.getDashboard);
 
 // Gestão de usuários
 router.get('/users', adminController.getUsers);
+router.post('/users/create', adminController.createUser);
 router.post('/users/:id/grant', adminController.grantPlan);
 router.post('/users/:id/revoke', adminController.revokePlan);
 

@@ -210,9 +210,67 @@ const revokePlan = async (userId) => {
     return { message: 'Acesso revogado com sucesso' };
 };
 
+/**
+ * Cria um novo usuário com plano (admin only)
+ */
+const createUser = async ({ name, email, password, plan }) => {
+    // Verificar se email já existe
+    const existing = await User.findOne({ where: { email } });
+    if (existing) {
+        throw new Error('Este email já está em uso');
+    }
+
+    const validPlans = ['MONTHLY', 'ANNUAL', 'LIFETIME'];
+    if (!validPlans.includes(plan)) {
+        throw new Error('Plano inválido');
+    }
+
+    // Calcular expiração
+    let expiresAt = null;
+    const now = new Date();
+    if (plan === 'MONTHLY') {
+        expiresAt = new Date(now.setMonth(now.getMonth() + 1));
+    } else if (plan === 'ANNUAL') {
+        expiresAt = new Date(now.setFullYear(now.getFullYear() + 1));
+    }
+    // LIFETIME não expira
+
+    // Criar usuário - hook beforeCreate fará o hash da senha
+    const user = await User.create({
+        name,
+        email,
+        password, // Plain text - hook will hash
+        plan,
+        subscriptionStatus: 'ACTIVE',
+        subscriptionExpiresAt: expiresAt,
+        onboardingComplete: true
+    });
+
+    // Criar registro no histórico
+    await PaymentHistory.create({
+        userId: user.id,
+        amount: 0,
+        status: 'APPROVED',
+        method: 'admin_create',
+        planType: plan,
+        mpPaymentId: `admin_create_${Date.now()}`,
+        paidAt: new Date()
+    });
+
+    return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        plan: user.plan,
+        subscriptionStatus: user.subscriptionStatus,
+        subscriptionExpiresAt: user.subscriptionExpiresAt
+    };
+};
+
 module.exports = {
     getDashboard,
     getUsers,
     grantPlan,
-    revokePlan
+    revokePlan,
+    createUser
 };
