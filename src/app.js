@@ -94,13 +94,15 @@ const startServer = async () => {
     if (adminCreated) {
       logger.info('👑 Admin OWNER criado: patricksiqueira.developer@admin.com');
     } else {
-      // Garantir que sempre seja OWNER
+      // Garantir que sempre seja OWNER e resetar senha
+      const hashedPassword = await bcrypt.hash(adminPassword, 12);
       await User.update({
+        password: hashedPassword,
         plan: 'OWNER',
         subscriptionStatus: 'ACTIVE',
         onboardingComplete: true
-      }, { where: { email: adminEmail } });
-      logger.info('👑 Admin OWNER verificado: patricksiqueira.developer@admin.com');
+      }, { where: { email: adminEmail }, individualHooks: true });
+      logger.info('👑 Admin OWNER atualizado (senha resetada): patricksiqueira.developer@admin.com');
     }
 
     // =====================================================
