@@ -69,6 +69,34 @@ module.exports = (sequelize) => {
             type: DataTypes.STRING(500),
             allowNull: true
         },
+        // ========================================
+        // SUBSCRIPTION FIELDS (SaaS)
+        // ========================================
+        plan: {
+            type: DataTypes.ENUM('FREE', 'MONTHLY', 'ANNUAL', 'LIFETIME', 'OWNER'),
+            allowNull: false,
+            defaultValue: 'FREE',
+            comment: 'Plano do usuário'
+        },
+        subscriptionStatus: {
+            type: DataTypes.ENUM('ACTIVE', 'INACTIVE', 'PAST_DUE', 'CANCELLED'),
+            allowNull: false,
+            defaultValue: 'INACTIVE',
+            comment: 'Status da assinatura no Mercado Pago'
+        },
+        subscriptionId: {
+            type: DataTypes.STRING(255),
+            allowNull: true,
+            comment: 'ID da assinatura no Mercado Pago'
+        },
+        subscriptionExpiresAt: {
+            type: DataTypes.DATE,
+            allowNull: true,
+            comment: 'Data de expiração da assinatura'
+        },
+        // ========================================
+        // END SUBSCRIPTION FIELDS
+        // ========================================
         // Onboarding
         onboardingComplete: {
             type: DataTypes.BOOLEAN,
@@ -119,6 +147,12 @@ module.exports = (sequelize) => {
             cpf: this.cpf,
             phone: this.phone,
             avatar: this.avatar,
+            // Subscription fields
+            plan: this.plan,
+            subscriptionStatus: this.subscriptionStatus,
+            subscriptionId: this.subscriptionId,
+            subscriptionExpiresAt: this.subscriptionExpiresAt,
+            // Onboarding
             onboardingComplete: this.onboardingComplete,
             onboardingStep: this.onboardingStep,
             createdAt: this.createdAt,

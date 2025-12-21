@@ -44,6 +44,9 @@ const BudgetAllocation = require('./budgetAllocation')(sequelize);
 // Importar models - Fase 6 (Central do DAS)
 const DasGuide = require('./dasGuide')(sequelize);
 
+// Importar models - Fase 7 (SaaS - Payment History)
+const PaymentHistory = require('./paymentHistory')(sequelize);
+
 // ===========================================
 // ASSOCIAÇÕES - Fase 1
 // ===========================================
@@ -320,5 +323,7 @@ module.exports = {
     // Fase 5 - Orçamentos Inteligentes
     BudgetAllocation,
     // Fase 6 - Central do DAS
-    DasGuide
+    DasGuide,
+    // Fase 7 - SaaS
+    PaymentHistory
 };

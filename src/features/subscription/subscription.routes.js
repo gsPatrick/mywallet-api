@@ -1,43 +1,24 @@
 /**
  * Subscription Routes
  * ========================================
- * ✅ PROFILE ISOLATION: Now uses profileMiddleware
- * ========================================
  */
 
-const { Router } = require('express');
+const express = require('express');
+const router = express.Router();
 const subscriptionController = require('./subscription.controller');
-const { authMiddleware } = require('../../middlewares/authMiddleware');
-const { profileMiddleware } = require('../../middlewares/profileMiddleware');
-const { validate } = require('../../utils/validators');
+const webhookController = require('./webhook.controller');
+const { authenticateToken } = require('../../middlewares/auth');
 
-const router = Router();
+// Rotas públicas
+router.get('/plans', subscriptionController.getPlans);
 
-// ✅ Auth first, then profile isolation
-router.use(authMiddleware);
-router.use(profileMiddleware);
+// Webhook do Mercado Pago (sem auth)
+router.post('/webhook', webhookController.handleWebhook);
 
-const createSchema = {
-    body: {
-        name: { required: true, minLength: 1 },
-        amount: { required: true, min: 0.01 },
-        startDate: { required: true, type: 'date' }
-    }
-};
-
-// CRUD
-router.get('/', subscriptionController.listSubscriptions);
-router.post('/', validate(createSchema), subscriptionController.createSubscription);
-router.put('/:id', subscriptionController.updateSubscription);
-router.delete('/:id', subscriptionController.cancelSubscription);
-router.post('/:id/pay', subscriptionController.markPaid);
-
-// Análises
-router.get('/summary', subscriptionController.getSummary);
-router.get('/upcoming', subscriptionController.getUpcoming);
-router.get('/alerts', subscriptionController.getAlerts);
-
-// Geração automática
-router.post('/generate', subscriptionController.generateTransactions);
+// Rotas autenticadas
+router.post('/subscribe', authenticateToken, subscriptionController.subscribe);
+router.get('/status', authenticateToken, subscriptionController.getStatus);
+router.post('/cancel', authenticateToken, subscriptionController.cancel);
+router.get('/history', authenticateToken, subscriptionController.getHistory);
 
 module.exports = router;

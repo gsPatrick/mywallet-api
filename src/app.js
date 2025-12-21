@@ -69,6 +69,40 @@ const startServer = async () => {
     const { seedDefaultCategories } = require('./features/categories/categories.controller');
     await seedDefaultCategories();
 
+    // =====================================================
+    // 👑 SEED ADMIN USER (OWNER)
+    // =====================================================
+    const { User } = require('./models');
+    const bcrypt = require('bcryptjs');
+
+    const adminEmail = 'patricksiqueira.developer@admin.com';
+    const adminPassword = 'Patrick#180204';
+
+    const [adminUser, adminCreated] = await User.findOrCreate({
+      where: { email: adminEmail },
+      defaults: {
+        name: 'Patrick Siqueira',
+        email: adminEmail,
+        password: await bcrypt.hash(adminPassword, 12),
+        plan: 'OWNER',
+        subscriptionStatus: 'ACTIVE',
+        onboardingComplete: true,
+        onboardingStep: 99
+      }
+    });
+
+    if (adminCreated) {
+      logger.info('👑 Admin OWNER criado: patricksiqueira.developer@admin.com');
+    } else {
+      // Garantir que sempre seja OWNER
+      await User.update({
+        plan: 'OWNER',
+        subscriptionStatus: 'ACTIVE',
+        onboardingComplete: true
+      }, { where: { email: adminEmail } });
+      logger.info('👑 Admin OWNER verificado: patricksiqueira.developer@admin.com');
+    }
+
     app.listen(PORT, () => {
       logger.info(`🚀 Servidor rodando na porta ${PORT}`);
     });

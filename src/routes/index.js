@@ -124,6 +124,18 @@ router.use('/bank-accounts', bankAccountsRoutes);
 router.use('/das', dasRoutes);
 
 // ===========================================
+// REGISTRAR ROTAS - FASE 9 (SAAS - ADMIN)
+// ===========================================
+const adminRoutes = require('../features/admin/admin.routes');
+router.use('/admin', adminRoutes);
+
+// Webhook do Mercado Pago (rota separada)
+router.post('/webhooks/mercadopago', (req, res, next) => {
+    const webhookController = require('../features/subscription/webhook.controller');
+    return webhookController.handleWebhook(req, res, next);
+});
+
+// ===========================================
 // DOCUMENTAÇÃO DA API
 // ===========================================
 router.get('/', (req, res) => {

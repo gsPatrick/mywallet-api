@@ -1,119 +1,164 @@
 /**
  * Subscription Controller
  * ========================================
- * ✅ PROFILE ISOLATION: All methods now pass profileId
+ * ENDPOINTS DE ASSINATURA
  * ========================================
  */
 
-const subscriptionService = require('./subscription.service');
+const mercadopagoService = require('./mercadopago.service');
+const { User, PaymentHistory } = require('../../models');
+const { PLANS_CONFIG } = require('../../config/mercadopago');
 
-const listSubscriptions = async (req, res, next) => {
+/**
+ * GET /subscription/plans
+ * Lista planos disponíveis
+ */
+const getPlans = async (req, res) => {
     try {
-        // ✅ PROFILE ISOLATION: Pass profileId
-        const data = await subscriptionService.listSubscriptions(req.userId, req.profileId, req.query);
-        res.json({ data });
+        const plans = Object.entries(PLANS_CONFIG).map(([key, plan]) => ({
+            id: key,
+            name: plan.name,
+            price: plan.price,
+            description: plan.description,
+            isRecurring: !!plan.frequency,
+            frequency: plan.frequency,
+            frequencyType: plan.frequencyType
+        }));
+
+        res.json({ plans });
     } catch (error) {
-        next(error);
+        console.error('Erro ao listar planos:', error);
+        res.status(500).json({ error: 'Erro ao listar planos' });
     }
 };
 
-const createSubscription = async (req, res, next) => {
+/**
+ * POST /subscription/subscribe
+ * Cria uma nova assinatura
+ */
+const subscribe = async (req, res) => {
     try {
-        // ✅ PROFILE ISOLATION: Pass profileId
-        const subscription = await subscriptionService.createSubscription(req.userId, req.profileId, req.body);
-        res.status(201).json({
-            message: 'Assinatura criada com sucesso',
-            data: subscription
+        const { planType, cardTokenId } = req.body;
+        const user = req.user;
+
+        if (!planType || !PLANS_CONFIG[planType]) {
+            return res.status(400).json({ error: 'Plano inválido' });
+        }
+
+        let result;
+
+        // Lifetime = Pagamento único
+        if (planType === 'LIFETIME') {
+            result = await mercadopagoService.createPreference(planType, user);
+
+            return res.json({
+                type: 'preference',
+                id: result.id,
+                initPoint: result.init_point,
+                sandboxInitPoint: result.sandbox_init_point
+            });
+        }
+
+        // Mensal/Anual = Assinatura recorrente
+        if (!cardTokenId) {
+            return res.status(400).json({ error: 'Token do cartão é obrigatório para assinaturas' });
+        }
+
+        result = await mercadopagoService.createPreApproval(planType, user, cardTokenId);
+
+        // Atualizar usuário com subscription ID
+        await User.update({
+            subscriptionId: result.id,
+            subscriptionStatus: result.status === 'authorized' ? 'ACTIVE' : 'INACTIVE',
+            plan: planType
+        }, {
+            where: { id: user.id }
         });
-    } catch (error) {
-        next(error);
-    }
-};
 
-const updateSubscription = async (req, res, next) => {
-    try {
-        const subscription = await subscriptionService.updateSubscription(
-            req.userId,
-            req.profileId,
-            req.params.id,
-            req.body
-        );
         res.json({
-            message: 'Assinatura atualizada',
-            data: subscription
+            type: 'subscription',
+            id: result.id,
+            status: result.status,
+            message: 'Assinatura criada com sucesso!'
         });
+
     } catch (error) {
-        next(error);
+        console.error('Erro ao criar assinatura:', error);
+        res.status(500).json({ error: error.message || 'Erro ao criar assinatura' });
     }
 };
 
-const cancelSubscription = async (req, res, next) => {
+/**
+ * GET /subscription/status
+ * Retorna status da assinatura do usuário
+ */
+const getStatus = async (req, res) => {
     try {
-        const result = await subscriptionService.cancelSubscription(req.userId, req.profileId, req.params.id);
-        res.json(result);
-    } catch (error) {
-        next(error);
-    }
-};
+        const user = await User.findByPk(req.user.id);
 
-const generateTransactions = async (req, res, next) => {
-    try {
-        const result = await subscriptionService.generatePendingTransactions(req.userId, req.profileId);
         res.json({
-            message: `${result.generated} lançamentos gerados`,
-            data: result
+            plan: user.plan,
+            status: user.subscriptionStatus,
+            subscriptionId: user.subscriptionId,
+            expiresAt: user.subscriptionExpiresAt,
+            isActive: user.subscriptionStatus === 'ACTIVE' || user.plan === 'OWNER'
         });
     } catch (error) {
-        next(error);
+        console.error('Erro ao buscar status:', error);
+        res.status(500).json({ error: 'Erro ao buscar status' });
     }
 };
 
-const getSummary = async (req, res, next) => {
+/**
+ * POST /subscription/cancel
+ * Cancela assinatura do usuário
+ */
+const cancel = async (req, res) => {
     try {
-        const data = await subscriptionService.getSubscriptionsSummary(req.userId, req.profileId);
-        res.json({ data });
+        const user = await User.findByPk(req.user.id);
+
+        if (!user.subscriptionId) {
+            return res.status(400).json({ error: 'Nenhuma assinatura ativa' });
+        }
+
+        await mercadopagoService.cancelSubscription(user.subscriptionId);
+
+        await User.update({
+            subscriptionStatus: 'CANCELLED'
+        }, {
+            where: { id: user.id }
+        });
+
+        res.json({ message: 'Assinatura cancelada com sucesso' });
     } catch (error) {
-        next(error);
+        console.error('Erro ao cancelar:', error);
+        res.status(500).json({ error: error.message || 'Erro ao cancelar assinatura' });
     }
 };
 
-const getUpcoming = async (req, res, next) => {
+/**
+ * GET /subscription/history
+ * Histórico de pagamentos do usuário
+ */
+const getHistory = async (req, res) => {
     try {
-        const days = parseInt(req.query.days) || 30;
-        const data = await subscriptionService.getUpcomingCharges(req.userId, req.profileId, days);
-        res.json({ data });
-    } catch (error) {
-        next(error);
-    }
-};
+        const payments = await PaymentHistory.findAll({
+            where: { userId: req.user.id },
+            order: [['createdAt', 'DESC']],
+            limit: 20
+        });
 
-const getAlerts = async (req, res, next) => {
-    try {
-        const alerts = await subscriptionService.getSubscriptionAlerts(req.userId, req.profileId);
-        res.json({ data: alerts });
+        res.json({ payments });
     } catch (error) {
-        next(error);
-    }
-};
-
-const markPaid = async (req, res, next) => {
-    try {
-        const { date } = req.body;
-        const transaction = await subscriptionService.markSubscriptionPaid(req.userId, req.profileId, req.params.id, date);
-        res.json({ data: transaction, message: 'Assinatura marcada como paga' });
-    } catch (error) {
-        next(error);
+        console.error('Erro ao buscar histórico:', error);
+        res.status(500).json({ error: 'Erro ao buscar histórico' });
     }
 };
 
 module.exports = {
-    listSubscriptions,
-    createSubscription,
-    updateSubscription,
-    cancelSubscription,
-    generateTransactions,
-    getSummary,
-    getUpcoming,
-    getAlerts,
-    markPaid
+    getPlans,
+    subscribe,
+    getStatus,
+    cancel,
+    getHistory
 };
