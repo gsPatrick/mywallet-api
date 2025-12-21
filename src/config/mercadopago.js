@@ -20,7 +20,7 @@ if (!MP_ACCESS_TOKEN) {
 const PLANS_CONFIG = {
     MONTHLY: {
         name: 'Plano Mensal',
-        price: 1.00, // TESTE: R$ 1,00
+        price: 29.90,
         frequency: 1,
         frequencyType: 'months',
         description: 'Acesso completo ao InvestPro por 1 mês'
