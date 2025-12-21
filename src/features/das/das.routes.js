@@ -8,10 +8,10 @@
 const express = require('express');
 const router = express.Router();
 const dasController = require('./das.controller');
-const { authenticateToken } = require('../../middlewares/auth');
+const { authMiddleware } = require('../../middlewares/authMiddleware');
 
 // Todas as rotas requerem autenticação
-router.use(authenticateToken);
+router.use(authMiddleware);
 
 // Gerar guias do ano
 router.post('/generate', dasController.generateGuides);
