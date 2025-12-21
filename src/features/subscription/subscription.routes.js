@@ -21,5 +21,9 @@ router.get('/status', authMiddleware, subscriptionController.getStatus);
 router.post('/cancel', authMiddleware, subscriptionController.cancel);
 router.get('/history', authMiddleware, subscriptionController.getHistory);
 
+// ⚠️ TESTE: Rotas para ativar assinatura manualmente
+router.post('/activate-test', authMiddleware, subscriptionController.activateTest);
+router.post('/simulate-webhook', subscriptionController.simulateWebhook);
+
 module.exports = router;
 

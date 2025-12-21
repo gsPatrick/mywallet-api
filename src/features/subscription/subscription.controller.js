@@ -146,10 +146,89 @@ const getHistory = async (req, res) => {
     }
 };
 
+/**
+ * POST /subscriptions/activate-test
+ * TESTE: Ativa assinatura manualmente (só para teste)
+ */
+const activateTest = async (req, res) => {
+    try {
+        const user = req.user;
+        const { planType } = req.body;
+
+        // Atualizar usuário para ACTIVE
+        await User.update({
+            subscriptionId: `TEST-${Date.now()}`,
+            subscriptionStatus: 'ACTIVE',
+            plan: planType || 'MONTHLY'
+        }, {
+            where: { id: user.id }
+        });
+
+        console.log(`✅ Assinatura TESTE ativada para ${user.email}`);
+
+        res.json({
+            success: true,
+            message: 'Assinatura de teste ativada!',
+            user: {
+                id: user.id,
+                email: user.email,
+                plan: planType || 'MONTHLY',
+                status: 'ACTIVE'
+            }
+        });
+    } catch (error) {
+        console.error('Erro ao ativar teste:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
+ * POST /subscriptions/simulate-webhook
+ * TESTE: Simula webhook de pagamento aprovado
+ */
+const simulateWebhook = async (req, res) => {
+    try {
+        const { userId, planType } = req.body;
+
+        // Buscar usuário
+        const user = await User.findByPk(userId);
+        if (!user) {
+            return res.status(404).json({ error: 'Usuário não encontrado' });
+        }
+
+        // Ativar assinatura
+        await User.update({
+            subscriptionId: `SIMULATED-${Date.now()}`,
+            subscriptionStatus: 'ACTIVE',
+            plan: planType || 'MONTHLY'
+        }, {
+            where: { id: userId }
+        });
+
+        console.log(`✅ Webhook simulado - Assinatura ativada para ${user.email}`);
+
+        res.json({
+            success: true,
+            message: 'Webhook simulado com sucesso!',
+            user: {
+                id: userId,
+                email: user.email,
+                plan: planType || 'MONTHLY',
+                status: 'ACTIVE'
+            }
+        });
+    } catch (error) {
+        console.error('Erro ao simular webhook:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
 module.exports = {
     getPlans,
     subscribe,
     getStatus,
     cancel,
-    getHistory
+    getHistory,
+    activateTest,
+    simulateWebhook
 };
