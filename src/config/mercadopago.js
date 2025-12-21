@@ -28,8 +28,8 @@ const PLANS_CONFIG = {
     ANNUAL: {
         name: 'Plano Anual',
         price: 297.00,
-        frequency: 1,
-        frequencyType: 'years',
+        frequency: 12,
+        frequencyType: 'months',
         description: 'Acesso completo ao InvestPro por 1 ano (2 meses grátis!)'
     },
     LIFETIME: {
