@@ -67,8 +67,7 @@ module.exports = (sequelize) => {
         status: {
             type: DataTypes.ENUM('PENDING', 'PAID', 'OVERDUE'),
             allowNull: false,
-            defaultValue: 'PENDING',
-            comment: 'Status da guia'
+            defaultValue: 'PENDING'
         },
         // Vínculo com conta bancária (de onde saiu o dinheiro)
         bankAccountId: {
