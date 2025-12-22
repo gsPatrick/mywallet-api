@@ -18,8 +18,8 @@ module.exports = (sequelize) => {
         key: {
             type: DataTypes.STRING,
             allowNull: false,
-            unique: true,
-            comment: 'Chave única da configuração'
+            unique: true
+            // comment removido para evitar erro de sintaxe no PostgreSQL durante sync
         },
         value: {
             type: DataTypes.TEXT,
