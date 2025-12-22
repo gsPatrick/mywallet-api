@@ -35,8 +35,7 @@ module.exports = (sequelize) => {
         // Subtipo (apenas para BUSINESS)
         subtype: {
             type: DataTypes.ENUM('MEI', 'ME'),
-            allowNull: true,
-            comment: 'Null se type=PERSONAL, MEI ou ME se BUSINESS'
+            allowNull: true
         },
         // Nome do perfil
         name: {
