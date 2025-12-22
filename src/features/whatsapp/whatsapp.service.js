@@ -586,12 +586,12 @@ const processTransactionEntries = async (entries, userId, activeProfile, context
                 amount: entry.amount,
                 date: new Date(),
                 categoryId,
-                profileId,
                 bankAccountId,
                 isRecurring: entry.isRecurring || false
             };
 
-            const transaction = await transactionsService.createManualTransaction(userId, transactionData);
+            // ✅ FIX: Pass profileId as second argument
+            const transaction = await transactionsService.createManualTransaction(userId, profileId, transactionData);
 
             // Generate short ID
             const shortId = generateShortId(transaction.id);
