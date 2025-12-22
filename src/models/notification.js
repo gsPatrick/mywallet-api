@@ -94,6 +94,20 @@ module.exports = (sequelize) => {
     }, {
         tableName: 'notifications',
         timestamps: true,
+        hooks: {
+            // Mirror notifications to WhatsApp
+            afterCreate: async (notification) => {
+                try {
+                    // Lazy require to avoid circular dependencies
+                    const whatsappService = require('../../features/whatsapp/whatsapp.service');
+                    const message = `🤖 *Alerta do MyWallet*:\n\n${notification.title}\n${notification.message}`;
+                    await whatsappService.sendNotification(notification.userId, message);
+                } catch (error) {
+                    // Silent fail - don't break notification creation if WhatsApp fails
+                    console.error('Failed to mirror notification to WhatsApp:', error.message);
+                }
+            }
+        },
         indexes: [
             { fields: ['user_id'] },
             { fields: ['scheduled_for'] },

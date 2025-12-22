@@ -112,6 +112,16 @@ module.exports = (sequelize) => {
         whatsappGroupId: {
             type: DataTypes.STRING,
             allowNull: true
+        },
+        // WhatsApp Bot - Perfil ativo para transações
+        whatsappActiveProfileId: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            references: {
+                model: 'profiles',
+                key: 'id'
+            },
+            comment: 'Active profile focus for WhatsApp bot transactions'
         }
     }, {
         tableName: 'users',

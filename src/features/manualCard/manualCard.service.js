@@ -41,6 +41,7 @@ const listCards = async (userId, profileId, filters = {}) => {
         lastFourDigits: c.lastFourDigits,
         creditLimit: parseFloat(c.creditLimit) || 0,
         availableLimit: parseFloat(c.availableLimit) || 0,
+        blockedLimit: parseFloat(c.blockedLimit) || 0,
         closingDay: c.closingDay,
         dueDay: c.dueDay,
         source: c.source,
@@ -114,7 +115,7 @@ const updateManualCard = async (userId, profileId, cardId, data) => {
     // Campos atualizáveis
     const updateableFields = [
         'name', 'bankName', 'brand', 'lastFourDigits',
-        'creditLimit', 'availableLimit', 'closingDay', 'dueDay',
+        'creditLimit', 'availableLimit', 'blockedLimit', 'closingDay', 'dueDay',
         'isVirtual', 'color', 'isActive'
     ];
 

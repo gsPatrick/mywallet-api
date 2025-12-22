@@ -1,16 +1,35 @@
 /**
  * WhatsApp Service
- * Integração com wppconnect para bot de transações
- * Multi-tenant: cada usuário tem sua própria sessão
+ * ========================================
+ * WHATSAPP BOT - GEMINI MULTIMODAL EDITION
+ * ========================================
+ * 
+ * Features:
+ * - Multi-tenant: each user has their own session
+ * - Gemini AI for text and audio processing
+ * - Profile switching (PF/PJ)
+ * - Transaction registration with short IDs
+ * - Statement/Query engine
+ * - Transaction editing
+ * - Visual identity (🤖 prefix, bold values)
  */
 
 const wppconnect = require('@wppconnect-team/wppconnect');
 const { logger } = require('../../config/logger');
-const groqService = require('../ai/groq.service');
+const geminiService = require('../ai/gemini.service');
 const transactionsService = require('../transactions/transactions.service');
-const { Category, User } = require('../../models');
+const {
+    Category,
+    User,
+    Profile,
+    BankAccount,
+    CreditCard,
+    ManualTransaction,
+    CardTransaction
+} = require('../../models');
 const path = require('path');
 const fs = require('fs');
+const { Op } = require('sequelize');
 
 // Número auxiliar para criar o grupo (OBRIGATÓRIO para criar grupo)
 const AUXILIARY_NUMBER = '557182862912@c.us';
@@ -21,9 +40,10 @@ const activeSessions = new Map();
 // Nome do grupo padrão
 const GROUP_NAME = '💰 MyWallet AI';
 
-/**
- * Obtém o caminho da sessão para um usuário
- */
+// ========================================
+// SESSION PATH MANAGEMENT
+// ========================================
+
 const getSessionPath = (userId) => {
     const sessionsDir = path.join(process.cwd(), 'whatsapp-sessions');
     if (!fs.existsSync(sessionsDir)) {
@@ -32,15 +52,13 @@ const getSessionPath = (userId) => {
     return sessionsDir;
 };
 
-/**
- * Inicializa uma sessão do WhatsApp para um usuário
- * @param {string} userId - ID do usuário
- * @returns {Promise<{qrCode: string, status: string}>}
- */
+// ========================================
+// SESSION INITIALIZATION
+// ========================================
+
 const initSession = async (userId) => {
     const sessionName = `session_${userId}`;
 
-    // Se já existe sessão ativa, retorna status
     if (activeSessions.has(userId)) {
         const session = activeSessions.get(userId);
         if (session.client && session.isConnected) {
@@ -56,7 +74,7 @@ const initSession = async (userId) => {
             session: sessionName,
             folderNameToken: getSessionPath(userId),
             headless: true,
-            useChrome: false, // Use Chromium instead
+            useChrome: false,
             debug: false,
             logQR: false,
             puppeteerOptions: {
@@ -108,20 +126,15 @@ const initSession = async (userId) => {
             .then(async (client) => {
                 logger.info(`✅ WhatsApp conectado para usuário ${userId}`);
 
-                // Armazenar sessão
                 activeSessions.set(userId, {
                     client,
                     isConnected: true,
                     groupId: null
                 });
 
-                // Configurar listeners
                 setupMessageListener(client, userId);
-
-                // Tentar encontrar ou criar grupo
                 await findOrCreateGroup(client, userId);
 
-                // Se ainda não resolveu (conexão direta sem QR)
                 if (!resolved) {
                     resolved = true;
                     resolve({ status: 'connected', message: 'WhatsApp conectado' });
@@ -135,7 +148,6 @@ const initSession = async (userId) => {
                 }
             });
 
-        // Timeout para evitar hang
         setTimeout(() => {
             if (!resolved) {
                 resolved = true;
@@ -149,16 +161,14 @@ const initSession = async (userId) => {
     });
 };
 
-/**
- * Busca ou cria o grupo MyWallet AI
- * Usa número auxiliar para criação pois é obrigatório ter 1 participante
- */
+// ========================================
+// GROUP MANAGEMENT
+// ========================================
+
 const findOrCreateGroup = async (client, userId) => {
     try {
-        // Buscar usuário para verificar se já tem grupo vinculado
         const user = await User.findByPk(userId);
 
-        // Se já tem grupo salvo no banco, usar esse
         if (user && user.whatsappGroupId) {
             logger.info(`📌 Grupo já vinculado: ${user.whatsappGroupId}`);
             const session = activeSessions.get(userId);
@@ -166,7 +176,6 @@ const findOrCreateGroup = async (client, userId) => {
             return { gid: { _serialized: user.whatsappGroupId } };
         }
 
-        // Buscar grupos existentes
         const chats = await client.listChats ? await client.listChats() : await client.getAllChats();
         const existingGroup = chats.find(chat =>
             chat.isGroup && chat.name === GROUP_NAME
@@ -176,7 +185,6 @@ const findOrCreateGroup = async (client, userId) => {
             const groupId = existingGroup.id._serialized;
             logger.info(`📌 Grupo encontrado: ${GROUP_NAME} (${groupId})`);
 
-            // Salvar no banco
             if (user) {
                 user.whatsappGroupId = groupId;
                 await user.save();
@@ -187,7 +195,6 @@ const findOrCreateGroup = async (client, userId) => {
             return existingGroup;
         }
 
-        // Criar grupo com número auxiliar (OBRIGATÓRIO ter pelo menos 1 participante)
         logger.info(`📝 Criando grupo: ${GROUP_NAME} com participante auxiliar`);
 
         const group = await client.createGroup(GROUP_NAME, [AUXILIARY_NUMBER]);
@@ -195,7 +202,6 @@ const findOrCreateGroup = async (client, userId) => {
         if (group && group.gid) {
             const groupId = group.gid._serialized;
 
-            // Salvar no banco de dados
             if (user) {
                 user.whatsappGroupId = groupId;
                 await user.save();
@@ -205,19 +211,21 @@ const findOrCreateGroup = async (client, userId) => {
             const session = activeSessions.get(userId);
             if (session) session.groupId = groupId;
 
-            // Enviar mensagem de boas-vindas
             await client.sendText(groupId,
-                `🎉 *Bem-vindo ao MyWallet AI!*\n\n` +
+                `🤖 *Bem-vindo ao MyWallet AI!*\n\n` +
                 `Envie suas transações aqui:\n` +
                 `• Texto: "gastei 50 no uber"\n` +
                 `• Áudio: grave e envie!\n\n` +
+                `*Comandos rápidos:*\n` +
+                `• *PF* - Alternar para Pessoa Física\n` +
+                `• *PJ* - Alternar para Pessoa Jurídica\n` +
+                `• *Menu* - Ver opções\n\n` +
                 `Vou registrar automaticamente ✨`
             );
 
-            // Definir logo do grupo
             try {
                 logger.info('⏳ Aguardando propagação do grupo...');
-                await new Promise(r => setTimeout(r, 4000)); // Delay de segurança
+                await new Promise(r => setTimeout(r, 4000));
 
                 const logoUrl = 'https://i.imgur.com/MHJwgwz.jpeg';
                 await client.setGroupIcon(groupId, logoUrl);
@@ -237,19 +245,463 @@ const findOrCreateGroup = async (client, userId) => {
     }
 };
 
+// ========================================
+// HELPER FUNCTIONS
+// ========================================
+
 /**
- * Configura o listener de mensagens
- * USA onAnyMessage para capturar mensagens do próprio usuário (host)
- * BLINDAGEM COMPLETA + ANTI-LOOP
+ * Get user context for AI (profiles, banks, cards, categories)
  */
+const getUserContext = async (userId, profileId = null) => {
+    const profiles = await Profile.findAll({
+        where: { userId },
+        attributes: ['id', 'name', 'type', 'isDefault']
+    });
+
+    const banks = await BankAccount.findAll({
+        where: { userId, isActive: true },
+        attributes: ['id', 'bankName', 'nickname', 'type']
+    });
+
+    const cards = await CreditCard.findAll({
+        where: { userId, isActive: true },
+        attributes: ['id', 'name', 'bankName', 'brand', 'lastFourDigits']
+    });
+
+    // Use profileId filter if available
+    const categoryWhere = profileId
+        ? { userId, profileId }
+        : { userId };
+
+    const categories = await Category.findAll({
+        where: categoryWhere,
+        attributes: ['id', 'name', 'type', 'icon']
+    });
+
+    return {
+        profiles: profiles.map(p => p.toJSON()),
+        banks: banks.map(b => b.toJSON()),
+        cards: cards.map(c => c.toJSON()),
+        categories: categories.map(c => c.toJSON())
+    };
+};
+
+/**
+ * Get or initialize active profile for user
+ */
+const getActiveProfile = async (user) => {
+    // If already has active profile, return it
+    if (user.whatsappActiveProfileId) {
+        const profile = await Profile.findByPk(user.whatsappActiveProfileId);
+        if (profile) return profile;
+    }
+
+    // Find default profile
+    let profile = await Profile.findOne({
+        where: { userId: user.id, isDefault: true }
+    });
+
+    if (!profile) {
+        // Fallback to PERSONAL profile
+        profile = await Profile.findOne({
+            where: { userId: user.id, type: 'PERSONAL' }
+        });
+    }
+
+    if (!profile) {
+        // Get any profile
+        profile = await Profile.findOne({
+            where: { userId: user.id }
+        });
+    }
+
+    // Update user with active profile
+    if (profile) {
+        user.whatsappActiveProfileId = profile.id;
+        await user.save();
+    }
+
+    return profile;
+};
+
+/**
+ * Format currency for display
+ */
+const formatCurrency = (value) => {
+    return new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+    }).format(value).replace('R$', 'R$ ');
+};
+
+/**
+ * Generate short ID from UUID
+ */
+const generateShortId = (uuid) => {
+    return uuid.substring(0, 4).toUpperCase();
+};
+
+/**
+ * Check if message looks like a transaction
+ */
+const looksLikeTransaction = (text) => {
+    if (!text || text.length < 5) return false;
+
+    const lowerText = text.toLowerCase();
+
+    // Ignore URLs
+    if (lowerText.includes('http://') || lowerText.includes('https://') ||
+        lowerText.includes('.com') || lowerText.includes('.br') ||
+        lowerText.includes('youtu.be') || lowerText.includes('tiktok') ||
+        lowerText.includes('instagram')) {
+        return false;
+    }
+
+    // Ignore very long messages
+    if (text.length > 300) return false;
+
+    // Check for monetary patterns
+    const hasMoneyPattern = /R?\$?\s?\d+([.,]\d{1,2})?/.test(text);
+
+    // Financial keywords
+    const financialKeywords = [
+        'gastei', 'paguei', 'comprei', 'recebi', 'ganhei', 'transferi',
+        'pix', 'credito', 'crédito', 'debito', 'débito', 'boleto',
+        'uber', 'ifood', '99', 'mercado', 'supermercado', 'farmácia',
+        'salario', 'salário', 'pagamento', 'entrada', 'saída',
+        'quanto', 'extrato', 'resumo', 'saldo'
+    ];
+    const hasFinancialKeyword = financialKeywords.some(kw => lowerText.includes(kw));
+
+    return hasMoneyPattern || hasFinancialKeyword;
+};
+
+// ========================================
+// SHORTCUT COMMANDS
+// ========================================
+
+/**
+ * Handle shortcut commands (PF, PJ, Menu)
+ * Returns response message or null if not a shortcut
+ */
+const handleShortcutCommand = async (text, user, activeProfile) => {
+    const upperText = text.toUpperCase().trim();
+
+    // Profile switch: PF
+    if (upperText === 'PF') {
+        const profile = await Profile.findOne({
+            where: { userId: user.id, type: 'PERSONAL' }
+        });
+        if (profile) {
+            user.whatsappActiveProfileId = profile.id;
+            await user.save();
+            return `🤖 ✅ Foco alterado para: *${profile.name}* (PF)\n\n_Operando em: ${profile.name}_`;
+        }
+        return `🤖 ❌ Perfil Pessoa Física não encontrado.\n\n_Operando em: ${activeProfile?.name || 'Nenhum'}_`;
+    }
+
+    // Profile switch: PJ
+    if (upperText === 'PJ') {
+        const profile = await Profile.findOne({
+            where: { userId: user.id, type: 'BUSINESS' }
+        });
+        if (profile) {
+            user.whatsappActiveProfileId = profile.id;
+            await user.save();
+            return `🤖 ✅ Foco alterado para: *${profile.name}* (PJ)\n\n_Operando em: ${profile.name}_`;
+        }
+        return `🤖 ❌ Perfil Pessoa Jurídica não encontrado.\n\n_Operando em: ${activeProfile?.name || 'Nenhum'}_`;
+    }
+
+    // Menu command
+    if (upperText === 'MENU') {
+        return `🤖 *Menu MyWallet AI*\n\n` +
+            `📝 *Registrar transação:*\n` +
+            `   "gastei 50 no uber"\n` +
+            `   "recebi 1000 de salário"\n\n` +
+            `📊 *Consultar extrato:*\n` +
+            `   "quanto gastei hoje?"\n` +
+            `   "resumo do mês"\n\n` +
+            `✏️ *Editar transação:*\n` +
+            `   "editar #A1B2 para 75"\n\n` +
+            `🔄 *Trocar perfil:*\n` +
+            `   *PF* - Pessoa Física\n` +
+            `   *PJ* - Pessoa Jurídica\n\n` +
+            `_Operando em: ${activeProfile?.name || 'Nenhum'}_`;
+    }
+
+    return null; // Not a shortcut command
+};
+
+// ========================================
+// QUERY ENGINE (STATEMENTS)
+// ========================================
+
+/**
+ * Execute query and return formatted statement
+ */
+const executeQuery = async (queryOptions, userId, profileId, activeProfile) => {
+    const { period = 'month', filter = 'all' } = queryOptions;
+
+    // Calculate date range
+    const now = new Date();
+    let startDate, endDate = now;
+
+    switch (period) {
+        case 'day':
+            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            break;
+        case 'week':
+            const dayOfWeek = now.getDay();
+            startDate = new Date(now);
+            startDate.setDate(now.getDate() - dayOfWeek);
+            startDate.setHours(0, 0, 0, 0);
+            break;
+        case 'year':
+            startDate = new Date(now.getFullYear(), 0, 1);
+            break;
+        case 'month':
+        default:
+            startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            break;
+    }
+
+    // Build where clause
+    const whereClause = {
+        userId,
+        date: { [Op.between]: [startDate, endDate] }
+    };
+
+    if (profileId) {
+        whereClause.profileId = profileId;
+    }
+
+    if (filter === 'income') {
+        whereClause.type = 'INCOME';
+    } else if (filter === 'expense') {
+        whereClause.type = 'EXPENSE';
+    }
+
+    // Query manual transactions
+    const manualTransactions = await ManualTransaction.findAll({
+        where: whereClause,
+        order: [['date', 'DESC']],
+        limit: 50,
+        include: [{ model: Category, as: 'category', attributes: ['name'] }]
+    });
+
+    // Calculate totals
+    let totalIncome = 0;
+    let totalExpense = 0;
+
+    manualTransactions.forEach(t => {
+        if (t.type === 'INCOME') {
+            totalIncome += parseFloat(t.amount);
+        } else {
+            totalExpense += parseFloat(t.amount);
+        }
+    });
+
+    const balance = totalIncome - totalExpense;
+
+    // Period label
+    const periodLabels = {
+        day: 'Hoje',
+        week: 'Esta Semana',
+        month: 'Este Mês',
+        year: 'Este Ano'
+    };
+
+    // Build response
+    let response = `🤖 📊 *Resumo ${periodLabels[period]}*\n`;
+    response += `👤 Perfil: *${activeProfile?.name || 'Todos'}*\n\n`;
+    response += `📈 Receitas: *${formatCurrency(totalIncome)}*\n`;
+    response += `📉 Despesas: *${formatCurrency(totalExpense)}*\n`;
+    response += `💰 *Saldo: ${formatCurrency(balance)}*\n`;
+    response += `\n─────────────────────\n`;
+
+    // Last 5 transactions
+    const last5 = manualTransactions.slice(0, 5);
+    if (last5.length > 0) {
+        response += `\n📋 *Últimas transações:*\n`;
+        last5.forEach(t => {
+            const emoji = t.type === 'INCOME' ? '💵' : '💸';
+            const sign = t.type === 'INCOME' ? '+' : '-';
+            const shortId = generateShortId(t.id);
+            const categoryName = t.category?.name || 'Sem categoria';
+            response += `${emoji} #${shortId}: ${sign}*${formatCurrency(t.amount)}* - ${t.description || categoryName}\n`;
+        });
+    } else {
+        response += `\n_Nenhuma transação encontrada no período._\n`;
+    }
+
+    response += `\n_Operando em: ${activeProfile?.name || 'N/A'}_`;
+
+    return response;
+};
+
+// ========================================
+// TRANSACTION PROCESSING
+// ========================================
+
+/**
+ * Process transaction entries from AI
+ */
+const processTransactionEntries = async (entries, userId, activeProfile, context) => {
+    const results = [];
+
+    for (const entry of entries) {
+        try {
+            // Determine profile
+            let profileId = activeProfile?.id;
+            if (entry.profileType) {
+                const targetProfile = context.profiles.find(p => p.type === entry.profileType);
+                if (targetProfile) {
+                    profileId = targetProfile.id;
+                }
+            }
+
+            // Find category
+            let categoryId = entry.categoryId;
+            if (!categoryId && entry.categoryName) {
+                const category = context.categories.find(c =>
+                    c.name.toLowerCase().includes(entry.categoryName.toLowerCase())
+                );
+                if (category) categoryId = category.id;
+            }
+
+            // Find bank account
+            let bankAccountId = entry.bankId;
+            if (!bankAccountId) {
+                // Use first active bank account
+                const defaultBank = context.banks.find(b => b.id);
+                if (defaultBank) bankAccountId = defaultBank.id;
+            }
+
+            // Create transaction
+            const transactionData = {
+                type: entry.type || 'EXPENSE',
+                source: entry.source || 'OTHER',
+                description: entry.description || (entry.type === 'INCOME' ? 'Receita' : 'Despesa'),
+                amount: entry.amount,
+                date: new Date(),
+                categoryId,
+                profileId,
+                bankAccountId,
+                isRecurring: entry.isRecurring || false
+            };
+
+            const transaction = await transactionsService.createManualTransaction(userId, transactionData);
+
+            // Generate short ID
+            const shortId = generateShortId(transaction.id);
+
+            // Find bank name for response
+            const bankName = context.banks.find(b => b.id === bankAccountId)?.bankName || 'Conta';
+            const profileName = context.profiles.find(p => p.id === profileId)?.name || activeProfile?.name;
+
+            results.push({
+                success: true,
+                shortId,
+                amount: entry.amount,
+                description: entry.description,
+                type: entry.type,
+                bankName,
+                profileName,
+                transaction
+            });
+
+        } catch (error) {
+            logger.error('❌ Error creating transaction:', error.message);
+            results.push({
+                success: false,
+                error: error.message,
+                entry
+            });
+        }
+    }
+
+    return results;
+};
+
+/**
+ * Format transaction results for response
+ */
+const formatTransactionResults = (results, activeProfile) => {
+    if (results.length === 0) {
+        return `🤖 ❌ Nenhuma transação processada.\n\n_Operando em: ${activeProfile?.name || 'N/A'}_`;
+    }
+
+    let response = '';
+
+    results.forEach(r => {
+        if (r.success) {
+            const emoji = r.type === 'INCOME' ? '💵' : '💸';
+            const sign = r.type === 'INCOME' ? '+' : '-';
+            response += `🤖 ✅ #${r.shortId}: ${sign}*${formatCurrency(r.amount)}* (${r.description})\n`;
+            response += `💳 Destino: *${r.bankName}*\n`;
+            response += `👤 Perfil: *${r.profileName}*\n\n`;
+        } else {
+            response += `🤖 ❌ Erro ao registrar: ${r.error}\n\n`;
+        }
+    });
+
+    response += `_Operando em: ${activeProfile?.name || 'N/A'}_`;
+
+    return response;
+};
+
+// ========================================
+// EDIT PROCESSING
+// ========================================
+
+/**
+ * Process edit command
+ */
+const processEdit = async (editData, userId, activeProfile) => {
+    const { shortId, updates } = editData;
+
+    if (!shortId) {
+        return `🤖 ❌ ID da transação não informado.\n\n_Operando em: ${activeProfile?.name || 'N/A'}_`;
+    }
+
+    // Find transaction by short ID (beginning of UUID)
+    const transactions = await ManualTransaction.findAll({
+        where: {
+            userId,
+            id: { [Op.like]: `${shortId.toLowerCase()}%` }
+        },
+        limit: 1
+    });
+
+    if (transactions.length === 0) {
+        return `🤖 ❌ Transação #${shortId} não encontrada.\n\n_Operando em: ${activeProfile?.name || 'N/A'}_`;
+    }
+
+    const transaction = transactions[0];
+
+    // Apply updates
+    if (updates.amount) transaction.amount = updates.amount;
+    if (updates.description) transaction.description = updates.description;
+
+    await transaction.save();
+
+    const emoji = transaction.type === 'INCOME' ? '💵' : '💸';
+
+    return `🤖 ✅ Transação #${generateShortId(transaction.id)} atualizada!\n\n` +
+        `${emoji} *${formatCurrency(transaction.amount)}*\n` +
+        `📝 ${transaction.description}\n\n` +
+        `_Operando em: ${activeProfile?.name || 'N/A'}_`;
+};
+
+// ========================================
+// MESSAGE LISTENER
+// ========================================
+
 const setupMessageListener = (client, userId) => {
-    // IMPORTANTE: onAnyMessage captura mensagens do próprio usuário
     client.onAnyMessage(async (message) => {
         try {
-            // ========================================
-            // 1. BLOQUEIO TOTAL DE LIXO
-            // Status, notificações de sistema, etc.
-            // ========================================
+            // Filter out system messages
             if (message.from === 'status@broadcast' ||
                 message.isStatus ||
                 message.type === 'e2e_notification' ||
@@ -259,31 +711,23 @@ const setupMessageListener = (client, userId) => {
                 return;
             }
 
-            // ========================================
-            // 2. RECUPERAR USUÁRIO
-            // ========================================
+            // Get user
             const user = await User.findByPk(userId);
             if (!user || !user.whatsappGroupId) {
-                return; // Sem grupo configurado
+                return;
             }
 
-            // ========================================
-            // 3. VERIFICAÇÃO DE GRUPO (CRUCIAL)
-            // Só processa mensagens do grupo oficial
-            // ========================================
+            // Verify message is from the official group
             const isFromGroup =
                 message.chatId === user.whatsappGroupId ||
                 message.from === user.whatsappGroupId ||
                 message.to === user.whatsappGroupId;
 
             if (!isFromGroup) {
-                return; // Bloqueia outros grupos e conversas privadas
+                return;
             }
 
-            // ========================================
-            // 4. ANTI-LOOP (CRUCIAL)
-            // Não processar respostas do próprio bot
-            // ========================================
+            // Anti-loop: ignore bot responses
             if (message.body && (
                 message.body.startsWith('🤖') ||
                 message.body.startsWith('✅') ||
@@ -291,83 +735,152 @@ const setupMessageListener = (client, userId) => {
                 message.body.startsWith('❓') ||
                 message.body.startsWith('🎉')
             )) {
-                return; // É resposta do bot, ignorar
+                return;
             }
 
-            // ========================================
-            // 5. FILTRO DE TIPO DE MENSAGEM
-            // Só processa texto e áudio
-            // ========================================
+            // Only process text and audio
             if (message.type !== 'chat' && message.type !== 'ptt' && message.type !== 'audio') {
                 return;
             }
 
             logger.info(`📩 Mensagem do grupo [${userId}]: ${message.type} - fromMe: ${message.fromMe}`);
 
-            let textContent = '';
+            // Get active profile
+            const activeProfile = await getActiveProfile(user);
 
-            // Processar áudio
+            let textContent = '';
+            let isAudio = false;
+            let audioBuffer = null;
+
+            // Process audio
             if (message.type === 'ptt' || message.type === 'audio') {
-                textContent = await processAudio(client, message);
-                if (!textContent) {
+                try {
+                    audioBuffer = await client.decryptFile(message);
+                    if (!audioBuffer || audioBuffer.length === 0) {
+                        await client.sendText(user.whatsappGroupId,
+                            `🤖 ❌ Não consegui processar o áudio. Tente novamente.\n\n_Operando em: ${activeProfile?.name || 'N/A'}_`
+                        );
+                        return;
+                    }
+                    isAudio = true;
+                    logger.info(`🎤 Áudio recebido: ${audioBuffer.length} bytes`);
+                } catch (audioError) {
+                    logger.error('❌ Erro ao processar áudio:', audioError.message);
                     await client.sendText(user.whatsappGroupId,
-                        '🤖 ❌ Não consegui transcrever o áudio. Tente novamente.'
+                        `🤖 ❌ Erro ao processar áudio. Tente enviar como texto.\n\n_Operando em: ${activeProfile?.name || 'N/A'}_`
                     );
                     return;
                 }
-            }
-            // Processar texto
-            else if (message.type === 'chat' && message.body) {
+            } else if (message.type === 'chat' && message.body) {
                 textContent = message.body;
             } else {
                 return;
             }
 
-            // VALIDAÇÃO: Ignorar mensagens que não parecem transações
-            if (!looksLikeTransaction(textContent)) {
-                logger.info(`⏭️ Ignorando (não parece transação): "${textContent.substring(0, 50)}..."`);
-                return;
+            // Handle shortcut commands first (text only)
+            if (!isAudio && textContent) {
+                const shortcutResponse = await handleShortcutCommand(textContent, user, activeProfile);
+                if (shortcutResponse) {
+                    await client.sendText(user.whatsappGroupId, shortcutResponse);
+                    return;
+                }
+
+                // Skip if doesn't look like transaction/query
+                if (!looksLikeTransaction(textContent)) {
+                    logger.info(`⏭️ Ignorando (não parece transação): "${textContent.substring(0, 50)}..."`);
+                    return;
+                }
             }
 
-            // Buscar categorias do usuário
-            const categories = await Category.findAll({
-                where: { userId: userId },
-                order: [['name', 'ASC']]
-            });
+            // Get user context for AI
+            const context = await getUserContext(userId, activeProfile?.id);
 
-            // Parsear transação com IA
-            const parsed = await groqService.parseTransaction(textContent, categories);
-
-            if (parsed.error) {
-                await client.sendText(user.whatsappGroupId,
-                    `🤖 ❓ ${parsed.error}\n\nTente algo como: "gastei 50 no uber"`
-                );
-                return;
+            // Call Gemini AI
+            let parsed;
+            if (isAudio) {
+                parsed = await geminiService.analyzeAudio(audioBuffer, context);
+            } else {
+                parsed = await geminiService.parseNaturalLanguage(textContent, context);
             }
 
-            // Criar transação
-            const transaction = await transactionsService.createManualTransaction(userId, {
-                type: parsed.type,
-                source: parsed.source || 'OTHER',
-                description: parsed.description,
-                amount: parsed.amount,
-                date: new Date(),
-                category: parsed.category
-            });
+            logger.info(`🧠 AI Response:`, JSON.stringify(parsed));
 
-            // Enviar confirmação COM IDENTIDADE VISUAL DO BOT
-            const emoji = parsed.type === 'INCOME' ? '💵' : '💸';
-            const sign = parsed.type === 'INCOME' ? '+' : '-';
+            // Handle by intent
+            switch (parsed.intent) {
+                case 'TRANSACTION':
+                    if (parsed.entries && parsed.entries.length > 0) {
+                        const results = await processTransactionEntries(
+                            parsed.entries,
+                            userId,
+                            activeProfile,
+                            context
+                        );
+                        const response = formatTransactionResults(results, activeProfile);
+                        await client.sendText(user.whatsappGroupId, response);
+                    } else {
+                        await client.sendText(user.whatsappGroupId,
+                            `🤖 ❌ Não consegui extrair a transação. Tente novamente.\n\n_Operando em: ${activeProfile?.name || 'N/A'}_`
+                        );
+                    }
+                    break;
 
-            await client.sendText(user.whatsappGroupId,
-                `🤖 ✅ *Transação registrada!*\n\n` +
-                `${emoji} ${sign}R$ ${parsed.amount.toFixed(2)}\n` +
-                `📝 ${parsed.description}\n` +
-                `📁 ${parsed.category}` +
-                `${parsed.fallback ? '\n⚠️ _Processado via fallback_' : ''}`
-            );
+                case 'QUERY':
+                    const queryResponse = await executeQuery(
+                        parsed.queryOptions || {},
+                        userId,
+                        activeProfile?.id,
+                        activeProfile
+                    );
+                    await client.sendText(user.whatsappGroupId, queryResponse);
+                    break;
 
-            logger.info(`✅ Transação criada via WhatsApp: ${transaction.id}`);
+                case 'EDIT':
+                    const editResponse = await processEdit(
+                        parsed.editData || {},
+                        userId,
+                        activeProfile
+                    );
+                    await client.sendText(user.whatsappGroupId, editResponse);
+                    break;
+
+                case 'UNKNOWN':
+                default:
+                    // Try fallback parser for text
+                    if (!isAudio && textContent) {
+                        const fallback = geminiService.fallbackParse(textContent, context);
+                        if (fallback.intent === 'TRANSACTION' && fallback.entries?.length > 0) {
+                            const results = await processTransactionEntries(
+                                fallback.entries,
+                                userId,
+                                activeProfile,
+                                context
+                            );
+                            let response = formatTransactionResults(results, activeProfile);
+                            response = response.replace('_Operando', '⚠️ _Processado via fallback_\n\n_Operando');
+                            await client.sendText(user.whatsappGroupId, response);
+                        } else if (fallback.intent === 'QUERY') {
+                            const queryResponse = await executeQuery(
+                                fallback.queryOptions || {},
+                                userId,
+                                activeProfile?.id,
+                                activeProfile
+                            );
+                            await client.sendText(user.whatsappGroupId, queryResponse);
+                        } else {
+                            await client.sendText(user.whatsappGroupId,
+                                `🤖 ❓ ${parsed.message || 'Não entendi sua mensagem.'}\n\n` +
+                                `Tente algo como: "gastei 50 no uber"\n\n` +
+                                `_Operando em: ${activeProfile?.name || 'N/A'}_`
+                            );
+                        }
+                    } else {
+                        await client.sendText(user.whatsappGroupId,
+                            `🤖 ❓ Não consegui entender o áudio. Tente novamente ou envie por texto.\n\n` +
+                            `_Operando em: ${activeProfile?.name || 'N/A'}_`
+                        );
+                    }
+                    break;
+            }
 
         } catch (error) {
             logger.error('❌ Erro ao processar mensagem:', error);
@@ -383,70 +896,10 @@ const setupMessageListener = (client, userId) => {
     });
 };
 
-/**
- * Verifica se o texto parece uma transação financeira
- */
-const looksLikeTransaction = (text) => {
-    if (!text || text.length < 5) return false;
+// ========================================
+// STATUS & DISCONNECT
+// ========================================
 
-    const lowerText = text.toLowerCase();
-
-    // Ignorar URLs
-    if (lowerText.includes('http://') || lowerText.includes('https://') ||
-        lowerText.includes('.com') || lowerText.includes('.br') ||
-        lowerText.includes('youtu.be') || lowerText.includes('tiktok') ||
-        lowerText.includes('instagram')) {
-        return false;
-    }
-
-    // Ignorar mensagens muito longas (provavelmente não são transações)
-    if (text.length > 300) return false;
-
-    // Deve ter pelo menos um padrão de valor monetário
-    const hasMoneyPattern = /R?\$?\s?\d+([.,]\d{1,2})?/.test(text);
-
-    // Ou palavras-chave financeiras
-    const financialKeywords = [
-        'gastei', 'paguei', 'comprei', 'recebi', 'ganhei', 'transferi',
-        'pix', 'credito', 'crédito', 'debito', 'débito', 'boleto',
-        'uber', 'ifood', '99', 'mercado', 'supermercado', 'farmácia',
-        'salario', 'salário', 'pagamento', 'entrada', 'saída'
-    ];
-    const hasFinancialKeyword = financialKeywords.some(kw => lowerText.includes(kw));
-
-    return hasMoneyPattern || hasFinancialKeyword;
-};
-
-/**
- * Processa mensagem de áudio
- */
-const processAudio = async (client, message) => {
-    try {
-        // Baixar e descriptografar o áudio
-        const buffer = await client.decryptFile(message);
-
-        if (!buffer || buffer.length === 0) {
-            logger.error('❌ Buffer de áudio vazio');
-            return null;
-        }
-
-        logger.info(`🎤 Áudio recebido: ${buffer.length} bytes`);
-
-        // Transcrever com Whisper
-        const transcription = await groqService.transcribeAudio(buffer, 'audio.ogg');
-
-        logger.info(`📝 Transcrição: "${transcription}"`);
-        return transcription;
-
-    } catch (error) {
-        logger.error('❌ Erro ao processar áudio:', error.message);
-        return null;
-    }
-};
-
-/**
- * Obtém o status da sessão
- */
 const getStatus = async (userId) => {
     const session = activeSessions.get(userId);
 
@@ -476,9 +929,6 @@ const getStatus = async (userId) => {
     }
 };
 
-/**
- * Desconecta a sessão
- */
 const disconnect = async (userId) => {
     const session = activeSessions.get(userId);
 
@@ -500,9 +950,10 @@ const disconnect = async (userId) => {
     }
 };
 
-/**
- * Envia mensagem para o grupo do usuário (para notificações)
- */
+// ========================================
+// NOTIFICATION SENDER
+// ========================================
+
 const sendNotification = async (userId, message) => {
     const session = activeSessions.get(userId);
 
@@ -519,6 +970,10 @@ const sendNotification = async (userId, message) => {
         return false;
     }
 };
+
+// ========================================
+// EXPORTS
+// ========================================
 
 module.exports = {
     initSession,
