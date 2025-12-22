@@ -75,14 +75,12 @@ module.exports = (sequelize) => {
         plan: {
             type: DataTypes.ENUM('FREE', 'MONTHLY', 'ANNUAL', 'LIFETIME', 'OWNER'),
             allowNull: false,
-            defaultValue: 'FREE',
-            comment: 'Plano do usuário'
+            defaultValue: 'FREE'
         },
         subscriptionStatus: {
             type: DataTypes.ENUM('ACTIVE', 'INACTIVE', 'PAST_DUE', 'CANCELLED'),
             allowNull: false,
-            defaultValue: 'INACTIVE',
-            comment: 'Status da assinatura no Mercado Pago'
+            defaultValue: 'INACTIVE'
         },
         subscriptionId: {
             type: DataTypes.STRING(255),
