@@ -1,12 +1,12 @@
 /**
  * WhatsApp Service
  * ========================================
- * WHATSAPP BOT - GEMINI MULTIMODAL EDITION
+ * WHATSAPP BOT - GROQ RESILIENT EDITION
  * ========================================
  * 
  * Features:
  * - Multi-tenant: each user has their own session
- * - Gemini AI for text and audio processing
+ * - Groq AI: Whisper (audio) + LLaMA (parsing)
  * - Profile switching (PF/PJ)
  * - Transaction registration with short IDs
  * - Statement/Query engine
@@ -16,7 +16,7 @@
 
 const wppconnect = require('@wppconnect-team/wppconnect');
 const { logger } = require('../../config/logger');
-const geminiService = require('../ai/gemini.service');
+const groqService = require('../ai/groq.service');
 const transactionsService = require('../transactions/transactions.service');
 const {
     Category,
@@ -795,12 +795,12 @@ const setupMessageListener = (client, userId) => {
             // Get user context for AI
             const context = await getUserContext(userId, activeProfile?.id);
 
-            // Call Gemini AI
+            // Call Groq AI (Whisper + LLaMA)
             let parsed;
             if (isAudio) {
-                parsed = await geminiService.analyzeAudio(audioBuffer, context);
+                parsed = await groqService.analyzeAudio(audioBuffer, context);
             } else {
-                parsed = await geminiService.parseNaturalLanguage(textContent, context);
+                parsed = await groqService.parseTransaction(textContent, context);
             }
 
             logger.info(`🧠 AI Response:`, JSON.stringify(parsed));
@@ -847,7 +847,7 @@ const setupMessageListener = (client, userId) => {
                 default:
                     // Try fallback parser for text
                     if (!isAudio && textContent) {
-                        const fallback = geminiService.fallbackParse(textContent, context);
+                        const fallback = groqService.fallbackParse(textContent, context);
                         if (fallback.intent === 'TRANSACTION' && fallback.entries?.length > 0) {
                             const results = await processTransactionEntries(
                                 fallback.entries,

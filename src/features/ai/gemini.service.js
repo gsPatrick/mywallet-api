@@ -209,7 +209,14 @@ const analyzeInput = async (input, context = {}, isAudio = false) => {
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
         try {
-            const { model, apiKey } = keyRotator.getModel('gemini-2.0-flash');
+            // Add delay between retries to avoid rate limit
+            if (attempt > 0) {
+                const delay = Math.pow(2, attempt) * 1000; // Exponential backoff: 2s, 4s, 8s
+                logger.info(`⏳ Waiting ${delay / 1000}s before retry...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+
+            const { model, apiKey } = keyRotator.getModel();
 
             logger.info(`🤖 Gemini attempt ${attempt + 1}/${maxRetries} (key: ...${apiKey.slice(-4)})`);
 
