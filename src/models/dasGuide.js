@@ -23,8 +23,7 @@ module.exports = (sequelize) => {
             references: {
                 model: 'profiles',
                 key: 'id'
-            },
-            comment: 'Perfil BUSINESS (MEI/ME) dono da guia'
+            }
         },
         // Competência
         month: {
@@ -33,35 +32,29 @@ module.exports = (sequelize) => {
             validate: {
                 min: 1,
                 max: 12
-            },
-            comment: 'Mês de competência (1-12)'
+            }
         },
         year: {
             type: DataTypes.INTEGER,
-            allowNull: false,
-            comment: 'Ano de competência'
+            allowNull: false
         },
         // Valores
         baseValue: {
             type: DataTypes.DECIMAL(10, 2),
-            allowNull: false,
-            comment: 'Valor original do DAS (sem juros/multa)'
+            allowNull: false
         },
         finalPaidValue: {
             type: DataTypes.DECIMAL(10, 2),
-            allowNull: true,
-            comment: 'Valor real pago (com juros/multa se houver)'
+            allowNull: true
         },
         // Datas
         dueDate: {
             type: DataTypes.DATEONLY,
-            allowNull: false,
-            comment: 'Data de vencimento da guia'
+            allowNull: false
         },
         paidAt: {
             type: DataTypes.DATE,
-            allowNull: true,
-            comment: 'Data/hora do pagamento'
+            allowNull: true
         },
         // Status
         status: {
@@ -76,8 +69,7 @@ module.exports = (sequelize) => {
             references: {
                 model: 'bank_accounts',
                 key: 'id'
-            },
-            comment: 'Conta bancária usada para pagamento'
+            }
         },
         // Vínculo com transação gerada
         transactionId: {
@@ -86,8 +78,7 @@ module.exports = (sequelize) => {
             references: {
                 model: 'manual_transactions',
                 key: 'id'
-            },
-            comment: 'Transação de despesa gerada pelo pagamento'
+            }
         }
     }, {
         tableName: 'das_guides',
@@ -96,7 +87,7 @@ module.exports = (sequelize) => {
             { fields: ['profile_id'] },
             { fields: ['year'] },
             { fields: ['status'] },
-            { unique: true, fields: ['profile_id', 'month', 'year'] } // Uma guia por mês/ano por perfil
+            { unique: true, fields: ['profile_id', 'month', 'year'] }
         ]
     });
 
