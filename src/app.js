@@ -39,10 +39,10 @@ const startServer = async () => {
     await sequelize.authenticate();
     logger.info('✅ Conexão com banco de dados estabelecida');
 
-    if (process.env.NODE_ENV === 'development' || process.env.DB_FORCE_SYNC === 'true') {
+    if (process.env.NODE_ENV === 'development' || process.env.DB_FORCE_SYNC === 'false') {
       // DEVELOPMENT: Force sync recria todas as tabelas (CUIDADO: apaga dados!)
       // Para produção: use migrations ou DB_FORCE_SYNC=true uma vez para criar tabelas
-      const forceSync = process.env.DB_FORCE_SYNC === 'true';
+      const forceSync = process.env.DB_FORCE_SYNC === 'false';
       await sequelize.sync({ force: forceSync });
       logger.info(`✅ Models sincronizados (force: ${forceSync})`);
     } else {

@@ -57,7 +57,7 @@ class KeyRotator {
     /**
      * Get the model with the next available key
      */
-    getModel(modelName = 'gemini-1.5-flash') {
+    getModel(modelName = 'gemma-3-4b-it') {
         const apiKey = this.getNextKey();
         if (!apiKey) {
             throw new Error('No Gemini API keys available');
@@ -209,46 +209,56 @@ const analyzeInput = async (input, context = {}, isAudio = false) => {
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
         try {
-            const { model, apiKey } = keyRotator.getModel('gemini-1.5-flash');
+            const { model, apiKey } = keyRotator.getModel('gemini-2.0-flash');
 
             logger.info(`🤖 Gemini attempt ${attempt + 1}/${maxRetries} (key: ...${apiKey.slice(-4)})`);
 
             const systemPrompt = buildSystemPrompt(context);
 
-            // Build content parts
-            const parts = [];
+            // Build content parts for the user message
+            const userParts = [];
 
             if (isAudio && Buffer.isBuffer(input)) {
-                // Multimodal: Audio input
-                parts.push({
+                // Multimodal: Audio input (WhatsApp sends OGG OPUS)
+                userParts.push({
                     inlineData: {
                         mimeType: 'audio/ogg',
                         data: input.toString('base64')
                     }
                 });
-                parts.push({ text: 'Transcreva e analise este áudio de acordo com as instruções.' });
+                userParts.push({ text: 'Transcreva este áudio e analise conforme as instruções do sistema. Retorne JSON.' });
             } else {
                 // Text input
-                parts.push({ text: String(input) });
+                userParts.push({ text: String(input) });
             }
 
+            // Generate content using the SDK
             const result = await model.generateContent({
                 contents: [
-                    { role: 'user', parts: [{ text: systemPrompt }] },
-                    { role: 'model', parts: [{ text: 'Entendido. Vou analisar as mensagens do usuário e retornar JSON estruturado conforme as regras.' }] },
-                    { role: 'user', parts }
+                    {
+                        role: 'user',
+                        parts: [{ text: systemPrompt }]
+                    },
+                    {
+                        role: 'model',
+                        parts: [{ text: 'Entendido. Vou analisar as mensagens e retornar JSON estruturado.' }]
+                    },
+                    {
+                        role: 'user',
+                        parts: userParts
+                    }
                 ],
                 generationConfig: {
-                    responseMimeType: 'application/json',
                     temperature: 0.1,
-                    maxOutputTokens: 1024
+                    maxOutputTokens: 1024,
+                    responseMimeType: 'application/json'
                 }
             });
 
             const response = result.response;
             const text = response.text();
 
-            logger.info(`✅ Gemini response: ${text.substring(0, 100)}...`);
+            logger.info(`✅ Gemini response: ${text.substring(0, 200)}...`);
 
             // Parse JSON response
             const parsed = JSON.parse(text);
@@ -258,6 +268,8 @@ const analyzeInput = async (input, context = {}, isAudio = false) => {
             lastError = error;
             const errorMessage = error.message || '';
             const statusCode = error.status || error.code || 0;
+
+            logger.error(`❌ Gemini error (attempt ${attempt + 1}):`, errorMessage);
 
             // Check for rate limit (429) or quota exceeded
             if (statusCode === 429 ||
@@ -270,13 +282,23 @@ const analyzeInput = async (input, context = {}, isAudio = false) => {
                 continue; // Try next key
             }
 
-            // For other errors, log and continue
-            logger.error(`❌ Gemini error (attempt ${attempt + 1}):`, error.message);
-
-            // If it's not a rate limit, might be a bad input - break early
-            if (!errorMessage.includes('500') && !errorMessage.includes('503')) {
-                break;
+            // For audio errors, try without multimodal
+            if (isAudio && (errorMessage.includes('audio') || errorMessage.includes('mime') || errorMessage.includes('media'))) {
+                logger.warn(`⚠️ Audio processing failed, returning fallback`);
+                return {
+                    intent: 'UNKNOWN',
+                    message: 'Não consegui processar o áudio. Por favor, envie uma mensagem de texto.',
+                    error: 'audio_not_supported'
+                };
             }
+
+            // If it's a 500/503 error, retry
+            if (errorMessage.includes('500') || errorMessage.includes('503')) {
+                continue;
+            }
+
+            // For other errors, break
+            break;
         }
     }
 
