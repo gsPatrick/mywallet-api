@@ -5,7 +5,6 @@
  */
 
 const invoicesService = require('./invoices.service');
-const { getActiveProfile } = require('../../utils/profileUtils');
 
 /**
  * Lista faturas de um cartão
@@ -16,7 +15,7 @@ const listInvoices = async (req, res, next) => {
         const userId = req.user.id;
         const { cardId } = req.params;
         const { limit, page } = req.query;
-        const profileId = getActiveProfile(req);
+        const profileId = req.headers['x-profile-id'];
 
         const result = await invoicesService.listInvoices(userId, profileId, cardId, {
             limit: parseInt(limit) || 12,
@@ -37,7 +36,7 @@ const getInvoice = async (req, res, next) => {
     try {
         const userId = req.user.id;
         const { invoiceId } = req.params;
-        const profileId = getActiveProfile(req);
+        const profileId = req.headers['x-profile-id'];
 
         const invoice = await invoicesService.getInvoice(userId, profileId, invoiceId);
 
@@ -55,7 +54,7 @@ const getCurrentInvoice = async (req, res, next) => {
     try {
         const userId = req.user.id;
         const { cardId } = req.params;
-        const profileId = getActiveProfile(req);
+        const profileId = req.headers['x-profile-id'];
 
         const invoice = await invoicesService.getCurrentInvoice(userId, profileId, cardId);
 
@@ -73,7 +72,7 @@ const generateInvoice = async (req, res, next) => {
     try {
         const userId = req.user.id;
         const { cardId, month, year } = req.body;
-        const profileId = getActiveProfile(req);
+        const profileId = req.headers['x-profile-id'];
 
         const invoice = await invoicesService.generateInvoice(userId, profileId, cardId, month, year);
 
@@ -92,7 +91,7 @@ const payInvoice = async (req, res, next) => {
         const userId = req.user.id;
         const { invoiceId } = req.params;
         const { amount, paymentType, paymentMethod, bankAccountId, notes } = req.body;
-        const profileId = getActiveProfile(req);
+        const profileId = req.headers['x-profile-id'];
 
         const result = await invoicesService.payInvoice(userId, profileId, invoiceId, {
             amount: parseFloat(amount) || 0,
@@ -117,7 +116,7 @@ const advanceInvoice = async (req, res, next) => {
         const userId = req.user.id;
         const { cardId } = req.params;
         const { amount, bankAccountId } = req.body;
-        const profileId = getActiveProfile(req);
+        const profileId = req.headers['x-profile-id'];
 
         const result = await invoicesService.advanceInvoice(
             userId,
