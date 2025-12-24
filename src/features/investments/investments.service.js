@@ -11,9 +11,10 @@ const { Op } = require('sequelize');
 /**
  * Lista ativos disponíveis no banco de dados (Catálogo)
  * Usado na aba "Mercado" e no Autocomplete
+ * Suporta: search, type, page, limit
  */
 const listAssets = async (filters = {}) => {
-    const { search, type } = filters;
+    const { search, type, page = 1, limit = 50 } = filters;
     const where = { isActive: true };
 
     if (search) {
@@ -27,23 +28,37 @@ const listAssets = async (filters = {}) => {
         where.type = type;
     }
 
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
     const assets = await Asset.findAll({
         where,
-        limit: 50, // Limita resultados para não pesar
+        limit: parseInt(limit),
+        offset,
         order: [['ticker', 'ASC']],
         attributes: ['id', 'ticker', 'name', 'type', 'logoUrl', 'sector']
     });
+
+    // Também conta o total para paginação
+    const total = await Asset.count({ where });
 
     // Tenta buscar cotação atual para a lista de mercado ficar bonita
     // (Opcional: pode deixar sem preço na busca se ficar lento)
     const tickers = assets.map(a => a.ticker);
     const quotes = await yahooClient.getQuotes(tickers);
 
-    return assets.map(asset => ({
-        ...asset.toJSON(),
-        price: quotes[asset.ticker]?.price || 0,
-        change: quotes[asset.ticker]?.changePercent || 0
-    }));
+    return {
+        assets: assets.map(asset => ({
+            ...asset.toJSON(),
+            price: quotes[asset.ticker]?.price || 0,
+            change: quotes[asset.ticker]?.changePercent || 0
+        })),
+        pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            totalPages: Math.ceil(total / parseInt(limit))
+        }
+    };
 };
 
 /**
