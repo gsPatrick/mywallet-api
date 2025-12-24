@@ -9,13 +9,13 @@ const router = express.Router();
 const brokersController = require('./brokers.controller');
 const { authMiddleware } = require('../../middlewares/authMiddleware');
 
-// Todas as rotas requerem autenticação
-router.use(authMiddleware);
-
-// Listar corretoras disponíveis no dicionário (antes das rotas com :id)
+// Rota pública - lista dicionário de corretoras disponíveis (usado no onboarding)
 router.get('/available', brokersController.getAvailable);
 
-// CRUD
+// Rotas protegidas requerem autenticação
+router.use(authMiddleware);
+
+// CRUD (protegidas)
 router.get('/', brokersController.list);
 router.get('/:id', brokersController.getById);
 router.post('/', brokersController.create);
