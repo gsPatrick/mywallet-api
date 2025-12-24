@@ -7,10 +7,10 @@
 const express = require('express');
 const router = express.Router();
 const invoicesController = require('./invoices.controller');
-const { authenticate } = require('../../middlewares/auth');
+const { authMiddleware } = require('../../middlewares/authMiddleware');
 
 // Todas as rotas requerem autenticação
-router.use(authenticate);
+router.use(authMiddleware);
 
 // Listar faturas de um cartão
 router.get('/card/:cardId', invoicesController.listInvoices);
