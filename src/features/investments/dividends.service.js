@@ -1,19 +1,29 @@
 /**
- * Dividends Service
+ * Dividends Service - VERSÃO CORRIGIDA
  * Sincroniza proventos e gera notificações
+ * 
+ * Correções aplicadas:
+ * - Estratégia Híbrida: FIIs usam Brapi, Ações usam Yahoo
+ * - Yahoo não tem dados confiáveis de FIIs brasileiros
+ * - Brapi tem rendimentos de FIIs completos
  */
 
 const { Investment, Dividend, Asset, Notification } = require('../../models');
 const yahooClient = require('./yahoo.client');
+const brapiClient = require('./brapi.client');
 const { Op } = require('sequelize');
 const { logger } = require('../../config/logger');
 
 /**
  * Sincroniza dividendos para um usuário específico
  * Deve ser chamado no LOGIN (em background)
+ * 
+ * ESTRATÉGIA HÍBRIDA:
+ * - FIIs → Brapi (dados mais confiáveis para rendimentos mensais)
+ * - Ações/BDRs → Yahoo (funciona bem e é grátis)
  */
 const syncUserDividends = async (userId) => {
-    logger.info(`🔄 Iniciando sync de dividendos para usuário ${userId}...`);
+    logger.info(`🔄 [DIVIDENDS] Iniciando sync para usuário ${userId}...`);
 
     // 1. Pega todos os investimentos do usuário
     const userHoldings = await Investment.findAll({
@@ -21,38 +31,61 @@ const syncUserDividends = async (userId) => {
         include: [{ model: Asset, as: 'asset' }],
     });
 
-    if (!userHoldings.length) return;
+    if (!userHoldings.length) {
+        logger.info(`📭 [DIVIDENDS] Usuário ${userId} não possui investimentos`);
+        return { newDividends: 0 };
+    }
 
-    // Lista única de tickers (ex: ['PETR4', 'VALE3'])
-    const uniqueAssets = [...new Set(userHoldings.map(h => h.asset.ticker))];
+    // Lista única de assets (não apenas tickers)
+    const uniqueAssetsMap = new Map();
+    for (const holding of userHoldings) {
+        if (holding.asset) {
+            uniqueAssetsMap.set(holding.asset.ticker, holding.asset);
+        }
+    }
+    const uniqueAssets = Array.from(uniqueAssetsMap.values());
 
-    // Data inicial para busca (ex: Início deste ano ou do ano passado)
+    // Data inicial para busca
     const startDate = '2024-01-01';
 
     let newDividendsCount = 0;
+    let fiisProcessed = 0;
+    let stocksProcessed = 0;
 
-    for (const ticker of uniqueAssets) {
+    for (const asset of uniqueAssets) {
         try {
-            // 2. Busca histórico no Yahoo
-            const dividendsHistory = await yahooClient.getDividendsHistory(ticker, startDate);
+            let dividendsHistory = [];
 
-            if (!dividendsHistory.length) continue;
+            // ✅ ESTRATÉGIA HÍBRIDA: FIIs usam Brapi, Ações usam Yahoo
+            if (asset.type === 'FII') {
+                // FIIs: Brapi tem dados mais confiáveis
+                logger.debug(`🏢 [DIVIDENDS] ${asset.ticker}: Buscando via Brapi (FII)`);
+                dividendsHistory = await brapiClient.getDividendsHistory(asset.ticker, startDate);
+                fiisProcessed++;
+            } else {
+                // Ações e BDRs: Yahoo funciona bem
+                logger.debug(`📊 [DIVIDENDS] ${asset.ticker}: Buscando via Yahoo (${asset.type})`);
+                dividendsHistory = await yahooClient.getDividendsHistory(asset.ticker, startDate);
+                stocksProcessed++;
+            }
 
-            // Pega o ID do ativo no banco
-            const asset = userHoldings.find(h => h.asset.ticker === ticker).asset;
+            if (!dividendsHistory || dividendsHistory.length === 0) {
+                continue;
+            }
+
+            logger.info(`💰 [DIVIDENDS] ${asset.ticker}: ${dividendsHistory.length} dividendos encontrados`);
 
             for (const div of dividendsHistory) {
                 const paymentDate = new Date(div.date);
+                const exDate = div.exDate ? new Date(div.exDate) : paymentDate;
 
-                // 3. REGRA DE OURO: Calcula quantidade que o usuário tinha NAQUELA DATA
-                // Soma compras feitas ANTES da data do dividendo
-                // Subtrai vendas feitas ANTES da data do dividendo
+                // 3. REGRA DE OURO: Calcula quantidade que o usuário tinha NA DATA-COM (ex-date)
                 let quantityOwned = 0;
 
                 userHoldings.forEach(inv => {
                     const tradeDate = new Date(inv.date);
-                    // Se a operação foi antes do pagamento (simplificação da Data Com)
-                    if (inv.asset.ticker === ticker && tradeDate < paymentDate) {
+                    // Se a operação foi antes da data-com (ex-date)
+                    if (inv.asset.ticker === asset.ticker && tradeDate < exDate) {
                         if (inv.operationType === 'BUY') {
                             quantityOwned += parseFloat(inv.quantity);
                         } else {
@@ -68,7 +101,6 @@ const syncUserDividends = async (userId) => {
                 const totalAmount = quantityOwned * div.amount;
 
                 // 4. Verifica se já salvamos esse dividendo para não duplicar
-                // Usamos Data + Valor + Asset como chave única lógica
                 const existingDiv = await Dividend.findOne({
                     where: {
                         userId,
@@ -80,55 +112,106 @@ const syncUserDividends = async (userId) => {
 
                 if (!existingDiv) {
                     // A) Salva o Dividendo
+                    const origin = asset.type === 'FII' ? 'BRAPI' : 'YAHOO';
+
                     await Dividend.create({
                         userId,
                         assetId: asset.id,
-                        type: 'DIVIDEND', // Yahoo não distingue JCP de Dividendo facilmente
+                        type: div.type || 'DIVIDEND',
                         amountPerUnit: div.amount,
                         quantity: quantityOwned,
                         grossAmount: totalAmount,
                         netAmount: totalAmount, // Simplificação (sem IR)
-                        exDate: paymentDate,
+                        exDate: exDate,
                         paymentDate: paymentDate,
-                        status: 'RECEIVED', // Assume recebido se está no histórico
-                        origin: 'YAHOO'
+                        status: 'RECEIVED',
+                        origin: origin
                     });
 
                     // B) Cria a Notificação para o Usuário
                     await Notification.create({
                         userId,
-                        type: 'GENERAL', // Ou crie um tipo DIVIDEND_RECEIVED no enum do model
+                        type: 'GENERAL',
                         title: '💰 Dividendo Recebido!',
-                        message: `Você recebeu R$ ${totalAmount.toFixed(2)} de ${ticker}`,
+                        message: `Você recebeu R$ ${totalAmount.toFixed(2)} de ${asset.ticker}`,
                         isRead: false,
                         isDisplayed: false,
-                        scheduledFor: new Date() // Mostrar agora
+                        scheduledFor: new Date()
                     });
 
                     newDividendsCount++;
-                    logger.info(`✅ Novo dividendo registrado: ${ticker} - R$ ${totalAmount}`);
+                    logger.info(`✅ [DIVIDENDS] Novo: ${asset.ticker} - R$ ${totalAmount.toFixed(2)} (${origin})`);
                 }
             }
         } catch (error) {
-            logger.error(`Erro sync dividendos ${ticker}: ${error.message}`);
+            logger.error(`❌ [DIVIDENDS] Erro sync ${asset.ticker}: ${error.message}`);
         }
     }
 
+    const summary = {
+        newDividends: newDividendsCount,
+        fiisProcessed,
+        stocksProcessed,
+        totalAssets: uniqueAssets.length
+    };
+
     if (newDividendsCount > 0) {
-        logger.info(`🎉 Total de novos dividendos encontrados: ${newDividendsCount}`);
+        logger.info(`🎉 [DIVIDENDS] Sync concluído: ${newDividendsCount} novos dividendos`);
+    } else {
+        logger.info(`📊 [DIVIDENDS] Sync concluído: nenhum novo dividendo`);
     }
+
+    return summary;
 };
 
+/**
+ * Lista dividendos do usuário
+ */
 const listDividends = async (userId) => {
     return await Dividend.findAll({
         where: { userId },
         include: [{
             model: Asset,
             as: 'asset',
-            attributes: ['ticker', 'name', 'logoUrl']
+            attributes: ['ticker', 'name', 'type', 'logoUrl']
         }],
         order: [['paymentDate', 'DESC']]
     });
 };
 
-module.exports = { syncUserDividends, listDividends };
+/**
+ * Força sync de dividendos para um ativo específico
+ */
+const syncAssetDividends = async (userId, assetId) => {
+    const asset = await Asset.findByPk(assetId);
+    if (!asset) {
+        throw new Error('Ativo não encontrado');
+    }
+
+    logger.info(`🔄 [DIVIDENDS] Forçando sync para ${asset.ticker}...`);
+
+    const startDate = '2024-01-01';
+    let dividendsHistory = [];
+
+    if (asset.type === 'FII') {
+        dividendsHistory = await brapiClient.getDividendsHistory(asset.ticker, startDate);
+    } else {
+        dividendsHistory = await yahooClient.getDividendsHistory(asset.ticker, startDate);
+    }
+
+    logger.info(`💰 [DIVIDENDS] ${asset.ticker}: ${dividendsHistory.length} dividendos encontrados`);
+
+    return {
+        ticker: asset.ticker,
+        type: asset.type,
+        source: asset.type === 'FII' ? 'BRAPI' : 'YAHOO',
+        dividendsFound: dividendsHistory.length,
+        dividends: dividendsHistory
+    };
+};
+
+module.exports = {
+    syncUserDividends,
+    listDividends,
+    syncAssetDividends
+};

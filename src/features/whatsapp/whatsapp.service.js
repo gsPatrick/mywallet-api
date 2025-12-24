@@ -18,6 +18,7 @@ const wppconnect = require('@wppconnect-team/wppconnect');
 const { logger } = require('../../config/logger');
 const groqService = require('../ai/groq.service');
 const transactionsService = require('../transactions/transactions.service');
+const invoicesService = require('../invoices/invoices.service');
 const {
     Category,
     User,
@@ -25,7 +26,9 @@ const {
     BankAccount,
     CreditCard,
     ManualTransaction,
-    CardTransaction
+    CardTransaction,
+    CardInvoice,
+    InvoicePayment
 } = require('../../models');
 const path = require('path');
 const fs = require('fs');
@@ -521,7 +524,7 @@ const handleShortcutCommand = async (text, user, activeProfile) => {
     }
 
     // ========================================
-    // FATURA: Current card invoice details
+    // FATURA: Current card invoice details (ENHANCED)
     // ========================================
     if (upperText === 'FATURA' || upperText.startsWith('FATURA ')) {
         const cards = await CreditCard.findAll({
@@ -532,35 +535,186 @@ const handleShortcutCommand = async (text, user, activeProfile) => {
             return `🤖 ❌ Nenhum cartão cadastrado.\n\n_Operando em: ${activeProfile?.name || 'N/A'}_`;
         }
 
-        // Get current month transactions for all cards
         const now = new Date();
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const month = now.getMonth() + 1;
+        const year = now.getFullYear();
 
-        let response = `🤖 📑 *Faturas do Mês*\n\n`;
+        let response = `🤖 📑 *Faturas Atuais*\n\n`;
 
         for (const card of cards) {
-            const transactions = await CardTransaction.findAll({
-                where: {
-                    cardId: card.id,
-                    date: { [Op.gte]: startOfMonth }
-                },
-                order: [['date', 'DESC']],
-                limit: 5
+            // Get or create invoice
+            let invoice = await CardInvoice.findOne({
+                where: { cardId: card.id, referenceMonth: month, referenceYear: year }
             });
 
-            const total = transactions.reduce((sum, t) => sum + parseFloat(t.amount), 0);
+            if (!invoice) {
+                // Generate invoice if not exists
+                try {
+                    invoice = await invoicesService.generateInvoice(user.id, activeProfile?.id, card.id, month, year);
+                } catch (err) {
+                    // Skip this card
+                    continue;
+                }
+            }
+
+            const total = parseFloat(invoice.totalAmount) || 0;
+            const paid = parseFloat(invoice.paidAmount) || 0;
+            const remaining = total - paid;
+
+            // Status emoji
+            let statusEmoji = '⏳';
+            let statusText = 'Aberta';
+            if (invoice.status === 'PAID') {
+                statusEmoji = '✅';
+                statusText = 'Paga';
+            } else if (invoice.status === 'PARTIAL') {
+                statusEmoji = '⚠️';
+                statusText = 'Parcial';
+            } else if (invoice.status === 'OVERDUE') {
+                statusEmoji = '❌';
+                statusText = 'Vencida';
+            } else if (invoice.status === 'CLOSED') {
+                statusEmoji = '📋';
+                statusText = 'Fechada';
+            }
 
             response += `💳 *${card.name || card.bankName}* (${card.lastFourDigits})\n`;
-            response += `   Total: *${formatCurrency(total)}*\n`;
+            response += `   ${statusEmoji} Status: *${statusText}*\n`;
+            response += `   💵 Total: *${formatCurrency(total)}*\n`;
 
-            if (transactions.length > 0) {
-                response += `   Últimas transações:\n`;
-                transactions.forEach(t => {
-                    const date = new Date(t.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-                    response += `   • ${date} - ${t.description}: *${formatCurrency(t.amount)}*\n`;
-                });
+            if (paid > 0) {
+                response += `   ✅ Pago: *${formatCurrency(paid)}*\n`;
+                response += `   📉 Restante: *${formatCurrency(remaining)}*\n`;
+            }
+
+            if (invoice.dueDate) {
+                const dueDate = new Date(invoice.dueDate);
+                response += `   📅 Vencimento: *${dueDate.toLocaleDateString('pt-BR')}*\n`;
+            }
+            response += `\n`;
+        }
+
+        response += `─────────────────────\n`;
+        response += `💡 *Comandos:*\n`;
+        response += `   *PAGAR FATURA [valor]* - Registrar pagamento\n`;
+        response += `   *HISTORICO FATURAS* - Ver últimas faturas\n\n`;
+        response += `_Operando em: ${activeProfile?.name || 'N/A'}_`;
+        return response;
+    }
+
+    // ========================================
+    // PAGAR FATURA: Register invoice payment
+    // ========================================
+    if (upperText.startsWith('PAGAR FATURA')) {
+        const cards = await CreditCard.findAll({
+            where: { userId: user.id, isActive: true }
+        });
+
+        if (cards.length === 0) {
+            return `🤖 ❌ Nenhum cartão cadastrado.\n\n_Operando em: ${activeProfile?.name || 'N/A'}_`;
+        }
+
+        // Extract amount from command
+        const match = upperText.match(/PAGAR FATURA\s+(\d+(?:[.,]\d+)?)/);
+        let paymentAmount = 0;
+        let paymentType = 'FULL';
+
+        if (match) {
+            paymentAmount = parseFloat(match[1].replace(',', '.'));
+            paymentType = 'PARTIAL';
+        }
+
+        const now = new Date();
+        const month = now.getMonth() + 1;
+        const year = now.getFullYear();
+
+        // Get main card (first active)
+        const card = cards[0];
+
+        // Get or create invoice
+        let invoice = await CardInvoice.findOne({
+            where: { cardId: card.id, referenceMonth: month, referenceYear: year }
+        });
+
+        if (!invoice) {
+            invoice = await invoicesService.generateInvoice(user.id, activeProfile?.id, card.id, month, year);
+        }
+
+        const remaining = parseFloat(invoice.totalAmount) - parseFloat(invoice.paidAmount);
+
+        if (remaining <= 0) {
+            return `🤖 ✅ A fatura do cartão *${card.name || card.bankName}* já está totalmente paga!\n\n_Operando em: ${activeProfile?.name || 'N/A'}_`;
+        }
+
+        // If no amount specified, pay full
+        if (paymentAmount <= 0) {
+            paymentAmount = remaining;
+            paymentType = 'FULL';
+        }
+
+        try {
+            const result = await invoicesService.payInvoice(user.id, activeProfile?.id, invoice.id, {
+                amount: paymentAmount,
+                paymentType,
+                paymentMethod: 'PIX',
+                notes: 'Pagamento via WhatsApp'
+            });
+
+            let response = `🤖 ✅ *Pagamento Registrado!*\n\n`;
+            response += `💳 *${card.name || card.bankName}*\n`;
+            response += `💵 Valor: *${formatCurrency(result.payment.amount)}*\n`;
+            response += `📅 Data: *${new Date().toLocaleDateString('pt-BR')}*\n\n`;
+
+            if (result.invoice.remainingAmount > 0) {
+                response += `📉 Restante: *${formatCurrency(result.invoice.remainingAmount)}*\n`;
             } else {
-                response += `   _Sem transações este mês_\n`;
+                response += `🎉 *Fatura 100% paga!*\n`;
+            }
+
+            response += `\n_Operando em: ${activeProfile?.name || 'N/A'}_`;
+            return response;
+        } catch (err) {
+            return `🤖 ❌ Erro ao registrar pagamento: ${err.message}\n\n_Operando em: ${activeProfile?.name || 'N/A'}_`;
+        }
+    }
+
+    // ========================================
+    // HISTORICO FATURAS: Invoice history
+    // ========================================
+    if (upperText === 'HISTORICO FATURAS' || upperText === 'HISTÓRICO FATURAS') {
+        const cards = await CreditCard.findAll({
+            where: { userId: user.id, isActive: true }
+        });
+
+        if (cards.length === 0) {
+            return `🤖 ❌ Nenhum cartão cadastrado.\n\n_Operando em: ${activeProfile?.name || 'N/A'}_`;
+        }
+
+        let response = `🤖 📊 *Histórico de Faturas*\n\n`;
+
+        for (const card of cards) {
+            const invoices = await CardInvoice.findAll({
+                where: { cardId: card.id },
+                order: [['referenceYear', 'DESC'], ['referenceMonth', 'DESC']],
+                limit: 6
+            });
+
+            if (invoices.length === 0) continue;
+
+            response += `💳 *${card.name || card.bankName}*\n`;
+
+            for (const inv of invoices) {
+                const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+                const monthName = monthNames[inv.referenceMonth - 1];
+                const total = parseFloat(inv.totalAmount);
+
+                let statusEmoji = '⏳';
+                if (inv.status === 'PAID') statusEmoji = '✅';
+                else if (inv.status === 'PARTIAL') statusEmoji = '⚠️';
+                else if (inv.status === 'OVERDUE') statusEmoji = '❌';
+                else if (inv.status === 'CLOSED') statusEmoji = '📋';
+
+                response += `   ${statusEmoji} ${monthName}/${inv.referenceYear}: *${formatCurrency(total)}*\n`;
             }
             response += `\n`;
         }
@@ -569,7 +723,7 @@ const handleShortcutCommand = async (text, user, activeProfile) => {
         return response;
     }
 
-    // Menu command - UPDATED with new options
+    // Menu command - UPDATED with invoice options
     if (upperText === 'MENU') {
         return `🤖 *Menu MyWallet AI*\n\n` +
             `📝 *Registrar transação:*\n` +
@@ -581,8 +735,11 @@ const handleShortcutCommand = async (text, user, activeProfile) => {
             `💰 *Saldos e Cartões:*\n` +
             `   *SALDO* - Saldo total\n` +
             `   *BANCOS* - Saldo por conta\n` +
-            `   *CARTOES* - Meus cartões\n` +
-            `   *FATURA* - Faturas do mês\n\n` +
+            `   *CARTOES* - Meus cartões\n\n` +
+            `💳 *Faturas:*\n` +
+            `   *FATURA* - Faturas atuais\n` +
+            `   *PAGAR FATURA [valor]* - Pagar fatura\n` +
+            `   *HISTORICO FATURAS* - Últimas faturas\n\n` +
             `✏️ *Editar transação:*\n` +
             `   "editar #A1B2 para 75"\n\n` +
             `🔄 *Trocar perfil:*\n` +
@@ -1457,6 +1614,144 @@ const sendNotification = async (userId, message) => {
 };
 
 // ========================================
+// SESSION RESTORATION ON STARTUP
+// ========================================
+
+/**
+ * Restore all saved WhatsApp sessions on server startup
+ * Checks for users with saved sessions and reconnects them
+ */
+const restoreAllSessions = async () => {
+    logger.info('🔄 Iniciando restauração de sessões WhatsApp...');
+
+    try {
+        // Find users with WhatsApp enabled (have a groupId saved)
+        const usersWithWhatsApp = await User.findAll({
+            where: {
+                whatsappGroupId: {
+                    [Op.ne]: null
+                }
+            },
+            attributes: ['id', 'email', 'whatsappGroupId']
+        });
+
+        if (usersWithWhatsApp.length === 0) {
+            logger.info('📭 Nenhuma sessão WhatsApp para restaurar');
+            return { restored: 0, failed: 0 };
+        }
+
+        logger.info(`📱 Encontrados ${usersWithWhatsApp.length} usuário(s) com WhatsApp configurado`);
+
+        let restored = 0;
+        let failed = 0;
+
+        for (const user of usersWithWhatsApp) {
+            const sessionName = `session_${user.id}`;
+            const sessionsDir = getSessionPath(user.id);
+            const sessionPath = path.join(sessionsDir, sessionName);
+
+            // Check if session files exist on disk
+            if (fs.existsSync(sessionPath)) {
+                logger.info(`🔌 Restaurando sessão para usuário ${user.id} (${user.email})...`);
+
+                try {
+                    // Try to reconnect using saved session
+                    await new Promise((resolve, reject) => {
+                        let resolved = false;
+
+                        wppconnect.create({
+                            session: sessionName,
+                            folderNameToken: sessionsDir,
+                            headless: true,
+                            useChrome: false,
+                            debug: false,
+                            logQR: false,
+                            autoClose: 0, // Don't auto-close on timeout
+                            puppeteerOptions: {
+                                executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser',
+                                args: [
+                                    '--no-sandbox',
+                                    '--disable-setuid-sandbox',
+                                    '--disable-dev-shm-usage',
+                                    '--disable-accelerated-2d-canvas',
+                                    '--no-first-run',
+                                    '--no-zygote',
+                                    '--single-process',
+                                    '--disable-gpu',
+                                    '--disable-extensions'
+                                ]
+                            },
+                            catchQR: (base64Qr) => {
+                                // Session expired, need to scan QR again
+                                logger.warn(`⚠️ Sessão expirada para usuário ${user.id}. Necessário escanear QR novamente.`);
+                                if (!resolved) {
+                                    resolved = true;
+                                    reject(new Error('SESSION_EXPIRED'));
+                                }
+                            },
+                            statusFind: (statusSession) => {
+                                logger.debug(`📊 Status restauração [${user.id}]: ${statusSession}`);
+                            }
+                        })
+                            .then(async (client) => {
+                                logger.info(`✅ Sessão restaurada para usuário ${user.id}`);
+
+                                activeSessions.set(user.id, {
+                                    client,
+                                    isConnected: true,
+                                    groupId: user.whatsappGroupId
+                                });
+
+                                setupMessageListener(client, user.id);
+
+                                if (!resolved) {
+                                    resolved = true;
+                                    resolve();
+                                }
+                            })
+                            .catch((error) => {
+                                if (!resolved) {
+                                    resolved = true;
+                                    reject(error);
+                                }
+                            });
+
+                        // Timeout after 60 seconds
+                        setTimeout(() => {
+                            if (!resolved) {
+                                resolved = true;
+                                reject(new Error('TIMEOUT'));
+                            }
+                        }, 60000);
+                    });
+
+                    restored++;
+                    logger.info(`✅ Usuário ${user.id}: sessão restaurada com sucesso`);
+
+                } catch (restoreError) {
+                    failed++;
+                    if (restoreError.message === 'SESSION_EXPIRED') {
+                        logger.warn(`⏰ Usuário ${user.id}: sessão expirada, precisa reconectar manualmente`);
+                    } else {
+                        logger.error(`❌ Usuário ${user.id}: falha ao restaurar - ${restoreError.message}`);
+                    }
+                }
+            } else {
+                logger.info(`📁 Usuário ${user.id}: arquivos de sessão não encontrados`);
+                failed++;
+            }
+        }
+
+        logger.info(`📊 Restauração concluída: ${restored} sucesso, ${failed} falhas`);
+        return { restored, failed };
+
+    } catch (error) {
+        logger.error('❌ Erro na restauração de sessões:', error);
+        return { restored: 0, failed: 0, error: error.message };
+    }
+};
+
+// ========================================
 // EXPORTS
 // ========================================
 
@@ -1464,5 +1759,6 @@ module.exports = {
     initSession,
     getStatus,
     disconnect,
-    sendNotification
+    sendNotification,
+    restoreAllSessions
 };

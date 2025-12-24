@@ -35,6 +35,11 @@ module.exports = (sequelize) => {
                 'INCOME_REMINDER_5D',   // Receita 5 dias
                 'INCOME_REMINDER_1D',   // Receita 1 dia
                 'INCOME_DUE',           // Receita no dia
+                'INVOICE_DUE_5D',       // Fatura 5 dias
+                'INVOICE_DUE_1D',       // Fatura 1 dia
+                'INVOICE_DUE',          // Fatura no dia
+                'INVOICE_OVERDUE',      // Fatura vencida
+                'INVOICE_PAID',         // Fatura paga
                 'GENERAL'               // Geral
             ),
             allowNull: false

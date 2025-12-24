@@ -114,8 +114,24 @@ const startServer = async () => {
     const { setupMPPlansIfNeeded } = require('./features/subscription/mpPlansSetup');
     await setupMPPlansIfNeeded();
 
-    app.listen(PORT, () => {
+    app.listen(PORT, async () => {
       logger.info(`🚀 Servidor rodando na porta ${PORT}`);
+
+      // =====================================================
+      // 📱 RESTORE WHATSAPP SESSIONS
+      // =====================================================
+      // Run after server starts to not block boot
+      try {
+        const whatsappService = require('./features/whatsapp/whatsapp.service');
+        // Give some time for everything to stabilize
+        setTimeout(async () => {
+          logger.info('📱 Iniciando restauração de sessões WhatsApp...');
+          const result = await whatsappService.restoreAllSessions();
+          logger.info(`📱 WhatsApp: ${result.restored} sessões restauradas, ${result.failed} falhas`);
+        }, 5000); // Wait 5 seconds after boot
+      } catch (err) {
+        logger.warn('📱 WhatsApp restore skipped:', err.message);
+      }
     });
 
   } catch (error) {

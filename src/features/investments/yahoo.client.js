@@ -1,6 +1,11 @@
 /**
- * Yahoo Finance Client - CORRIGIDO PARA V3+
+ * Yahoo Finance Client - VERSÃO CORRIGIDA v3+
  * Instancia a classe manualmente para compatibilidade com versões novas
+ * 
+ * Correções aplicadas:
+ * - Retorna NULL (não zeros) quando preço inválido
+ * - Log detalhado de erros
+ * - try/catch individual por ticker
  */
 
 const nodeCache = require('node-cache');
@@ -24,7 +29,7 @@ try {
         yahooFinance = pkg.default || pkg;
     }
 } catch (error) {
-    logger.error('Erro fatal ao inicializar Yahoo Finance:', error);
+    logger.error('❌ [YAHOO] Erro fatal ao inicializar Yahoo Finance:', error);
     // Tenta usar o que veio como fallback final
     yahooFinance = pkg.default || pkg;
 }
@@ -58,6 +63,7 @@ const getQuote = async (ticker) => {
 
 /**
  * Busca cotações de múltiplos ativos com tratamento de erro individual
+ * CORREÇÃO: Retorna NULL para erros, não zeros
  */
 const getQuotes = async (tickers) => {
     const results = {};
@@ -79,28 +85,32 @@ const getQuotes = async (tickers) => {
 
     if (symbolsToFetch.length === 0) return results;
 
-    console.log(`🔍 [YAHOO] Buscando preços para: ${symbolsToFetch.join(', ')}`);
+    logger.info(`🔍 [YAHOO] Buscando preços para: ${symbolsToFetch.join(', ')}`);
 
-    // 2. Busca Individual (Promise.all)
-    // Usamos busca individual para evitar que um ticker inválido quebre o lote todo
+    // 2. Busca Individual (Promise.all) - try/catch individual
     await Promise.all(symbolsToFetch.map(async (symbol) => {
         const originalTicker = tickerMap[symbol];
 
         try {
-            // REMOVIDO validateResult: false - não é mais aceito pela lib
             const quote = await yahooFinance.quote(symbol);
 
             if (!quote) {
-                console.log(`⚠️ [YAHOO] Ativo não encontrado: ${symbol}`);
-                throw new Error('Not found');
+                logger.warn(`⚠️ [YAHOO] Ativo não encontrado: ${symbol}`);
+                results[originalTicker] = null; // ✅ Retorna null, não zeros
+                return;
             }
 
             // Tenta pegar o preço em ordem de preferência
-            const price = quote.regularMarketPrice || quote.bid || quote.ask || quote.previousClose || 0;
+            const price = quote.regularMarketPrice || quote.bid || quote.ask || quote.previousClose;
 
-            if (price > 0) {
-                console.log(`✅ [YAHOO] ${symbol} => R$ ${price}`);
+            // ✅ VALIDAÇÃO CRÍTICA: Não cachear se preço inválido
+            if (!price || price <= 0) {
+                logger.warn(`⚠️ [YAHOO] Preço inválido para ${symbol}: ${price}`);
+                results[originalTicker] = null; // ✅ Retorna null para força fallback
+                return;
             }
+
+            logger.debug(`✅ [YAHOO] ${symbol} => R$ ${price}`);
 
             const data = {
                 symbol: originalTicker,
@@ -110,23 +120,18 @@ const getQuotes = async (tickers) => {
                 updatedAt: new Date(quote.regularMarketTime || Date.now())
             };
 
-            if (price > 0) {
-                cache.set(`yahoo_quote_${symbol}`, data);
-            }
-
+            cache.set(`yahoo_quote_${symbol}`, data);
             results[originalTicker] = data;
 
         } catch (error) {
-            console.error(`❌ [YAHOO] Erro ao buscar ${symbol}: ${error.message}`);
+            // ✅ LOG DETALHADO
+            logger.error(`❌ [YAHOO] Erro ao buscar ${symbol}:`, {
+                message: error.message,
+                type: error.constructor.name
+            });
 
-            // Retorna zerado para não quebrar o frontend
-            results[originalTicker] = {
-                symbol: originalTicker,
-                price: 0,
-                change: 0,
-                changePercent: 0,
-                updatedAt: new Date()
-            };
+            // ✅ Retorna NULL ao invés de zerado (força fallback ou tratamento no frontend)
+            results[originalTicker] = null;
         }
     }));
 
@@ -135,6 +140,7 @@ const getQuotes = async (tickers) => {
 
 /**
  * Busca histórico de dividendos
+ * NOTA: Funciona bem para ações, mas não para FIIs (usar Brapi para FIIs)
  */
 const getDividendsHistory = async (ticker, startDate) => {
     const symbol = normalizeTicker(ticker);
@@ -147,14 +153,23 @@ const getDividendsHistory = async (ticker, startDate) => {
 
         const result = await yahooFinance.historical(symbol, queryOptions);
 
-        return result.map(div => ({
+        if (!result || result.length === 0) {
+            logger.debug(`📭 [YAHOO] Nenhum dividendo para ${symbol}`);
+            return [];
+        }
+
+        const dividends = result.map(div => ({
             date: div.date,
             amount: div.dividends,
             type: 'DIVIDEND'
         }));
 
+        logger.info(`💰 [YAHOO] Encontrados ${dividends.length} dividendos para ${symbol}`);
+        return dividends;
+
     } catch (error) {
-        // Silencia erros de dividendos para não poluir log, pois muitos ativos não têm
+        // ✅ Log de erro ao invés de silenciar
+        logger.warn(`⚠️ [YAHOO] Erro ao buscar dividendos ${symbol}: ${error.message}`);
         return [];
     }
 };

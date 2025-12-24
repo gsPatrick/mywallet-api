@@ -50,6 +50,10 @@ const PaymentHistory = require('./paymentHistory')(sequelize);
 // Importar models - Fase 8 (Settings/Config)
 const Setting = require('./setting')(sequelize);
 
+// Importar models - Fase 9 (Faturas de Cartão)
+const CardInvoice = require('./cardInvoice')(sequelize);
+const InvoicePayment = require('./invoicePayment')(sequelize);
+
 // ===========================================
 // ASSOCIAÇÕES - Fase 1
 // ===========================================
@@ -289,6 +293,34 @@ DasGuide.belongsTo(BankAccount, { foreignKey: 'bankAccountId', as: 'bankAccount'
 DasGuide.belongsTo(ManualTransaction, { foreignKey: 'transactionId', as: 'transaction' });
 
 // ===========================================
+// ASSOCIAÇÕES - Fase 9 (Faturas de Cartão)
+// ===========================================
+
+// User -> CardInvoices
+User.hasMany(CardInvoice, { foreignKey: 'userId', as: 'cardInvoices' });
+CardInvoice.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+// CreditCard -> CardInvoices
+CreditCard.hasMany(CardInvoice, { foreignKey: 'cardId', as: 'invoices' });
+CardInvoice.belongsTo(CreditCard, { foreignKey: 'cardId', as: 'card' });
+
+// Profile -> CardInvoices
+Profile.hasMany(CardInvoice, { foreignKey: 'profileId', as: 'cardInvoices' });
+CardInvoice.belongsTo(Profile, { foreignKey: 'profileId', as: 'profile' });
+
+// CardInvoice -> InvoicePayments
+CardInvoice.hasMany(InvoicePayment, { foreignKey: 'invoiceId', as: 'payments' });
+InvoicePayment.belongsTo(CardInvoice, { foreignKey: 'invoiceId', as: 'invoice' });
+
+// User -> InvoicePayments
+User.hasMany(InvoicePayment, { foreignKey: 'userId', as: 'invoicePayments' });
+InvoicePayment.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+// BankAccount -> InvoicePayments (conta usada para pagar)
+BankAccount.hasMany(InvoicePayment, { foreignKey: 'bankAccountId', as: 'invoicePayments' });
+InvoicePayment.belongsTo(BankAccount, { foreignKey: 'bankAccountId', as: 'bankAccount' });
+
+// ===========================================
 // EXPORTAÇÃO
 // ===========================================
 
@@ -330,5 +362,8 @@ module.exports = {
     // Fase 7 - SaaS
     PaymentHistory,
     // Fase 8 - Settings
-    Setting
+    Setting,
+    // Fase 9 - Faturas de Cartão
+    CardInvoice,
+    InvoicePayment
 };

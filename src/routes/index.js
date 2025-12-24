@@ -59,6 +59,11 @@ const bankAccountsRoutes = require('../features/bankAccounts/bankAccounts.routes
 // ===========================================
 const dasRoutes = require('../features/das/das.routes');
 
+// ===========================================
+// ROTAS - FASE 9 (FATURAS DE CARTÃO)
+// ===========================================
+const invoicesRoutes = require('../features/invoices/invoices.routes');
+
 const router = Router();
 
 // Rotas públicas
@@ -122,6 +127,11 @@ router.use('/bank-accounts', bankAccountsRoutes);
 // REGISTRAR ROTAS - FASE 8 (CENTRAL DO DAS)
 // ===========================================
 router.use('/das', dasRoutes);
+
+// ===========================================
+// REGISTRAR ROTAS - FASE 9 (FATURAS DE CARTÃO)
+// ===========================================
+router.use('/invoices', invoicesRoutes);
 
 // ===========================================
 // REGISTRAR ROTAS - FASE 9 (SAAS - ADMIN)
