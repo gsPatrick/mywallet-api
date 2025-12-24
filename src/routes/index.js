@@ -134,6 +134,12 @@ router.use('/das', dasRoutes);
 router.use('/invoices', invoicesRoutes);
 
 // ===========================================
+// REGISTRAR ROTAS - FASE 10 (CORRETORAS)
+// ===========================================
+const brokersRoutes = require('../features/brokers/brokers.routes');
+router.use('/brokers', brokersRoutes);
+
+// ===========================================
 // REGISTRAR ROTAS - FASE 9 (SAAS - ADMIN)
 // ===========================================
 const adminRoutes = require('../features/admin/admin.routes');

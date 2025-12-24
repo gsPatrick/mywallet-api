@@ -103,7 +103,7 @@ const listInvestments = async (userId, filters = {}) => {
  * Registra um novo investimento
  */
 const createInvestment = async (userId, data) => {
-    const { ticker, operationType, quantity, price, brokerageFee, date, broker } = data;
+    const { ticker, operationType, quantity, price, brokerageFee, date, broker, brokerId, profileId } = data;
 
     // 1. Busca o ativo no banco local
     let asset = await Asset.findOne({
@@ -125,16 +125,33 @@ const createInvestment = async (userId, data) => {
         });
     }
 
-    // 2. Salva a operação
+    // 2. Resolver brokerId (Smart Fallback)
+    let resolvedBrokerId = brokerId;
+    if (!resolvedBrokerId && profileId) {
+        // Busca corretora padrão do perfil
+        const brokersService = require('../brokers/brokers.service');
+        let defaultBroker = await brokersService.getDefaultBroker(userId, profileId);
+
+        // Se não existir, cria automaticamente
+        if (!defaultBroker) {
+            defaultBroker = await brokersService.ensureDefaultBroker(userId, profileId);
+        }
+
+        resolvedBrokerId = defaultBroker?.id || null;
+    }
+
+    // 3. Salva a operação
     const investment = await Investment.create({
         userId,
+        profileId: profileId || null,
         assetId: asset.id,
         operationType,
         quantity,
         price,
         brokerageFee: brokerageFee || 0,
         date: date || new Date(),
-        broker
+        broker,  // Legacy field (string)
+        brokerId: resolvedBrokerId  // New FK field
     });
 
     return investment;

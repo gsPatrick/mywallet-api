@@ -54,6 +54,9 @@ const Setting = require('./setting')(sequelize);
 const CardInvoice = require('./cardInvoice')(sequelize);
 const InvoicePayment = require('./invoicePayment')(sequelize);
 
+// Importar models - Fase 10 (Corretoras)
+const Broker = require('./broker')(sequelize);
+
 // ===========================================
 // ASSOCIAÇÕES - Fase 1
 // ===========================================
@@ -321,6 +324,22 @@ BankAccount.hasMany(InvoicePayment, { foreignKey: 'bankAccountId', as: 'invoiceP
 InvoicePayment.belongsTo(BankAccount, { foreignKey: 'bankAccountId', as: 'bankAccount' });
 
 // ===========================================
+// ASSOCIAÇÕES - Fase 10 (Corretoras)
+// ===========================================
+
+// User -> Brokers
+User.hasMany(Broker, { foreignKey: 'userId', as: 'brokers' });
+Broker.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
+// Profile -> Brokers
+Profile.hasMany(Broker, { foreignKey: 'profileId', as: 'brokers' });
+Broker.belongsTo(Profile, { foreignKey: 'profileId', as: 'profile' });
+
+// Broker -> Investments
+Broker.hasMany(Investment, { foreignKey: 'brokerId', as: 'investments' });
+Investment.belongsTo(Broker, { foreignKey: 'brokerId', as: 'brokerAccount' });
+
+// ===========================================
 // EXPORTAÇÃO
 // ===========================================
 
@@ -365,5 +384,7 @@ module.exports = {
     Setting,
     // Fase 9 - Faturas de Cartão
     CardInvoice,
-    InvoicePayment
+    InvoicePayment,
+    // Fase 10 - Corretoras
+    Broker
 };

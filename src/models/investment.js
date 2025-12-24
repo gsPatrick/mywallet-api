@@ -81,10 +81,19 @@ module.exports = (sequelize) => {
             type: DataTypes.DATEONLY,
             allowNull: false
         },
-        // Corretora
+        // Corretora (string - fallback/legacy)
         broker: {
             type: DataTypes.STRING(100),
             allowNull: true
+        },
+        // Corretora (FK - nova referência)
+        brokerId: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            references: {
+                model: 'brokers',
+                key: 'id'
+            }
         },
         // Observações
         notes: {

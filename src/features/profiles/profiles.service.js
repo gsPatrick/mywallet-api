@@ -8,6 +8,7 @@
 
 const { Profile, User, UserProfile, ManualTransaction, Subscription } = require('../../models');
 const { Op } = require('sequelize');
+const brokersService = require('../brokers/brokers.service');
 
 class ProfileService {
     /**
@@ -172,6 +173,14 @@ class ProfileService {
                     console.log('💵 [SETUP] Salary transaction created (PENDING):', salary);
                 }
 
+                // ✅ CRIAR CORRETORA PADRÃO PARA INVESTIMENTOS
+                try {
+                    await brokersService.ensureDefaultBroker(userId, personalProfile.id);
+                    console.log('📈 [SETUP] Default broker created for personal profile');
+                } catch (brokerError) {
+                    console.error('⚠️ [SETUP] Error creating default broker:', brokerError.message);
+                }
+
                 createdProfiles.push(personalProfile);
             } catch (error) {
                 console.error('❌ [SETUP] Error creating personal profile:', error);
@@ -270,6 +279,14 @@ class ProfileService {
                         });
                         console.log('💵 [SETUP] Pro-labore transaction created (PENDING):', proLabore);
                     }
+                }
+
+                // ✅ CRIAR CORRETORA PADRÃO PARA INVESTIMENTOS (BUSINESS)
+                try {
+                    await brokersService.ensureDefaultBroker(userId, businessProfile.id);
+                    console.log('📈 [SETUP] Default broker created for business profile');
+                } catch (brokerError) {
+                    console.error('⚠️ [SETUP] Error creating default broker:', brokerError.message);
                 }
 
                 createdProfiles.push(businessProfile);
