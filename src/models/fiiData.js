@@ -131,8 +131,7 @@ module.exports = (sequelize) => {
         dividendTrend: {
             type: DataTypes.ENUM('RISING', 'STABLE', 'FALLING', 'UNKNOWN'),
             allowNull: true,
-            defaultValue: 'UNKNOWN',
-            comment: 'Tendência dos dividendos'
+            defaultValue: 'UNKNOWN'
         },
         paymentConsistency: {
             type: DataTypes.DECIMAL(5, 2),
@@ -142,14 +141,12 @@ module.exports = (sequelize) => {
         riskLevel: {
             type: DataTypes.ENUM('LOW', 'MEDIUM', 'HIGH', 'UNKNOWN'),
             allowNull: true,
-            defaultValue: 'UNKNOWN',
-            comment: 'Nível de risco baseado em liquidez e consistência'
+            defaultValue: 'UNKNOWN'
         },
         pvpStatus: {
             type: DataTypes.ENUM('DISCOUNT', 'FAIR', 'PREMIUM', 'UNKNOWN'),
             allowNull: true,
-            defaultValue: 'UNKNOWN',
-            comment: 'Status do P/VP: desconto (<0.95), justo (0.95-1.05), prêmio (>1.05)'
+            defaultValue: 'UNKNOWN'
         },
 
         // ========================================
