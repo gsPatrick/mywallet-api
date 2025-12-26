@@ -39,10 +39,10 @@ const startServer = async () => {
     await sequelize.authenticate();
     logger.info('✅ Conexão com banco de dados estabelecida');
 
-    if (process.env.NODE_ENV === 'development' || process.env.DB_SYNC === 'false') {
+    if (process.env.NODE_ENV === 'development' || process.env.DB_SYNC === 'true') {
       // DEVELOPMENT: Sync com alter adiciona novas tabelas/colunas sem apagar dados
       // Para produção: use DB_SYNC=true para sincronizar uma vez
-      await sequelize.sync({ force: false });
+      await sequelize.sync({ force: true });
       logger.info('✅ Models sincronizados (alter: true - tabelas novas criadas automaticamente)');
     } else {
       // PRODUCTION: Apenas valida conexão, não altera schema automaticamente
