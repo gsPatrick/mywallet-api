@@ -1,0 +1,301 @@
+==============================================================================
+INVESTOR PORTFOLIO AUDIT RESPONSE - TEMPLATE v2.0
+==============================================================================
+
+Este arquivo documenta a estrutura AUDITÁVEL do response da API.
+Todas as métricas incluem breakdown explícito mostrando como foram calculadas.
+
+Data: 2024-12-26
+Endpoint: GET /api/investments/portfolio
+
+==============================================================================
+ESTRUTURA COMPLETA COM AUDITABILIDADE
+==============================================================================
+
+{
+  "success": true,
+  "data": {
+    
+    // =========================================================================
+    // SUMÁRIO BÁSICO
+    // =========================================================================
+    "summary": {
+      "totalInvested": 50000.00,
+      "totalCurrentBalance": 55000.00,
+      "totalProfit": 5000.00,
+      "totalProfitPercent": 10.00
+    },
+
+    // =========================================================================
+    // POSIÇÕES (COM RENTABILITY BREAKDOWN E RISCO EXPLICÁVEL)
+    // =========================================================================
+    "positions": [
+      {
+        "ticker": "MXRF11",
+        "name": "Maxi Renda FII",
+        "type": "FII",
+        "quantity": 100,
+        "averagePrice": 10.00,
+        "currentPrice": 10.50,
+        "totalCost": 1000.00,
+        "currentBalance": 1050.00,
+        
+        // ======================================================
+        // RENTABILITY COM BREAKDOWN AUDITÁVEL
+        // ======================================================
+        "rentability": {
+          "totalReturnPercent": 17.00,
+          "breakdown": {
+            "investedCapital": 1000.00,
+            "currentValue": 1050.00,
+            "dividendsReceived": 120.00,
+            "capitalGain": 50.00,
+            "formula": "totalReturn = capitalGain + dividendsReceived",
+            "calculation": "50.00 + 120.00 = 170.00"
+          },
+          "capitalGainPercent": 5.00,
+          "dividendsPercent": 12.00,
+          "totalReturn": 170.00
+        },
+        
+        // ======================================================
+        // RISCO EXPLICÁVEL COM REASONS
+        // ======================================================
+        "risk": {
+          "level": "MEDIUM",
+          "reasons": [
+            "Concentração moderada (18.5%)",
+            "Liquidez moderada (R$ 1.2M)"
+          ],
+          "score": 60
+        },
+        
+        "concentration": {
+          "percentage": 18.5
+        },
+        
+        "fiiAnalytics": {
+          "segment": "Papéis",
+          "pvp": 0.95,
+          "pvpStatus": "DISCOUNT",
+          "dailyLiquidity": 1200000,
+          "dividendTrend": "STABLE",
+          "riskLevel": "LOW"
+        }
+      }
+    ],
+
+    // =========================================================================
+    // DIVIDENDOS COM BREAKDOWN E TRENDS TEMPORAIS
+    // =========================================================================
+    "dividends": {
+      
+      // MÊS ATUAL COM BREAKDOWN
+      "month": {
+        "total": 150.00,
+        "count": 3,
+        "breakdown": {
+          "period": "2024-12-01 a 2024-12-26",
+          "dividendsList": [
+            { "ticker": "MXRF11", "amount": 50.00, "date": "2024-12-15" },
+            { "ticker": "HGLG11", "amount": 60.00, "date": "2024-12-16" },
+            { "ticker": "XPML11", "amount": 40.00, "date": "2024-12-17" }
+          ]
+        }
+      },
+      
+      // ANO COM BREAKDOWN
+      "year": {
+        "total": 1800.00,
+        "count": 36,
+        "breakdown": {
+          "period": "2024-01-01 a 2024-12-26",
+          "byMonth": {
+            "2024-01": { "total": 145.00, "count": 3 },
+            "2024-02": { "total": 148.00, "count": 3 },
+            "...": "..."
+          }
+        }
+      },
+      
+      // TOTAL HISTÓRICO COM BREAKDOWN POR ATIVO
+      "allTime": {
+        "total": 3600.00,
+        "count": 72,
+        "breakdown": {
+          "byAsset": [
+            { "ticker": "MXRF11", "total": 1200.00, "count": 24 },
+            { "ticker": "HGLG11", "total": 960.00, "count": 24 },
+            { "ticker": "XPML11", "total": 720.00, "count": 24 }
+          ]
+        }
+      },
+      
+      // ======================================================
+      // TRENDS TEMPORAIS (ANÁLISE DE EVOLUÇÃO)
+      // ======================================================
+      "trends": {
+        
+        // ÚLTIMOS 3 MESES VS 3 ANTERIORES
+        "threeMonths": {
+          "value": 450.00,
+          "previous": 420.00,
+          "changePercent": 7.14,
+          "status": "GROWING"
+        },
+        
+        // ÚLTIMOS 6 MESES VS 6 ANTERIORES
+        "sixMonths": {
+          "value": 900.00,
+          "previous": 850.00,
+          "changePercent": 5.88,
+          "status": "GROWING"
+        },
+        
+        // YTD (YEAR-TO-DATE)
+        "ytd": {
+          "value": 1800.00,
+          "daysElapsed": 360,
+          "averagePerDay": 5.00
+        },
+        
+        // ÚLTIMOS 12 MESES
+        "twelveMonths": {
+          "value": 1800.00,
+          "monthlyAverage": 150.00
+        }
+      },
+      
+      "recent": [...],
+      "projectedMonthlyIncome": 180.00
+    },
+
+    // =========================================================================
+    // CONCENTRAÇÃO
+    // =========================================================================
+    "concentration": {
+      "byType": [...],
+      "bySegment": [...],
+      "topAssets": [...],
+      "indicators": {
+        "topAssetConcentration": 18.5,
+        "top3Concentration": 45.0,
+        "isOverConcentrated": false,
+        "numberOfAssets": 9
+      }
+    },
+
+    // =========================================================================
+    // RANKINGS (COM BREAKDOWN)
+    // =========================================================================
+    "rankings": {
+      "topDividendPayers": [...],
+      "topByWeight": [...],
+      "mostProfitable": [
+        {
+          "ticker": "MXRF11",
+          "name": "Maxi Renda",
+          "totalReturnPercent": 17.00,
+          "breakdown": {
+            "investedCapital": 1000.00,
+            "currentValue": 1050.00,
+            "dividendsReceived": 120.00,
+            "capitalGain": 50.00
+          }
+        }
+      ],
+      "leastProfitable": [...],
+      "byRiskLevel": { "low": 5, "medium": 3, "high": 1 }
+    },
+
+    // =========================================================================
+    // INDICADORES-CHAVE (COM RISK REASONS)
+    // =========================================================================
+    "indicators": {
+      "mostProfitable": {
+        "ticker": "MXRF11",
+        "totalReturnPercent": 17.00,
+        "breakdown": {...}
+      },
+      "highRiskCount": 1,
+      "highRiskAssets": [
+        {
+          "ticker": "XPTO11",
+          "riskLevel": "HIGH",
+          "reasons": [
+            "Concentração acima de 25% (28.5%)",
+            "Baixa liquidez diária (R$ 350K)",
+            "Dividendos inconsistentes (75% consistência)"
+          ]
+        }
+      ],
+      
+      // SAÚDE DA CARTEIRA COM BREAKDOWN
+      "portfolioHealth": {
+        "score": 75,
+        "status": "GOOD",
+        "issues": [
+          "Concentração moderada em um ativo"
+        ],
+        "breakdown": {
+          "baseScore": 100,
+          "adjustments": [
+            { "factor": "Concentração > 20%", "impact": -10 },
+            { "factor": "1 ativo(s) alto risco", "impact": -5 },
+            { "factor": "2 FII(s) dividendos em alta", "impact": 10 }
+          ],
+          "finalScore": 75,
+          "formula": "score = 100 + sum(adjustments)"
+        }
+      }
+    },
+
+    // =========================================================================
+    // MÉTRICAS DA CARTEIRA (COM BREAKDOWN)
+    // =========================================================================
+    "portfolioMetrics": {
+      "totalReturnPercent": 10.00,
+      "breakdown": {
+        "investedCapital": 50000.00,
+        "currentValue": 55000.00,
+        "dividendsReceived": 2000.00,
+        "capitalGain": 3000.00,
+        "totalReturn": 5000.00,
+        "formula": "totalReturn = capitalGain + dividendsReceived",
+        "calculation": "(55000.00 - 50000.00) + 2000.00 = 5000.00"
+      },
+      "capitalGainPercent": 6.00,
+      "dividendsPercent": 4.00,
+      "averageDY": 11.50,
+      "projectedMonthlyIncome": 180.00,
+      "numberOfAssets": 9
+    }
+  }
+}
+
+==============================================================================
+REGRAS DE STATUS DE TREND
+==============================================================================
+
+| Variação         | Status    |
+|------------------|-----------|
+| > +5%            | GROWING   |
+| -5% a +5%        | STABLE    |
+| < -5%            | DECLINING |
+
+==============================================================================
+REGRAS DE RISCO EXPLICÁVEL
+==============================================================================
+
+Uma posição é classificada como HIGH risk se:
+- Concentração > 25%
+- Liquidez diária < R$ 500K
+- Consistência de dividendos < 80%
+- Dividendos em tendência de queda
+- Rentabilidade < -10%
+
+Cada regra que falha adiciona uma reason ao array.
+
+==============================================================================
+FIM DO DOCUMENTO
+==============================================================================

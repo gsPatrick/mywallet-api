@@ -130,6 +130,25 @@ const startServer = async () => {
       } catch (err) {
         logger.warn('📱 WhatsApp restore skipped:', err.message);
       }
+
+      // =====================================================
+      // 📊 INICIAR CRON JOBS DE FII SYNC
+      // =====================================================
+      try {
+        const { initFIISyncCron, runManualSync } = require('./cron/fiiSync.cron');
+        initFIISyncCron();
+
+        // Sync inicial em background após boot (se houver FIIs)
+        setTimeout(async () => {
+          logger.info('📊 Executando sync inicial de FIIs...');
+          const result = await runManualSync();
+          if (result.total > 0) {
+            logger.info(`📊 Sync inicial: ${result.synced}/${result.total} FIIs sincronizados`);
+          }
+        }, 10000); // Wait 10 seconds after boot
+      } catch (err) {
+        logger.warn('📊 FII sync cron skipped:', err.message);
+      }
     });
 
   } catch (error) {

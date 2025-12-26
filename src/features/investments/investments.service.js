@@ -3,10 +3,12 @@
  * Gerencia a carteira do usuário e busca de ativos
  */
 
-const { Investment, Asset, FinancialProduct, Dividend } = require('../../models');
+const { Investment, Asset, FinancialProduct, Dividend, FIIData } = require('../../models');
 const yahooClient = require('./yahoo.client');
+const fiiSyncService = require('./fiiSync.service');
 const { AppError } = require('../../middlewares/errorHandler');
 const { Op } = require('sequelize');
+const { logger } = require('../../config/logger');
 
 /**
  * Lista ativos disponíveis no banco de dados (Catálogo)
@@ -190,10 +192,18 @@ const getPortfolio = async (userId) => {
         const ticker = d.asset?.ticker;
         if (ticker) {
             if (!dividendsByTicker[ticker]) {
-                dividendsByTicker[ticker] = { total: 0, count: 0 };
+                dividendsByTicker[ticker] = { total: 0, count: 0, lastDividend: 0, lastDate: null };
             }
-            dividendsByTicker[ticker].total += parseFloat(d.amountPerUnit || 0);
+            const amount = parseFloat(d.amountPerUnit || 0);
+            dividendsByTicker[ticker].total += amount;
             dividendsByTicker[ticker].count++;
+
+            // Track most recent dividend
+            const payDate = new Date(d.paymentDate);
+            if (!dividendsByTicker[ticker].lastDate || payDate > dividendsByTicker[ticker].lastDate) {
+                dividendsByTicker[ticker].lastDate = payDate;
+                dividendsByTicker[ticker].lastDividend = amount;
+            }
         }
     });
 
@@ -236,6 +246,20 @@ const getPortfolio = async (userId) => {
     // 5. Busca Cotações Yahoo
     const quotes = await yahooClient.getQuotes(Array.from(tickersToFetch));
 
+    // 5.1 Busca dados de FIIs do cache (Funds Explorer scraper)
+    const fiiTickers = Object.values(positionsMap)
+        .filter(p => p.type === 'FII')
+        .map(p => p.ticker);
+
+    const fiiDataRecords = await FIIData.findAll({
+        where: { ticker: { [Op.in]: fiiTickers } }
+    });
+
+    const fiiDataMap = {};
+    fiiDataRecords.forEach(fd => {
+        fiiDataMap[fd.ticker] = fd;
+    });
+
     let totalInvested = 0;
     let totalCurrentBalance = 0;
 
@@ -252,14 +276,52 @@ const getPortfolio = async (userId) => {
             totalInvested += p.totalCost;
             totalCurrentBalance += currentBalance;
 
-            // DY calculation: use Yahoo API if available, otherwise calculate from local dividends (for FIIs)
-            let dyPercentage = quote?.dividendYield || 0;
-            let annualDividendPerShare = quote?.dividendRate || 0;
+            // DY calculation strategy:
+            // 1. For FIIs: Use FIIData from Funds Explorer scraper (most reliable)
+            // 2. For Stocks: Use Yahoo Finance API
+            // 3. Fallback: Calculate from Dividend table
+            let dyPercentage = 0;
+            let annualDividendPerShare = 0;
+            let lastDividendPerShare = 0;
 
-            // If Yahoo returns 0 DY (common for FIIs), calculate from database dividends
+            // FII-specific analytics
+            let fiiAnalytics = null;
+
+            if (p.type === 'FII') {
+                // FII: Use Funds Explorer scraped data
+                const fiiData = fiiDataMap[p.ticker];
+                if (fiiData) {
+                    dyPercentage = parseFloat(fiiData.dividendYieldYear) || parseFloat(fiiData.dividendYield) || 0;
+                    annualDividendPerShare = parseFloat(fiiData.annualDividendSum) || 0;
+                    lastDividendPerShare = parseFloat(fiiData.lastDividend) || 0;
+
+                    // Complete FII analytics for investor
+                    fiiAnalytics = {
+                        segment: fiiData.segment,
+                        pvp: parseFloat(fiiData.pvp) || null,
+                        pvpStatus: fiiData.pvpStatus,
+                        netWorth: parseFloat(fiiData.netWorth) || null,
+                        dailyLiquidity: parseFloat(fiiData.dailyLiquidity) || null,
+                        shareholders: fiiData.shareholders,
+                        dividendYieldMonth: parseFloat(fiiData.dividendYieldMonth) || null,
+                        dividendTrend: fiiData.dividendTrend,
+                        paymentConsistency: parseFloat(fiiData.paymentConsistency) || null,
+                        riskLevel: fiiData.riskLevel,
+                        dividendHistory: fiiData.dividendHistory || [],
+                        lastSyncAt: fiiData.lastSyncAt
+                    };
+                }
+            } else {
+                // Stocks: Use Yahoo Finance
+                dyPercentage = quote?.dividendYield || 0;
+                annualDividendPerShare = quote?.dividendRate || 0;
+            }
+
+            // Fallback: If still 0, use Dividend table
             if (dyPercentage === 0 && dividendsByTicker[p.ticker] && currentPrice > 0) {
                 annualDividendPerShare = dividendsByTicker[p.ticker].total;
                 dyPercentage = (annualDividendPerShare / currentPrice) * 100;
+                lastDividendPerShare = dividendsByTicker[p.ticker].lastDividend || 0;
             }
 
             return {
@@ -279,6 +341,9 @@ const getPortfolio = async (userId) => {
                 // Dividend data for Magic Number calculation
                 dy: dyPercentage,
                 dividendRate: annualDividendPerShare,
+                lastDividendPerShare: lastDividendPerShare,
+                // FII-specific analytics (null for stocks)
+                fiiAnalytics: fiiAnalytics,
                 lastUpdate: quote?.updatedAt
             };
         });
@@ -303,7 +368,61 @@ const getPortfolio = async (userId) => {
         };
     });
 
+    // =====================================================
+    // 7. MÉTRICAS DO INVESTIDOR (Investor-Oriented)
+    // Cálculos reais de dividendos, rentabilidade, concentração
+    // =====================================================
+    const investorMetrics = require('./investorMetrics.service');
+
+    // 7.1 Buscar dividendos recebidos pelo usuário
+    const dividendsData = await investorMetrics.calculateDividendsReceived(userId);
+
+    // 7.2 Calcular dividendos por ativo para rentabilidade
+    const dividendsByAsset = {};
+    dividendsData.allTime?.breakdown?.byAsset?.forEach(d => {
+        if (d.ticker) {
+            dividendsByAsset[d.ticker] = d.total;
+        }
+    });
+
+    // 7.3 Adicionar rentabilidade a cada posição
+    const allPositions = [...variableIncomePositions, ...fixedIncomePositions];
+
+    // 7.4 Calcular concentração primeiro (necessário para risco)
+    const tempPositions = allPositions.map(pos => {
+        const assetDividends = dividendsByAsset[pos.ticker] || 0;
+        const rentability = investorMetrics.calculateAssetRentability(pos, assetDividends);
+        return { ...pos, rentability };
+    });
+
+    const concentration = investorMetrics.calculateConcentration(tempPositions);
+
+    // 7.5 Adicionar concentração e RISCO EXPLICÁVEL a cada posição
+    const positionsWithRentability = tempPositions.map(pos => {
+        const assetConc = concentration.byAsset.find(a => a.ticker === pos.ticker);
+        const concentrationData = assetConc ? { percentage: assetConc.percentage } : null;
+
+        // RISCO EXPLICÁVEL com reasons
+        const risk = investorMetrics.calculateExplainableRisk(pos, concentrationData, tempPositions);
+
+        return {
+            ...pos,
+            concentration: concentrationData,
+            risk
+        };
+    });
+
+    // 7.6 Gerar rankings
+    const rankings = investorMetrics.generateRankings(positionsWithRentability);
+
+    // 7.7 Identificar indicadores-chave
+    const indicators = investorMetrics.identifyKeyIndicators(positionsWithRentability, concentration);
+
+    // 7.8 Métricas consolidadas da carteira
+    const portfolioMetrics = investorMetrics.calculatePortfolioMetrics(positionsWithRentability);
+
     return {
+        // Sumário básico (mantido para compatibilidade)
         summary: {
             totalInvested,
             totalCurrentBalance,
@@ -312,8 +431,44 @@ const getPortfolio = async (userId) => {
                 ? ((totalCurrentBalance - totalInvested) / totalInvested) * 100
                 : 0
         },
-        positions: [...variableIncomePositions, ...fixedIncomePositions],
-        allocation: calculateAllocation([...variableIncomePositions, ...fixedIncomePositions], totalCurrentBalance)
+
+        // Posições com rentabilidade e concentração
+        positions: positionsWithRentability,
+
+        // Alocação por tipo
+        allocation: calculateAllocation(positionsWithRentability, totalCurrentBalance),
+
+        // =====================================================
+        // DADOS ORIENTADOS AO INVESTIDOR (AUDITÁVEIS)
+        // =====================================================
+
+        // Dividendos recebidos (mês, ano, total) COM BREAKDOWN E TRENDS
+        dividends: {
+            month: dividendsData.month,
+            year: dividendsData.year,
+            allTime: dividendsData.allTime,
+            // TRENDS TEMPORAIS
+            trends: dividendsData.trends,
+            recent: dividendsData.recentDividends?.slice(0, 5),
+            projectedMonthlyIncome: portfolioMetrics.projectedMonthlyIncome
+        },
+
+        // Concentração da carteira
+        concentration: {
+            byType: concentration.byType,
+            bySegment: concentration.bySegment,
+            topAssets: concentration.byAsset.slice(0, 5),
+            indicators: concentration.indicators
+        },
+
+        // Rankings
+        rankings,
+
+        // Indicadores-chave
+        indicators,
+
+        // Métricas consolidadas da carteira
+        portfolioMetrics
     };
 };
 

@@ -1,0 +1,260 @@
+==============================================================================
+INVESTOR PORTFOLIO API RESPONSE TEMPLATE
+==============================================================================
+
+Este arquivo documenta a estrutura FINAL do response da API /api/investments/portfolio
+após a transformação para um sistema orientado ao investidor.
+
+Data de geração: 2024-12-26
+Endpoint: GET /api/investments/portfolio
+
+==============================================================================
+ESTRUTURA DO RESPONSE
+==============================================================================
+
+{
+  "success": true,
+  "data": {
+    
+    // =========================================================================
+    // SUMÁRIO BÁSICO (compatibilidade)
+    // =========================================================================
+    "summary": {
+      "totalInvested": 50000.00,           // Total investido pelo usuário
+      "totalCurrentBalance": 55000.00,      // Valor atual da carteira
+      "totalProfit": 5000.00,               // Lucro/Prejuízo bruto
+      "totalProfitPercent": 10.00           // % de rentabilidade
+    },
+
+    // =========================================================================
+    // POSIÇÕES (com rentabilidade individual)
+    // =========================================================================
+    "positions": [
+      {
+        "source": "VARIABLE_INCOME",        // Tipo de fonte
+        "ticker": "MXRF11",                  // Código do ativo
+        "name": "Maxi Renda FII",           // Nome do ativo
+        "logoUrl": "...",                    // URL do logo
+        "type": "FII",                       // Tipo: FII, STOCK, ETF, BDR
+        "quantity": 100,                     // Quantidade de cotas
+        "averagePrice": 10.00,              // Preço médio de compra
+        "currentPrice": 10.50,              // Preço atual
+        "totalCost": 1000.00,               // Custo total investido
+        "currentBalance": 1050.00,          // Valor atual
+        "profit": 50.00,                    // Lucro/Prejuízo bruto
+        "profitPercent": 5.00,              // % de lucro/prejuízo
+        "dayChange": 0.50,                  // Variação do dia
+        
+        // Dados de dividendos
+        "dy": 12.50,                        // Dividend Yield anual (%)
+        "dividendRate": 1.25,               // Soma dividendos 12 meses
+        "lastDividendPerShare": 0.10,       // Último dividendo por cota
+        
+        // Analytics específicos de FII (null para stocks)
+        "fiiAnalytics": {
+          "segment": "Papéis",
+          "pvp": 0.95,
+          "pvpStatus": "DISCOUNT",
+          "netWorth": 1500000000,
+          "dailyLiquidity": 2000000,
+          "shareholders": 850000,
+          "dividendYieldMonth": 1.05,
+          "dividendTrend": "STABLE",
+          "paymentConsistency": 100,
+          "riskLevel": "LOW",
+          "dividendHistory": [...],
+          "lastSyncAt": "2024-12-26T12:00:00Z"
+        },
+        
+        // =====================================================================
+        // NOVO: Rentabilidade real do ativo
+        // =====================================================================
+        "rentability": {
+          "capitalInvested": 1000.00,       // Capital investido
+          "currentValue": 1050.00,          // Valor atual
+          "capitalGain": 50.00,             // Valorização da cota
+          "capitalGainPercent": 5.00,       // % valorização
+          "dividendsReceived": 120.00,      // Dividendos recebidos
+          "dividendsPercent": 12.00,        // % dividendos sobre capital
+          "totalReturn": 170.00,            // Retorno total (valorização + dividendos)
+          "totalReturnPercent": 17.00       // % retorno total
+        },
+        
+        // =====================================================================
+        // NOVO: Concentração deste ativo
+        // =====================================================================
+        "concentration": {
+          "percentage": 15.5                // % do ativo na carteira total
+        }
+      }
+    ],
+
+    // =========================================================================
+    // ALOCAÇÃO POR TIPO
+    // =========================================================================
+    "allocation": {
+      "FII": 60.00,
+      "STOCK": 30.00,
+      "ETF": 10.00
+    },
+
+    // =========================================================================
+    // NOVO: DIVIDENDOS RECEBIDOS
+    // =========================================================================
+    "dividends": {
+      "month": {
+        "total": 150.00,                    // Total recebido este mês
+        "count": 3                          // Quantidade de proventos
+      },
+      "year": {
+        "total": 1800.00,                   // Total recebido este ano
+        "count": 36                         // Quantidade de proventos
+      },
+      "allTime": {
+        "total": 3600.00,                   // Total histórico
+        "count": 72                         // Quantidade total
+      },
+      "recent": [                           // Últimos 5 proventos
+        {
+          "ticker": "MXRF11",
+          "name": "Maxi Renda FII",
+          "type": "FII",
+          "amount": 50.00,
+          "amountPerUnit": 0.10,
+          "paymentDate": "2024-12-15"
+        }
+      ],
+      "projectedMonthlyIncome": 180.00      // Renda mensal projetada
+    },
+
+    // =========================================================================
+    // NOVO: CONCENTRAÇÃO DA CARTEIRA
+    // =========================================================================
+    "concentration": {
+      "byType": [
+        { "type": "FII", "value": 33000, "count": 5, "percentage": 60.00 },
+        { "type": "STOCK", "value": 16500, "count": 3, "percentage": 30.00 },
+        { "type": "ETF", "value": 5500, "count": 1, "percentage": 10.00 }
+      ],
+      "bySegment": [
+        { "segment": "Papéis", "value": 15000, "count": 2, "percentage": 27.27 },
+        { "segment": "Logística", "value": 10000, "count": 2, "percentage": 18.18 },
+        { "segment": "Shoppings", "value": 8000, "count": 1, "percentage": 14.55 }
+      ],
+      "topAssets": [
+        { "ticker": "MXRF11", "name": "Maxi Renda", "type": "FII", "value": 8000, "percentage": 14.55 },
+        { "ticker": "HGLG11", "name": "CSHG Logística", "type": "FII", "value": 7000, "percentage": 12.73 }
+      ],
+      "indicators": {
+        "topAssetConcentration": 14.55,     // % do maior ativo
+        "top3Concentration": 35.00,         // % dos 3 maiores
+        "isOverConcentrated": false,        // Alerta se > 25% em um ativo
+        "numberOfAssets": 9                 // Total de ativos
+      }
+    },
+
+    // =========================================================================
+    // NOVO: RANKINGS
+    // =========================================================================
+    "rankings": {
+      "topDividendPayers": [
+        { "ticker": "MXRF11", "name": "Maxi Renda", "dy": 13.50, "lastDividend": 0.10 },
+        { "ticker": "XPML11", "name": "XP Malls", "dy": 11.20, "lastDividend": 0.75 }
+      ],
+      "topByWeight": [
+        { "ticker": "MXRF11", "name": "Maxi Renda", "value": 8000, "percentage": 14.55 },
+        { "ticker": "PETR4", "name": "Petrobras PN", "value": 7500, "percentage": 13.64 }
+      ],
+      "mostProfitable": [
+        { "ticker": "PETR4", "totalReturnPercent": 45.00, "capitalGainPercent": 30.00, "dividendsPercent": 15.00 },
+        { "ticker": "MXRF11", "totalReturnPercent": 22.00, "capitalGainPercent": 5.00, "dividendsPercent": 17.00 }
+      ],
+      "leastProfitable": [
+        { "ticker": "VISC11", "totalReturnPercent": -5.00 },
+        { "ticker": "OIBR3", "totalReturnPercent": -15.00 }
+      ],
+      "byRiskLevel": {
+        "low": 5,
+        "medium": 3,
+        "high": 1
+      }
+    },
+
+    // =========================================================================
+    // NOVO: INDICADORES-CHAVE
+    // =========================================================================
+    "indicators": {
+      "mostProfitable": {
+        "ticker": "PETR4",
+        "name": "Petrobras PN",
+        "totalReturnPercent": 45.00
+      },
+      "highRiskCount": 1,
+      "highRiskAssets": [
+        { "ticker": "OIBR3", "riskLevel": "HIGH", "reason": "Baixa liquidez ou dividendos em queda" }
+      ],
+      "topConcentration": {
+        "ticker": "MXRF11",
+        "percentage": 14.55
+      },
+      "topSegment": {
+        "segment": "Papéis",
+        "percentage": 27.27
+      },
+      "portfolioHealth": {
+        "score": 85,                        // Score de 0-100
+        "status": "GOOD",                   // EXCELLENT, GOOD, FAIR, POOR
+        "issues": [
+          "Concentração moderada em um ativo"
+        ]
+      }
+    },
+
+    // =========================================================================
+    // NOVO: MÉTRICAS CONSOLIDADAS
+    // =========================================================================
+    "portfolioMetrics": {
+      "totalInvested": 50000.00,
+      "currentValue": 55000.00,
+      "capitalGain": 3000.00,               // Ganho por valorização
+      "capitalGainPercent": 6.00,
+      "dividendsReceived": 2000.00,         // Dividendos recebidos
+      "dividendsPercent": 4.00,
+      "totalReturn": 5000.00,               // Retorno total
+      "totalReturnPercent": 10.00,
+      "averageDY": 11.50,                   // DY médio da carteira
+      "projectedMonthlyIncome": 180.00,     // Renda mensal projetada
+      "numberOfAssets": 9
+    }
+  }
+}
+
+==============================================================================
+NOTAS IMPORTANTES
+==============================================================================
+
+1. CÁLCULO DE RENTABILIDADE REAL
+   - totalReturn = capitalGain + dividendsReceived
+   - Usa preço médio do investidor como base (não o preço atual)
+   - Dividendos são os efetivamente recebidos (status = 'RECEIVED')
+
+2. CONCENTRAÇÃO
+   - isOverConcentrated = true se algum ativo > 25% da carteira
+   - Segmentos são extraídos do fiiAnalytics
+
+3. RANKINGS
+   - topDividendPayers: Ordenado por DY anual
+   - mostProfitable: Ordenado por rentabilidade total (valorização + dividendos)
+   - leastProfitable: Para atenção/análise
+
+4. SAÚDE DA CARTEIRA
+   - Score 0-100 baseado em diversificação, risco e tendências
+   - Issues lista problemas identificados
+
+5. RENDA PROJETADA
+   - projectedMonthlyIncome = soma(lastDividend * quantity) para cada ativo
+   - Baseado no último dividendo pago
+
+==============================================================================
+FIM DO DOCUMENTO
+==============================================================================

@@ -57,6 +57,9 @@ const InvoicePayment = require('./invoicePayment')(sequelize);
 // Importar models - Fase 10 (Corretoras)
 const Broker = require('./broker')(sequelize);
 
+// Importar models - Fase 11 (Cache FII Data)
+const FIIData = require('./fiiData')(sequelize);
+
 // ===========================================
 // ASSOCIAÇÕES - Fase 1
 // ===========================================
@@ -386,5 +389,7 @@ module.exports = {
     CardInvoice,
     InvoicePayment,
     // Fase 10 - Corretoras
-    Broker
+    Broker,
+    // Fase 11 - Cache FII Data
+    FIIData
 };
