@@ -89,7 +89,7 @@ module.exports = (sequelize) => {
         },
         // Origem do dado (rastreabilidade)
         origin: {
-            type: DataTypes.ENUM('MANUAL', 'BROKER_STATEMENT', 'API'),
+            type: DataTypes.ENUM('MANUAL', 'BROKER_STATEMENT', 'API', 'AUTO_SCRAPER'),
             allowNull: false,
             defaultValue: 'MANUAL'
         }

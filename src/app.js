@@ -148,6 +148,27 @@ const startServer = async () => {
       } catch (err) {
         logger.warn('📊 FII sync cron skipped:', err.message);
       }
+
+      // =====================================================
+      // 💰 INICIAR CRON DE PROCESSAMENTO DE DIVIDENDOS
+      // =====================================================
+      try {
+        const { initDividendProcessingCron, runManualDividendProcessing } = require('./cron/dividendProcessing.cron');
+        initDividendProcessingCron();
+
+        // Processamento inicial de dividendos (20 segundos após boot)
+        setTimeout(async () => {
+          logger.info('💰 Executando processamento inicial de dividendos...');
+          try {
+            const result = await runManualDividendProcessing();
+            logger.info(`💰 Dividendos: ${result.created} criados, ${result.skipped} já existentes`);
+          } catch (err) {
+            logger.warn(`💰 Processamento inicial de dividendos: ${err.message}`);
+          }
+        }, 20000); // Wait 20 seconds after boot
+      } catch (err) {
+        logger.warn('💰 Dividend cron skipped:', err.message);
+      }
     });
 
   } catch (error) {

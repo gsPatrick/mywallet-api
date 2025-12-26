@@ -6,6 +6,7 @@
 const { Investment, Asset, FinancialProduct, Dividend, FIIData } = require('../../models');
 const yahooClient = require('./yahoo.client');
 const fiiSyncService = require('./fiiSync.service');
+const autoDividendService = require('./autoDividend.service');
 const { AppError } = require('../../middlewares/errorHandler');
 const { Op } = require('sequelize');
 const { logger } = require('../../config/logger');
@@ -261,26 +262,49 @@ const getPortfolio = async (userId) => {
         fiiDataMap[fd.ticker] = fd;
     });
 
-    // 5.2 Para FIIs sem cache, busca ON-DEMAND (igual ações funcionam com Yahoo)
-    // Isso garante que ao comprar um FII, os dados aparecem imediatamente
-    const fiisWithoutCache = fiiTickers.filter(ticker => !fiiDataMap[ticker]);
-    if (fiisWithoutCache.length > 0) {
-        logger.info(`🔄 [PORTFOLIO] Buscando dados on-demand para ${fiisWithoutCache.length} FIIs: ${fiisWithoutCache.join(', ')}`);
-        for (const ticker of fiisWithoutCache) {
-            try {
-                const fiiData = await fiiSyncService.getFIIDataComplete(ticker, false);
-                if (fiiData) {
-                    // Busca o registro atualizado do banco
-                    const freshRecord = await FIIData.findOne({ where: { ticker } });
-                    if (freshRecord) {
-                        fiiDataMap[ticker] = freshRecord;
+    // 5.2 SMART CACHE: Atualiza FIIs que não têm cache OU cache antigo (> 30 minutos)
+    // Preços podem mudar durante o pregão, mas não precisamos de tempo real absoluto
+    const CACHE_MAX_AGE_MS = 30 * 60 * 1000; // 30 minutos
+    const now = new Date();
+
+    const fiisNeedingRefresh = fiiTickers.filter(ticker => {
+        const cached = fiiDataMap[ticker];
+        if (!cached) return true; // Sem cache
+        if (!cached.lastSyncAt) return true; // Nunca sincronizado
+        const age = now - new Date(cached.lastSyncAt);
+        return age > CACHE_MAX_AGE_MS; // Cache expirado
+    });
+
+    if (fiisNeedingRefresh.length > 0) {
+        logger.info(`🔄 [PORTFOLIO] Atualizando ${fiisNeedingRefresh.length} FIIs em TEMPO REAL: ${fiisNeedingRefresh.join(', ')}`);
+
+        // Busca em paralelo para performance (máximo 5 simultâneos)
+        const batchSize = 5;
+        for (let i = 0; i < fiisNeedingRefresh.length; i += batchSize) {
+            const batch = fiisNeedingRefresh.slice(i, i + batchSize);
+            await Promise.all(batch.map(async (ticker) => {
+                try {
+                    const fiiData = await fiiSyncService.getFIIDataComplete(ticker, true); // forceRefresh = true
+                    if (fiiData) {
+                        const freshRecord = await FIIData.findOne({ where: { ticker } });
+                        if (freshRecord) {
+                            fiiDataMap[ticker] = freshRecord;
+                        }
                     }
+                } catch (err) {
+                    logger.warn(`⚠️ [PORTFOLIO] Erro ao atualizar FII ${ticker}: ${err.message}`);
                 }
-            } catch (err) {
-                logger.warn(`⚠️ [PORTFOLIO] Erro ao buscar FII ${ticker} on-demand: ${err.message}`);
-            }
+            }));
         }
     }
+
+    // 5.3 DIVIDENDOS: Processados em BATCH via cron (2x/dia: 07h e 18h)
+    // NÃO buscamos/registramos dividendos aqui - são eventos contábeis, não tempo real
+    // O cron dividendProcessing.cron.js cuida de:
+    // - Verificar datas de pagamento
+    // - Registrar dividendos automaticamente
+    // - Atualizar status PENDING → RECEIVED
+
 
     let totalInvested = 0;
     let totalCurrentBalance = 0;
