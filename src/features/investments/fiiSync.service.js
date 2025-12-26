@@ -74,20 +74,7 @@ const syncFII = async (ticker) => {
         };
 
     } catch (error) {
-        // Atualiza status de erro no banco
-        try {
-            await FIIData.upsert({
-                ticker: normalizedTicker,
-                lastSyncAt: new Date(),
-                lastSyncStatus: 'ERROR',
-                lastSyncError: error.message,
-                errorCount: FIIData.sequelize?.literal ?
-                    FIIData.sequelize.literal('COALESCE(error_count, 0) + 1') : 1
-            });
-        } catch (dbError) {
-            logger.warn(`⚠️ [FII_SYNC] Erro ao salvar status de erro: ${dbError.message}`);
-        }
-
+        // Log do erro - não salva no banco para evitar problemas de SQL
         logger.error(`❌ [FII_SYNC] Erro ao sincronizar ${normalizedTicker}: ${error.message}`);
 
         return {

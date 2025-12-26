@@ -70,19 +70,7 @@ const processDividends = async () => {
 
             if (!asset) continue;
 
-            // Busca todos os usuários que têm investimentos nesse ativo
-            // Simplificação: considera posição atual (idealmente seria na data-com)
-            const investments = await Investment.findAll({
-                where: {
-                    assetId: asset.id,
-                    operationType: 'BUY'
-                },
-                attributes: ['userId', 'quantity', 'assetId'],
-                group: ['userId', 'assetId'],
-                raw: true
-            });
-
-            // Agrupa por usuário para calcular quantidade total
+            // Busca todos os investimentos nesse ativo e calcula posição por usuário
             const userPositions = {};
             const allUserInvestments = await Investment.findAll({
                 where: {
