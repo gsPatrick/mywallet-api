@@ -1,71 +1,92 @@
 /**
- * FII Sync Cron Job
- * Agendamento para sincronização diária de FIIs
- * ==============================================
+ * FII Sync Cron Job - ARQUITETURA CORRETA
+ * =========================================
  * 
- * Executa diariamente às 06:00 e 18:00 (horário de Brasília)
- * Sincroniza todos os FIIs das carteiras dos usuários
+ * Práticas de mercado (XP, NuInvest, StatusInvest):
+ * 
+ * 1. BOOTSTRAP: Manual via admin (uma única vez)
+ * 2. SYNC POR EVENTO: Ao comprar FII
+ * 3. CRON DE MERCADO: 30 min, apenas FIIs com usuários posicionados
+ * 
+ * Dividendos são tratados em dividendProcessing.cron.js (separação contábil)
  */
 
 const cron = require('node-cron');
-const { syncAllUserFIIs, syncAllSystemFIIs } = require('../features/investments/fiiSync.service');
+const { syncFII, syncAllUserFIIs, syncAllSystemFIIs } = require('../features/investments/fiiSync.service');
 const { logger } = require('../config/logger');
 
 /**
- * Inicializa os cron jobs de sincronização de FIIs
+ * Cron de MERCADO: Atualiza dados de FIIs com usuários posicionados
+ * - Frequência: a cada 30 minutos durante horário comercial
+ * - Apenas FIIs que usuários possuem (não todos do sistema)
  */
-const initFIISyncCron = () => {
-    // Cron diário às 06:00 BRT (09:00 UTC)
-    // FIIs geralmente atualizam dados cedo pela manhã
-    cron.schedule('0 9 * * *', async () => {
-        logger.info('⏰ [CRON] Iniciando sync matinal de FIIs (06:00 BRT)...');
+const initFIIMarketCron = () => {
+    // Cron a cada 30 minutos, das 10h às 18h BRT (horário de pregão)
+    // Minutos: 0 e 30 | Horas: 10 às 18 | Dias: seg-sex
+    cron.schedule('0,30 10-18 * * 1-5', async () => {
+        logger.info('📊 [FII_MARKET_CRON] Atualizando dados de mercado de FIIs com posições...');
         try {
             const result = await syncAllUserFIIs();
-            logger.info(`✅ [CRON] Sync matinal concluído: ${result.synced}/${result.total} FIIs`);
+            logger.info(`📊 [FII_MARKET_CRON] ${result.synced}/${result.total} FIIs atualizados`);
         } catch (error) {
-            logger.error(`❌ [CRON] Erro no sync matinal: ${error.message}`);
+            logger.error(`❌ [FII_MARKET_CRON] Erro: ${error.message}`);
         }
     }, {
         timezone: 'America/Sao_Paulo'
     });
 
-    // Cron diário às 18:00 BRT (21:00 UTC)
-    // Captura atualizações do final do dia
-    cron.schedule('0 21 * * *', async () => {
-        logger.info('⏰ [CRON] Iniciando sync vespertino de FIIs (18:00 BRT)...');
-        try {
-            const result = await syncAllUserFIIs();
-            logger.info(`✅ [CRON] Sync vespertino concluído: ${result.synced}/${result.total} FIIs`);
-        } catch (error) {
-            logger.error(`❌ [CRON] Erro no sync vespertino: ${error.message}`);
-        }
-    }, {
-        timezone: 'America/Sao_Paulo'
-    });
-
-    logger.info('📅 [CRON] FII sync jobs agendados: 06:00 e 18:00 BRT');
+    logger.info('📅 [FII_MARKET_CRON] Agendado: a cada 30 min (10h-18h BRT, seg-sex)');
 };
 
 /**
- * Executa sincronização manual de FIIs das carteiras dos usuários
+ * BOOTSTRAP INICIAL: Sincroniza todos os FIIs do sistema
+ * - Deve ser chamado MANUALMENTE via admin
+ * - Não é executado automaticamente no startup
+ * - Uso: /api/admin/fii/bootstrap
+ * 
+ * @param {number} limit - Limite de FIIs (padrão: 100)
+ */
+const runBootstrap = async (limit = 100) => {
+    logger.info(`🏦 [FII_BOOTSTRAP] Iniciando bootstrap manual de ${limit} FIIs...`);
+    const result = await syncAllSystemFIIs(limit);
+    logger.info(`🏦 [FII_BOOTSTRAP] Concluído: ${result.synced}/${result.total} FIIs`);
+    return result;
+};
+
+/**
+ * SYNC POR EVENTO: Sincroniza um FII específico após compra
+ * - Chamado quando usuário compra um FII
+ * - Atualiza apenas o ticker comprado
+ * 
+ * @param {string} ticker - Ticker do FII comprado
+ */
+const syncOnPurchase = async (ticker) => {
+    logger.info(`🛒 [FII_SYNC_PURCHASE] Sincronizando ${ticker} após compra...`);
+    try {
+        const result = await syncFII(ticker);
+        if (result.success) {
+            logger.info(`✅ [FII_SYNC_PURCHASE] ${ticker} sincronizado | DY: ${result.data?.dividendYieldYear}%`);
+        } else {
+            logger.warn(`⚠️ [FII_SYNC_PURCHASE] ${ticker} falhou: ${result.error}`);
+        }
+        return result;
+    } catch (error) {
+        logger.error(`❌ [FII_SYNC_PURCHASE] Erro ao sincronizar ${ticker}: ${error.message}`);
+        return { success: false, ticker, error: error.message };
+    }
+};
+
+/**
+ * Sync manual para admin/testes
  */
 const runManualSync = async () => {
-    logger.info('🔧 [CRON] Executando sync manual de FIIs das carteiras...');
+    logger.info('🔧 [FII_SYNC] Executando sync manual de FIIs das carteiras...');
     return await syncAllUserFIIs();
 };
 
-/**
- * Executa sincronização inicial de TODOS os FIIs do sistema
- * Usado no startup para pré-popular o cache com dados de FIIs
- * @param {number} limit - Limite de FIIs para sincronizar
- */
-const runInitialSystemSync = async (limit = 20) => {
-    logger.info('🏦 [CRON] Executando sync inicial de todos os FIIs do sistema...');
-    return await syncAllSystemFIIs(limit);
-};
-
 module.exports = {
-    initFIISyncCron,
-    runManualSync,
-    runInitialSystemSync
+    initFIIMarketCron,
+    runBootstrap,
+    syncOnPurchase,
+    runManualSync
 };

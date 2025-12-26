@@ -132,40 +132,31 @@ const startServer = async () => {
       }
 
       // =====================================================
-      // 📊 INICIAR CRON JOBS DE FII SYNC
+      // 📊 INICIAR CRON JOBS DE FII (DADOS DE MERCADO)
       // =====================================================
+      // Arquitetura correta:
+      // 1. Bootstrap inicial: MANUAL via admin (não automático)
+      // 2. Sync por evento: ao comprar FII
+      // 3. Cron de mercado: 30 min, apenas FIIs com usuários posicionados
       try {
-        const { initFIISyncCron, runInitialSystemSync } = require('./cron/fiiSync.cron');
-        initFIISyncCron();
-
-        // Sync inicial de TODOS os FIIs do sistema (não só das carteiras)
-        // Roda 10 segundos após boot para não bloquear
-        setTimeout(async () => {
-          logger.info('🏦 Executando sync inicial de todos os FIIs do sistema...');
-          const result = await runInitialSystemSync(30); // Limite de 30 FIIs no startup
-          logger.info(`🏦 Sync inicial: ${result.synced}/${result.total} FIIs do sistema sincronizados`);
-        }, 10000); // Wait 10 seconds after boot
+        const { initFIIMarketCron } = require('./cron/fiiSync.cron');
+        initFIIMarketCron();
+        // NÃO faz bootstrap automático - deve ser manual via admin
+        logger.info('📊 [FII] Cron de mercado iniciado. Bootstrap manual via /api/admin/fii/bootstrap');
       } catch (err) {
-        logger.warn('📊 FII sync cron skipped:', err.message);
+        logger.warn('📊 FII market cron skipped:', err.message);
       }
 
       // =====================================================
-      // 💰 INICIAR CRON DE PROCESSAMENTO DE DIVIDENDOS
+      // 💰 INICIAR CRON DE DIVIDENDOS (CONTÁBIL - 1x/DIA)
       // =====================================================
+      // Dividendos são eventos contábeis, NÃO tempo real
+      // Processados 1x/dia às 18:00 BRT
       try {
-        const { initDividendProcessingCron, runManualDividendProcessing } = require('./cron/dividendProcessing.cron');
+        const { initDividendProcessingCron } = require('./cron/dividendProcessing.cron');
         initDividendProcessingCron();
-
-        // Processamento inicial de dividendos (20 segundos após boot)
-        setTimeout(async () => {
-          logger.info('💰 Executando processamento inicial de dividendos...');
-          try {
-            const result = await runManualDividendProcessing();
-            logger.info(`💰 Dividendos: ${result.created} criados, ${result.skipped} já existentes`);
-          } catch (err) {
-            logger.warn(`💰 Processamento inicial de dividendos: ${err.message}`);
-          }
-        }, 20000); // Wait 20 seconds after boot
+        // NÃO processa dividendos no startup - apenas via cron 1x/dia
+        logger.info('💰 [DIVIDEND] Cron de dividendos iniciado (1x/dia às 18:00)');
       } catch (err) {
         logger.warn('💰 Dividend cron skipped:', err.message);
       }

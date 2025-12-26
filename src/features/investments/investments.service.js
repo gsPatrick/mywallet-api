@@ -157,6 +157,19 @@ const createInvestment = async (userId, data) => {
         brokerId: resolvedBrokerId  // New FK field
     });
 
+    // 4. SYNC-ON-PURCHASE: Se for FII e operação de compra, sincroniza dados do FII
+    if (asset.type === 'FII' && operationType === 'BUY') {
+        // Sincroniza em background para não bloquear a resposta
+        setImmediate(async () => {
+            try {
+                const { syncOnPurchase } = require('../../cron/fiiSync.cron');
+                await syncOnPurchase(asset.ticker);
+            } catch (err) {
+                logger.warn(`⚠️ [INVESTMENT] Sync-on-purchase falhou para ${asset.ticker}: ${err.message}`);
+            }
+        });
+    }
+
     return investment;
 };
 
@@ -262,48 +275,15 @@ const getPortfolio = async (userId) => {
         fiiDataMap[fd.ticker] = fd;
     });
 
-    // 5.2 SMART CACHE: Atualiza FIIs que não têm cache OU cache antigo (> 30 minutos)
-    // Preços podem mudar durante o pregão, mas não precisamos de tempo real absoluto
-    const CACHE_MAX_AGE_MS = 30 * 60 * 1000; // 30 minutos
-    const now = new Date();
+    // 5.2 ARQUITETURA CORRETA: Usuário NÃO dispara atualização de FII
+    // Atualizações ocorrem via:
+    // - Sync-on-purchase: ao comprar FII
+    // - Market cron: a cada 30 min (apenas FIIs com posições)
+    // Frontend apenas consome dados já processados
 
-    const fiisNeedingRefresh = fiiTickers.filter(ticker => {
-        const cached = fiiDataMap[ticker];
-        if (!cached) return true; // Sem cache
-        if (!cached.lastSyncAt) return true; // Nunca sincronizado
-        const age = now - new Date(cached.lastSyncAt);
-        return age > CACHE_MAX_AGE_MS; // Cache expirado
-    });
-
-    if (fiisNeedingRefresh.length > 0) {
-        logger.info(`🔄 [PORTFOLIO] Atualizando ${fiisNeedingRefresh.length} FIIs em TEMPO REAL: ${fiisNeedingRefresh.join(', ')}`);
-
-        // Busca em paralelo para performance (máximo 5 simultâneos)
-        const batchSize = 5;
-        for (let i = 0; i < fiisNeedingRefresh.length; i += batchSize) {
-            const batch = fiisNeedingRefresh.slice(i, i + batchSize);
-            await Promise.all(batch.map(async (ticker) => {
-                try {
-                    const fiiData = await fiiSyncService.getFIIDataComplete(ticker, true); // forceRefresh = true
-                    if (fiiData) {
-                        const freshRecord = await FIIData.findOne({ where: { ticker } });
-                        if (freshRecord) {
-                            fiiDataMap[ticker] = freshRecord;
-                        }
-                    }
-                } catch (err) {
-                    logger.warn(`⚠️ [PORTFOLIO] Erro ao atualizar FII ${ticker}: ${err.message}`);
-                }
-            }));
-        }
-    }
-
-    // 5.3 DIVIDENDOS: Processados em BATCH via cron (2x/dia: 07h e 18h)
-    // NÃO buscamos/registramos dividendos aqui - são eventos contábeis, não tempo real
-    // O cron dividendProcessing.cron.js cuida de:
-    // - Verificar datas de pagamento
-    // - Registrar dividendos automaticamente
-    // - Atualizar status PENDING → RECEIVED
+    // 5.3 DIVIDENDOS: Processados em BATCH via cron (1x/dia às 18:00)
+    // NÃO buscamos/registramos dividendos aqui - são eventos contábeis
+    // O cron dividendProcessing.cron.js cuida disso
 
 
     let totalInvested = 0;

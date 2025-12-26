@@ -1,29 +1,28 @@
 /**
- * Dividend Processing Cron Job
- * Processa dividendos em BATCH - igual corretoras fazem
- * =====================================================
+ * Dividend Processing Cron Job - ARQUITETURA CORRETA
+ * ===================================================
  * 
  * Regras B3/Corretoras:
- * 1. Dividendos são eventos contábeis, NÃO tempo real
- * 2. Usuário só tem direito se tiver ativo até data-com (ex-date)
- * 3. Crédito ocorre na data de pagamento
- * 4. Corretoras processam em lote: manhã (07h) e fim do dia (18h)
+ * - Dividendos são eventos CONTÁBEIS, NÃO tempo real
+ * - Processados 1x/dia (18:00 BRT - após fechamento do pregão)
+ * - Idempotente: não duplica dividendos
+ * - Separado do scraper de mercado
  * 
- * Este cron roda 2x/dia e:
- * - Busca dividendos com payment_date <= hoje
- * - Verifica se usuário tinha posição na ex-date
- * - Registra dividendos automaticamente
+ * O cron:
+ * - Verifica FIIs com payment_date <= hoje
+ * - Verifica se usuário tinha posição
+ * - Registra dividendos automaticamente (se não existir)
  * - Atualiza status PENDING → RECEIVED
  */
 
 const cron = require('node-cron');
-const { Dividend, Investment, Asset, FIIData, User } = require('../models');
+const { Dividend, Investment, Asset, FIIData } = require('../models');
 const { Op } = require('sequelize');
 const { logger } = require('../config/logger');
 
 /**
- * Processa dividendos de FIIs para todos os usuários
- * Chamado pelo cron 2x/dia
+ * Processa dividendos de FIIs - IDEMPOTENTE
+ * Não duplica dividendos já registrados
  */
 const processDividends = async () => {
     logger.info('💰 [DIVIDEND_CRON] Iniciando processamento de dividendos em batch...');
@@ -32,7 +31,7 @@ const processDividends = async () => {
     today.setHours(0, 0, 0, 0);
 
     try {
-        // 1. Busca todos os FIIs que pagaram dividendo nos últimos 30 dias
+        // Busca FIIs com dividendo nos últimos 30 dias
         const thirtyDaysAgo = new Date(today);
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -54,7 +53,6 @@ const processDividends = async () => {
 
         logger.info(`💰 [DIVIDEND_CRON] ${fiisWithDividends.length} FIIs com dividendos a processar`);
 
-        // 2. Para cada FII, busca usuários que tinham posição
         let created = 0;
         let skipped = 0;
 
@@ -70,12 +68,10 @@ const processDividends = async () => {
 
             if (!asset) continue;
 
-            // Busca todos os investimentos nesse ativo e calcula posição por usuário
+            // Busca investimentos e calcula posição por usuário
             const userPositions = {};
             const allUserInvestments = await Investment.findAll({
-                where: {
-                    assetId: asset.id
-                },
+                where: { assetId: asset.id },
                 order: [['date', 'ASC']]
             });
 
@@ -94,7 +90,7 @@ const processDividends = async () => {
             for (const [userId, position] of Object.entries(userPositions)) {
                 if (position.quantity <= 0) continue;
 
-                // Verifica se já existe esse dividendo registrado
+                // IDEMPOTÊNCIA: Verifica se já existe esse dividendo
                 const existingDividend = await Dividend.findOne({
                     where: {
                         userId,
@@ -119,9 +115,9 @@ const processDividends = async () => {
                     amountPerUnit,
                     quantity: position.quantity,
                     grossAmount,
-                    withholdingTax: 0, // FIIs isentos de IR para PF
+                    withholdingTax: 0,
                     netAmount: grossAmount,
-                    exDate: paymentDate, // Simplificado
+                    exDate: paymentDate,
                     paymentDate,
                     status: 'RECEIVED',
                     origin: 'AUTO_SCRAPER',
@@ -134,7 +130,6 @@ const processDividends = async () => {
         }
 
         logger.info(`💰 [DIVIDEND_CRON] Concluído: ${created} criados, ${skipped} já existentes`);
-
         return { processed: fiisWithDividends.length, created, skipped };
 
     } catch (error) {
@@ -145,7 +140,6 @@ const processDividends = async () => {
 
 /**
  * Atualiza status de dividendos PENDING → RECEIVED
- * Para dividendos manuais ou importados
  */
 const updatePendingDividends = async () => {
     const today = new Date();
@@ -156,55 +150,40 @@ const updatePendingDividends = async () => {
         {
             where: {
                 status: 'PENDING',
-                paymentDate: {
-                    [Op.lte]: today
-                }
+                paymentDate: { [Op.lte]: today }
             }
         }
     );
 
     if (updated[0] > 0) {
-        logger.info(`💰 [DIVIDEND_CRON] ${updated[0]} dividendos atualizados: PENDING → RECEIVED`);
+        logger.info(`💰 [DIVIDEND_CRON] ${updated[0]} dividendos: PENDING → RECEIVED`);
     }
 
     return updated[0];
 };
 
 /**
- * Inicializa os cron jobs de processamento de dividendos
+ * Inicializa cron de dividendos - 1x/DIA às 18:00 BRT
  */
 const initDividendProcessingCron = () => {
-    // Cron às 07:00 BRT (10:00 UTC) - Processamento matinal
-    cron.schedule('0 10 * * *', async () => {
-        logger.info('⏰ [DIVIDEND_CRON] Processamento matinal (07:00 BRT)...');
-        try {
-            await processDividends();
-            await updatePendingDividends();
-        } catch (error) {
-            logger.error(`❌ [DIVIDEND_CRON] Erro no processamento matinal: ${error.message}`);
-        }
-    }, {
-        timezone: 'America/Sao_Paulo'
-    });
-
-    // Cron às 18:00 BRT (21:00 UTC) - Processamento vespertino
+    // Apenas 1x/dia às 18:00 BRT (21:00 UTC) - após fechamento do pregão
     cron.schedule('0 21 * * *', async () => {
-        logger.info('⏰ [DIVIDEND_CRON] Processamento vespertino (18:00 BRT)...');
+        logger.info('⏰ [DIVIDEND_CRON] Processamento diário (18:00 BRT)...');
         try {
             await processDividends();
             await updatePendingDividends();
         } catch (error) {
-            logger.error(`❌ [DIVIDEND_CRON] Erro no processamento vespertino: ${error.message}`);
+            logger.error(`❌ [DIVIDEND_CRON] Erro: ${error.message}`);
         }
     }, {
         timezone: 'America/Sao_Paulo'
     });
 
-    logger.info('📅 [DIVIDEND_CRON] Jobs agendados: 07:00 e 18:00 BRT');
+    logger.info('📅 [DIVIDEND_CRON] Agendado: 1x/dia às 18:00 BRT');
 };
 
 /**
- * Executa processamento manual (para testes ou admin)
+ * Execução manual para admin/testes
  */
 const runManualDividendProcessing = async () => {
     logger.info('🔧 [DIVIDEND_CRON] Executando processamento manual...');
