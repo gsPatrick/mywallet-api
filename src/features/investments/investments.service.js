@@ -3,7 +3,7 @@
  * Gerencia a carteira do usuário e busca de ativos
  */
 
-const { Investment, Asset, FinancialProduct } = require('../../models');
+const { Investment, Asset, FinancialProduct, Dividend } = require('../../models');
 const yahooClient = require('./yahoo.client');
 const { AppError } = require('../../middlewares/errorHandler');
 const { Op } = require('sequelize');
@@ -172,10 +172,35 @@ const getPortfolio = async (userId) => {
         where: { userId, status: 'ACTIVE' }
     });
 
+    // 3. Busca dividendos dos últimos 12 meses para cálculo do DY (especialmente FIIs)
+    const twelveMonthsAgo = new Date();
+    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+
+    const dividends = await Dividend.findAll({
+        where: {
+            userId,
+            paymentDate: { [Op.gte]: twelveMonthsAgo }
+        },
+        include: [{ model: Asset, as: 'asset', attributes: ['ticker', 'type'] }]
+    });
+
+    // Agrupa dividendos por ticker para cálculo rápido
+    const dividendsByTicker = {};
+    dividends.forEach(d => {
+        const ticker = d.asset?.ticker;
+        if (ticker) {
+            if (!dividendsByTicker[ticker]) {
+                dividendsByTicker[ticker] = { total: 0, count: 0 };
+            }
+            dividendsByTicker[ticker].total += parseFloat(d.amountPerUnit || 0);
+            dividendsByTicker[ticker].count++;
+        }
+    });
+
     const positionsMap = {};
     const tickersToFetch = new Set();
 
-    // 3. Processa Renda Variável
+    // 4. Processa Renda Variável
     investments.forEach(inv => {
         const ticker = inv.asset.ticker;
         tickersToFetch.add(ticker);
@@ -186,6 +211,7 @@ const getPortfolio = async (userId) => {
                 name: inv.asset.name,
                 logoUrl: inv.asset.logoUrl,
                 type: inv.asset.type,
+                assetId: inv.asset.id,
                 quantity: 0,
                 totalCost: 0,
             };
@@ -207,13 +233,13 @@ const getPortfolio = async (userId) => {
         }
     });
 
-    // 4. Busca Cotações Yahoo
+    // 5. Busca Cotações Yahoo
     const quotes = await yahooClient.getQuotes(Array.from(tickersToFetch));
 
     let totalInvested = 0;
     let totalCurrentBalance = 0;
 
-    // 5. Monta posições de Renda Variável
+    // 6. Monta posições de Renda Variável
     const variableIncomePositions = Object.values(positionsMap)
         .filter(p => p.quantity > 0.000001)
         .map(p => {
@@ -225,6 +251,16 @@ const getPortfolio = async (userId) => {
 
             totalInvested += p.totalCost;
             totalCurrentBalance += currentBalance;
+
+            // DY calculation: use Yahoo API if available, otherwise calculate from local dividends (for FIIs)
+            let dyPercentage = quote?.dividendYield || 0;
+            let annualDividendPerShare = quote?.dividendRate || 0;
+
+            // If Yahoo returns 0 DY (common for FIIs), calculate from database dividends
+            if (dyPercentage === 0 && dividendsByTicker[p.ticker] && currentPrice > 0) {
+                annualDividendPerShare = dividendsByTicker[p.ticker].total;
+                dyPercentage = (annualDividendPerShare / currentPrice) * 100;
+            }
 
             return {
                 source: 'VARIABLE_INCOME',
@@ -240,9 +276,9 @@ const getPortfolio = async (userId) => {
                 profit,
                 profitPercent,
                 dayChange: quote?.changePercent || 0,
-                // Add dividend data for Magic Number calculation
-                dy: quote?.dividendYield || 0,
-                dividendRate: quote?.dividendRate || 0,
+                // Dividend data for Magic Number calculation
+                dy: dyPercentage,
+                dividendRate: annualDividendPerShare,
                 lastUpdate: quote?.updatedAt
             };
         });

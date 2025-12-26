@@ -1,0 +1,380 @@
+=== YAHOO FINANCE TEST RESULTS ===
+Date: 2025-12-26T17:38:20.482Z
+
+[
+  {
+    "ticker": "AAZQ11.SA",
+    "price": 8.7,
+    "dividendYield": 0,
+    "dividendRate": 0,
+    "rawQuoteKeys": [
+      "language",
+      "region",
+      "quoteType",
+      "typeDisp",
+      "quoteSourceName",
+      "triggerable",
+      "customPriceAlertConfidence",
+      "currency",
+      "shortName",
+      "regularMarketChangePercent",
+      "regularMarketPrice",
+      "longName",
+      "marketState",
+      "fullExchangeName",
+      "hasPrePostMarketData",
+      "firstTradeDateMilliseconds",
+      "priceHint",
+      "regularMarketChange",
+      "regularMarketDayHigh",
+      "regularMarketDayRange",
+      "regularMarketDayLow",
+      "regularMarketVolume",
+      "regularMarketPreviousClose",
+      "bid",
+      "ask",
+      "regularMarketOpen",
+      "averageDailyVolume3Month",
+      "averageDailyVolume10Day",
+      "fiftyTwoWeekLowChange",
+      "fiftyTwoWeekLowChangePercent",
+      "fiftyTwoWeekRange",
+      "fiftyTwoWeekHighChange",
+      "fiftyTwoWeekHighChangePercent",
+      "fiftyTwoWeekLow",
+      "fiftyTwoWeekHigh",
+      "fiftyTwoWeekChangePercent",
+      "trailingAnnualDividendRate",
+      "trailingAnnualDividendYield",
+      "fiftyDayAverage",
+      "fiftyDayAverageChange",
+      "fiftyDayAverageChangePercent",
+      "twoHundredDayAverage",
+      "twoHundredDayAverageChange",
+      "twoHundredDayAverageChangePercent",
+      "sourceInterval",
+      "exchangeDataDelayedBy",
+      "tradeable",
+      "cryptoTradeable",
+      "corporateActions",
+      "regularMarketTime",
+      "exchange",
+      "messageBoardId",
+      "exchangeTimezoneName",
+      "exchangeTimezoneShortName",
+      "gmtOffSetMilliseconds",
+      "market",
+      "esgPopulated",
+      "symbol"
+    ]
+  },
+  {
+    "ticker": "PETR4.SA",
+    "price": 30.22,
+    "dividendYield": 0.11098648,
+    "dividendRate": 3.364,
+    "rawQuoteKeys": [
+      "language",
+      "region",
+      "quoteType",
+      "typeDisp",
+      "quoteSourceName",
+      "triggerable",
+      "customPriceAlertConfidence",
+      "currency",
+      "corporateActions",
+      "regularMarketTime",
+      "exchange",
+      "messageBoardId",
+      "exchangeTimezoneName",
+      "exchangeTimezoneShortName",
+      "gmtOffSetMilliseconds",
+      "market",
+      "esgPopulated",
+      "shortName",
+      "longName",
+      "marketState",
+      "hasPrePostMarketData",
+      "firstTradeDateMilliseconds",
+      "priceHint",
+      "regularMarketChange",
+      "regularMarketDayHigh",
+      "regularMarketDayRange",
+      "regularMarketDayLow",
+      "regularMarketVolume",
+      "regularMarketPreviousClose",
+      "bid",
+      "ask",
+      "bidSize",
+      "askSize",
+      "fullExchangeName",
+      "financialCurrency",
+      "regularMarketOpen",
+      "averageDailyVolume3Month",
+      "averageDailyVolume10Day",
+      "fiftyTwoWeekLowChange",
+      "fiftyTwoWeekLowChangePercent",
+      "fiftyTwoWeekRange",
+      "fiftyTwoWeekHighChange",
+      "fiftyTwoWeekHighChangePercent",
+      "fiftyTwoWeekLow",
+      "fiftyTwoWeekHigh",
+      "fiftyTwoWeekChangePercent",
+      "earningsTimestampStart",
+      "earningsTimestampEnd",
+      "earningsCallTimestampStart",
+      "earningsCallTimestampEnd",
+      "isEarningsDateEstimate",
+      "trailingAnnualDividendRate",
+      "trailingPE",
+      "dividendRate",
+      "trailingAnnualDividendYield",
+      "dividendYield",
+      "epsTrailingTwelveMonths",
+      "epsForward",
+      "sharesOutstanding",
+      "bookValue",
+      "fiftyDayAverage",
+      "fiftyDayAverageChange",
+      "fiftyDayAverageChangePercent",
+      "twoHundredDayAverage",
+      "twoHundredDayAverageChange",
+      "twoHundredDayAverageChangePercent",
+      "marketCap",
+      "forwardPE",
+      "priceToBook",
+      "sourceInterval",
+      "exchangeDataDelayedBy",
+      "averageAnalystRating",
+      "tradeable",
+      "cryptoTradeable",
+      "regularMarketChangePercent",
+      "regularMarketPrice",
+      "symbol"
+    ]
+  },
+  {
+    "ticker": "ITUB4.SA",
+    "price": 38.99,
+    "dividendYield": 0.059379905,
+    "dividendRate": 2.321,
+    "rawQuoteKeys": [
+      "language",
+      "region",
+      "quoteType",
+      "typeDisp",
+      "quoteSourceName",
+      "triggerable",
+      "customPriceAlertConfidence",
+      "currency",
+      "regularMarketChangePercent",
+      "regularMarketPrice",
+      "corporateActions",
+      "regularMarketTime",
+      "exchange",
+      "messageBoardId",
+      "exchangeTimezoneName",
+      "exchangeTimezoneShortName",
+      "gmtOffSetMilliseconds",
+      "market",
+      "esgPopulated",
+      "shortName",
+      "longName",
+      "earningsTimestampStart",
+      "earningsTimestampEnd",
+      "earningsCallTimestampStart",
+      "earningsCallTimestampEnd",
+      "isEarningsDateEstimate",
+      "trailingAnnualDividendRate",
+      "trailingPE",
+      "dividendRate",
+      "trailingAnnualDividendYield",
+      "dividendYield",
+      "epsTrailingTwelveMonths",
+      "epsForward",
+      "epsCurrentYear",
+      "priceEpsCurrentYear",
+      "sharesOutstanding",
+      "bookValue",
+      "fiftyDayAverage",
+      "fiftyDayAverageChange",
+      "fiftyDayAverageChangePercent",
+      "twoHundredDayAverage",
+      "twoHundredDayAverageChange",
+      "twoHundredDayAverageChangePercent",
+      "marketCap",
+      "forwardPE",
+      "priceToBook",
+      "sourceInterval",
+      "exchangeDataDelayedBy",
+      "averageAnalystRating",
+      "tradeable",
+      "cryptoTradeable",
+      "hasPrePostMarketData",
+      "firstTradeDateMilliseconds",
+      "priceHint",
+      "regularMarketChange",
+      "regularMarketDayHigh",
+      "regularMarketDayRange",
+      "regularMarketDayLow",
+      "regularMarketVolume",
+      "regularMarketPreviousClose",
+      "bid",
+      "ask",
+      "bidSize",
+      "askSize",
+      "fullExchangeName",
+      "financialCurrency",
+      "regularMarketOpen",
+      "averageDailyVolume3Month",
+      "averageDailyVolume10Day",
+      "fiftyTwoWeekLowChange",
+      "fiftyTwoWeekLowChangePercent",
+      "fiftyTwoWeekRange",
+      "fiftyTwoWeekHighChange",
+      "fiftyTwoWeekHighChangePercent",
+      "fiftyTwoWeekLow",
+      "fiftyTwoWeekHigh",
+      "fiftyTwoWeekChangePercent",
+      "marketState",
+      "symbol"
+    ]
+  },
+  {
+    "ticker": "HGLG11.SA",
+    "price": 157.91,
+    "dividendYield": 0,
+    "dividendRate": 0,
+    "rawQuoteKeys": [
+      "language",
+      "region",
+      "quoteType",
+      "typeDisp",
+      "quoteSourceName",
+      "triggerable",
+      "customPriceAlertConfidence",
+      "currency",
+      "marketState",
+      "exchange",
+      "messageBoardId",
+      "exchangeTimezoneName",
+      "exchangeTimezoneShortName",
+      "gmtOffSetMilliseconds",
+      "market",
+      "esgPopulated",
+      "corporateActions",
+      "regularMarketTime",
+      "regularMarketChangePercent",
+      "regularMarketPrice",
+      "hasPrePostMarketData",
+      "firstTradeDateMilliseconds",
+      "priceHint",
+      "regularMarketChange",
+      "regularMarketDayHigh",
+      "regularMarketDayRange",
+      "regularMarketDayLow",
+      "regularMarketVolume",
+      "regularMarketPreviousClose",
+      "bid",
+      "ask",
+      "bidSize",
+      "askSize",
+      "fullExchangeName",
+      "financialCurrency",
+      "regularMarketOpen",
+      "averageDailyVolume3Month",
+      "averageDailyVolume10Day",
+      "fiftyTwoWeekLowChange",
+      "fiftyTwoWeekLowChangePercent",
+      "fiftyTwoWeekRange",
+      "fiftyTwoWeekHighChange",
+      "fiftyTwoWeekHighChangePercent",
+      "fiftyTwoWeekLow",
+      "fiftyTwoWeekHigh",
+      "fiftyTwoWeekChangePercent",
+      "trailingAnnualDividendRate",
+      "trailingPE",
+      "dividendRate",
+      "trailingAnnualDividendYield",
+      "dividendYield",
+      "epsTrailingTwelveMonths",
+      "shortName",
+      "longName",
+      "sharesOutstanding",
+      "bookValue",
+      "fiftyDayAverage",
+      "fiftyDayAverageChange",
+      "fiftyDayAverageChangePercent",
+      "twoHundredDayAverage",
+      "twoHundredDayAverageChange",
+      "twoHundredDayAverageChangePercent",
+      "marketCap",
+      "priceToBook",
+      "sourceInterval",
+      "exchangeDataDelayedBy",
+      "tradeable",
+      "cryptoTradeable",
+      "symbol"
+    ]
+  }
+]
+
+=== RAW QUOTE KEYS ===
+language
+region
+quoteType
+typeDisp
+quoteSourceName
+triggerable
+customPriceAlertConfidence
+currency
+shortName
+regularMarketChangePercent
+regularMarketPrice
+longName
+marketState
+fullExchangeName
+hasPrePostMarketData
+firstTradeDateMilliseconds
+priceHint
+regularMarketChange
+regularMarketDayHigh
+regularMarketDayRange
+regularMarketDayLow
+regularMarketVolume
+regularMarketPreviousClose
+bid
+ask
+regularMarketOpen
+averageDailyVolume3Month
+averageDailyVolume10Day
+fiftyTwoWeekLowChange
+fiftyTwoWeekLowChangePercent
+fiftyTwoWeekRange
+fiftyTwoWeekHighChange
+fiftyTwoWeekHighChangePercent
+fiftyTwoWeekLow
+fiftyTwoWeekHigh
+fiftyTwoWeekChangePercent
+trailingAnnualDividendRate
+trailingAnnualDividendYield
+fiftyDayAverage
+fiftyDayAverageChange
+fiftyDayAverageChangePercent
+twoHundredDayAverage
+twoHundredDayAverageChange
+twoHundredDayAverageChangePercent
+sourceInterval
+exchangeDataDelayedBy
+tradeable
+cryptoTradeable
+corporateActions
+regularMarketTime
+exchange
+messageBoardId
+exchangeTimezoneName
+exchangeTimezoneShortName
+gmtOffSetMilliseconds
+market
+esgPopulated
+symbol
