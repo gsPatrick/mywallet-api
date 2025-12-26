@@ -240,6 +240,9 @@ const getPortfolio = async (userId) => {
                 profit,
                 profitPercent,
                 dayChange: quote?.changePercent || 0,
+                // Add dividend data for Magic Number calculation
+                dy: quote?.dividendYield || 0,
+                dividendRate: quote?.dividendRate || 0,
                 lastUpdate: quote?.updatedAt
             };
         });

@@ -117,6 +117,9 @@ const getQuotes = async (tickers) => {
                 price: price,
                 change: quote.regularMarketChange || 0,
                 changePercent: quote.regularMarketChangePercent || 0,
+                // Add dividend data for Magic Number calculation
+                dividendYield: quote.trailingAnnualDividendYield ? quote.trailingAnnualDividendYield * 100 : 0,
+                dividendRate: quote.trailingAnnualDividendRate || 0,
                 updatedAt: new Date(quote.regularMarketTime || Date.now())
             };
 
