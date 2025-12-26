@@ -135,16 +135,15 @@ const startServer = async () => {
       // 📊 INICIAR CRON JOBS DE FII SYNC
       // =====================================================
       try {
-        const { initFIISyncCron, runManualSync } = require('./cron/fiiSync.cron');
+        const { initFIISyncCron, runInitialSystemSync } = require('./cron/fiiSync.cron');
         initFIISyncCron();
 
-        // Sync inicial em background após boot (se houver FIIs)
+        // Sync inicial de TODOS os FIIs do sistema (não só das carteiras)
+        // Roda 10 segundos após boot para não bloquear
         setTimeout(async () => {
-          logger.info('📊 Executando sync inicial de FIIs...');
-          const result = await runManualSync();
-          if (result.total > 0) {
-            logger.info(`📊 Sync inicial: ${result.synced}/${result.total} FIIs sincronizados`);
-          }
+          logger.info('🏦 Executando sync inicial de todos os FIIs do sistema...');
+          const result = await runInitialSystemSync(30); // Limite de 30 FIIs no startup
+          logger.info(`🏦 Sync inicial: ${result.synced}/${result.total} FIIs do sistema sincronizados`);
         }, 10000); // Wait 10 seconds after boot
       } catch (err) {
         logger.warn('📊 FII sync cron skipped:', err.message);

@@ -103,7 +103,7 @@ const syncFII = async (ticker) => {
  * @returns {Promise<object>} - Resumo da sincronização
  */
 const syncAllUserFIIs = async () => {
-    logger.info('🔄 [FII_SYNC] Iniciando sincronização de todos os FIIs...');
+    logger.info('🔄 [FII_SYNC] Iniciando sincronização de FIIs das carteiras...');
 
     // Busca todos os FIIs únicos que os usuários possuem
     const fiis = await Investment.findAll({
@@ -152,6 +152,64 @@ const syncAllUserFIIs = async () => {
         results
     };
 };
+
+/**
+ * Sincroniza TODOS os FIIs do SISTEMA (tabela Asset type='FII')
+ * Usado no startup para pré-popular cache com todos os FIIs disponíveis
+ * @param {number} limit - Limite de FIIs para sincronizar (evitar rate limit)
+ * @returns {Promise<object>} - Resumo da sincronização
+ */
+const syncAllSystemFIIs = async (limit = 20) => {
+    logger.info('🏦 [FII_SYNC] Iniciando sincronização de TODOS os FIIs do sistema...');
+
+    // Busca todos os FIIs cadastrados no sistema
+    const fiis = await Asset.findAll({
+        where: { type: 'FII' },
+        attributes: ['ticker'],
+        order: [['ticker', 'ASC']],
+        limit
+    });
+
+    const tickers = fiis.map(f => f.ticker).filter(Boolean);
+
+    if (tickers.length === 0) {
+        logger.info('📭 [FII_SYNC] Nenhum FII cadastrado no sistema');
+        return { synced: 0, errors: 0, total: 0, tickers: [] };
+    }
+
+    logger.info(`🏦 [FII_SYNC] Sincronizando ${tickers.length} FIIs do sistema: ${tickers.slice(0, 5).join(', ')}...`);
+
+    let synced = 0;
+    let errors = 0;
+    const results = [];
+
+    for (const ticker of tickers) {
+        // Delay entre requests para evitar rate limit
+        if (synced > 0 || errors > 0) {
+            await new Promise(resolve => setTimeout(resolve, 2000)); // 2 segundos entre requests
+        }
+
+        const result = await syncFII(ticker);
+        results.push(result);
+
+        if (result.success) {
+            synced++;
+        } else {
+            errors++;
+        }
+    }
+
+    logger.info(`🏦 [FII_SYNC] Sistema: ${synced}/${tickers.length} FIIs sincronizados, ${errors} erros`);
+
+    return {
+        synced,
+        errors,
+        total: tickers.length,
+        tickers,
+        results
+    };
+};
+
 
 /**
  * Busca dados completos de um FII (com insights)
@@ -339,6 +397,7 @@ const compareFIIs = async (ticker1, ticker2) => {
 module.exports = {
     syncFII,
     syncAllUserFIIs,
+    syncAllSystemFIIs,
     getFIIDataComplete,
     getMultipleFIIData,
     listCachedFIIs,

@@ -247,6 +247,7 @@ const getPortfolio = async (userId) => {
     const quotes = await yahooClient.getQuotes(Array.from(tickersToFetch));
 
     // 5.1 Busca dados de FIIs do cache (Funds Explorer scraper)
+    // Se não houver cache, busca ON-DEMAND (igual ações funcionam com Yahoo)
     const fiiTickers = Object.values(positionsMap)
         .filter(p => p.type === 'FII')
         .map(p => p.ticker);
@@ -259,6 +260,27 @@ const getPortfolio = async (userId) => {
     fiiDataRecords.forEach(fd => {
         fiiDataMap[fd.ticker] = fd;
     });
+
+    // 5.2 Para FIIs sem cache, busca ON-DEMAND (igual ações funcionam com Yahoo)
+    // Isso garante que ao comprar um FII, os dados aparecem imediatamente
+    const fiisWithoutCache = fiiTickers.filter(ticker => !fiiDataMap[ticker]);
+    if (fiisWithoutCache.length > 0) {
+        logger.info(`🔄 [PORTFOLIO] Buscando dados on-demand para ${fiisWithoutCache.length} FIIs: ${fiisWithoutCache.join(', ')}`);
+        for (const ticker of fiisWithoutCache) {
+            try {
+                const fiiData = await fiiSyncService.getFIIDataComplete(ticker, false);
+                if (fiiData) {
+                    // Busca o registro atualizado do banco
+                    const freshRecord = await FIIData.findOne({ where: { ticker } });
+                    if (freshRecord) {
+                        fiiDataMap[ticker] = freshRecord;
+                    }
+                }
+            } catch (err) {
+                logger.warn(`⚠️ [PORTFOLIO] Erro ao buscar FII ${ticker} on-demand: ${err.message}`);
+            }
+        }
+    }
 
     let totalInvested = 0;
     let totalCurrentBalance = 0;

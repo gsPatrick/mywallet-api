@@ -8,7 +8,7 @@
  */
 
 const cron = require('node-cron');
-const { syncAllUserFIIs } = require('../features/investments/fiiSync.service');
+const { syncAllUserFIIs, syncAllSystemFIIs } = require('../features/investments/fiiSync.service');
 const { logger } = require('../config/logger');
 
 /**
@@ -47,14 +47,25 @@ const initFIISyncCron = () => {
 };
 
 /**
- * Executa sincronização manual (para testes ou admin)
+ * Executa sincronização manual de FIIs das carteiras dos usuários
  */
 const runManualSync = async () => {
-    logger.info('🔧 [CRON] Executando sync manual de FIIs...');
+    logger.info('🔧 [CRON] Executando sync manual de FIIs das carteiras...');
     return await syncAllUserFIIs();
+};
+
+/**
+ * Executa sincronização inicial de TODOS os FIIs do sistema
+ * Usado no startup para pré-popular o cache com dados de FIIs
+ * @param {number} limit - Limite de FIIs para sincronizar
+ */
+const runInitialSystemSync = async (limit = 20) => {
+    logger.info('🏦 [CRON] Executando sync inicial de todos os FIIs do sistema...');
+    return await syncAllSystemFIIs(limit);
 };
 
 module.exports = {
     initFIISyncCron,
-    runManualSync
+    runManualSync,
+    runInitialSystemSync
 };
