@@ -350,6 +350,15 @@ const getPortfolio = async (userId) => {
                 lastDividendPerShare = dividendsByTicker[p.ticker].lastDividend || 0;
             }
 
+            // =====================================================
+            // ASSET TYPE DIFFERENTIATION
+            // =====================================================
+            // FII: hasDividends = true, shows DY, history, trends
+            // ETF: hasDividends = false, dividends reinvested in price
+            // STOCK/BDR: hasDividends = true, shows DY if available
+            // =====================================================
+            const hasDividends = p.type !== 'ETF'; // ETFs don't distribute dividends
+
             return {
                 source: 'VARIABLE_INCOME',
                 ticker: p.ticker,
@@ -364,11 +373,15 @@ const getPortfolio = async (userId) => {
                 profit,
                 profitPercent,
                 dayChange: quote?.changePercent || 0,
-                // Dividend data for Magic Number calculation
-                dy: dyPercentage,
-                dividendRate: annualDividendPerShare,
-                lastDividendPerShare: lastDividendPerShare,
-                // FII-specific analytics (null for stocks)
+                // Asset type flag for frontend
+                hasDividends,
+                // Dividend data (null for ETFs)
+                dy: hasDividends ? dyPercentage : null,
+                dividendRate: hasDividends ? annualDividendPerShare : null,
+                lastDividendPerShare: hasDividends ? lastDividendPerShare : null,
+                // ETF-specific message
+                dividendMessage: !hasDividends ? 'Dividendos reinvestidos no preço da cota' : null,
+                // FII-specific analytics (null for stocks/ETFs)
                 fiiAnalytics: fiiAnalytics,
                 lastUpdate: quote?.updatedAt
             };

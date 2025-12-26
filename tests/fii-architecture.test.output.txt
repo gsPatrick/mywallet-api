@@ -1,0 +1,15 @@
+[2025-12-26T21:51:20.166Z] ========================================
+[2025-12-26T21:51:20.170Z] 🧪 FII ARCHITECTURE TEST
+[2025-12-26T21:51:20.170Z] ========================================
+
+[2025-12-26T21:51:20.182Z] ❌ ERRO: getaddrinfo ENOTFOUND localhost
+[2025-12-26T21:51:20.182Z] SequelizeHostNotFoundError: getaddrinfo ENOTFOUND localhost
+    at Client._connectionCallback (/Users/patricksiqueira/patrickprojeto/api/node_modules/sequelize/lib/dialects/postgres/connection-manager.js:136:24)
+    at Client._handleErrorWhileConnecting (/Users/patricksiqueira/patrickprojeto/api/node_modules/pg/lib/client.js:336:19)
+    at Client._handleErrorEvent (/Users/patricksiqueira/patrickprojeto/api/node_modules/pg/lib/client.js:346:19)
+    at Connection.emit (node:events:507:28)
+    at Socket.reportStreamError (/Users/patricksiqueira/patrickprojeto/api/node_modules/pg/lib/connection.js:57:12)
+    at Socket.emit (node:events:507:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
