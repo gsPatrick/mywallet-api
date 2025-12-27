@@ -78,7 +78,7 @@ class BrokersService {
                 nickname: broker.name,
                 type: 'CORRETORA',
                 color: broker.color,
-                icon: broker.icon,
+                icon: broker.logoUrl || broker.icon, // Prefer logoUrl (dictionary image) over generic icon
                 initialBalance: 0,
                 source: 'AUTO' // Mark as system-created
             });
