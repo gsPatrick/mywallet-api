@@ -29,9 +29,9 @@ module.exports = (sequelize) => {
                 key: 'id'
             }
         },
-        // Fonte da conta: Manual ou Open Finance
+        // Fonte da conta: Manual, Open Finance ou Automática (Sistema)
         source: {
-            type: DataTypes.ENUM('MANUAL', 'OPEN_FINANCE'),
+            type: DataTypes.ENUM('MANUAL', 'OPEN_FINANCE', 'AUTO'),
             allowNull: false,
             defaultValue: 'MANUAL'
         },
