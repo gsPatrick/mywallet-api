@@ -42,7 +42,7 @@ const startServer = async () => {
     if (process.env.NODE_ENV === 'development' || process.env.DB_SYNC === 'false') {
       // DEVELOPMENT: Sync com alter adiciona novas tabelas/colunas sem apagar dados
       // Para produção: use DB_SYNC=true para sincronizar uma vez
-      await sequelize.sync({ force: true });
+      await sequelize.sync({ alter: true });
       logger.info('✅ Models sincronizados (alter: true - tabelas novas criadas automaticamente)');
     } else {
       // PRODUCTION: Apenas valida conexão, não altera schema automaticamente
@@ -159,6 +159,18 @@ const startServer = async () => {
         logger.info('💰 [DIVIDEND] Cron de dividendos iniciado (1x/dia às 18:00)');
       } catch (err) {
         logger.warn('💰 Dividend cron skipped:', err.message);
+      }
+
+      // =====================================================
+      // 🌅 INICIAR CRON DE MORNING BRIEFING (08:00 BRT)
+      // =====================================================
+      // Envia resumo financeiro diário via WhatsApp
+      try {
+        const { initMorningBriefingCron } = require('./cron/morningBriefing.cron');
+        initMorningBriefingCron();
+        logger.info('🌅 [BRIEFING] Cron de briefing matinal iniciado (08:00 BRT)');
+      } catch (err) {
+        logger.warn('🌅 Morning briefing cron skipped:', err.message);
       }
     });
 

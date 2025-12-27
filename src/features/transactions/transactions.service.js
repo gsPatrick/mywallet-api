@@ -24,6 +24,7 @@ const { Op } = require('sequelize');
 const budgetsService = require('../budgets/budgets.service');
 const bankAccountsService = require('../bankAccounts/bankAccounts.service');
 const gamificationService = require('../gamification/gamification.service');
+const enrichmentService = require('../../services/enrichment.service');
 
 // ===========================================
 // TRANSAÇÕES MANUAIS (EDITÁVEIS)
@@ -42,6 +43,21 @@ const createManualTransaction = async (userId, profileId, data) => {
 
     console.log('📝 [CREATE MANUAL TX] Received data:', JSON.stringify(data, null, 2));
     console.log('🎯 [CREATE MANUAL TX] Profile:', profileId);
+
+    // ========================================
+    // AUTO-BRANDING: Enriquecer transação com brandKey e categoria
+    // ========================================
+    const enrichment = enrichmentService.enrichTransactionData(description);
+    if (enrichment) {
+        console.log('🏷️ [AUTO-BRANDING] Match:', enrichment.brandName, '- Key:', enrichment.brandKey);
+        // Salva brandKey para o frontend resolver a imagem via seu próprio dicionário
+        data.brandKey = enrichment.brandKey;
+        data.brandName = enrichment.brandName;
+        // Só preenche categoria se usuário não especificou
+        if (!data.categoryName && enrichment.categoryName) {
+            data.suggestedCategory = enrichment.categoryName;
+        }
+    }
 
     // ========================================
     // VERIFICAÇÃO DE ORÇAMENTO (para despesas)

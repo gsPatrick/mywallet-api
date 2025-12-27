@@ -63,4 +63,53 @@ router.post('/dividends/process', async (req, res) => {
     }
 });
 
+// =====================================================
+// MORNING BRIEFING - Operações Administrativas
+// =====================================================
+
+// Trigger manual do briefing matinal
+router.post('/trigger-briefing', async (req, res) => {
+    try {
+        logger.info(`🌅 [ADMIN] Briefing manual por ${req.userId}`);
+        const { sendAllBriefings } = require('../../cron/morningBriefing.cron');
+        const result = await sendAllBriefings();
+        res.json({
+            success: true,
+            message: `Briefing enviado para ${result.success} usuário(s)`,
+            data: result
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Trigger briefing para um usuário específico (para testes)
+router.post('/trigger-briefing/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        logger.info(`🌅 [ADMIN] Briefing individual por ${req.userId} -> ${userId}`);
+
+        const briefingService = require('../whatsapp/briefing.service');
+        const message = await briefingService.generateBriefing(userId);
+
+        // Try to send via WhatsApp
+        let sent = false;
+        try {
+            sent = await briefingService.sendBriefing(userId);
+        } catch (e) {
+            logger.warn(`WhatsApp send failed: ${e.message}`);
+        }
+
+        res.json({
+            success: true,
+            sent,
+            message,
+            info: sent ? 'Enviado via WhatsApp' : 'Gerado mas não enviado (WhatsApp desconectado?)'
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 module.exports = router;
+
