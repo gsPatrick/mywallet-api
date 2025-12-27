@@ -55,7 +55,8 @@ const list = async (req, res) => {
         }
 
         const accounts = await bankAccountsService.listBankAccounts(userId, profileId, {
-            source: req.query.source
+            source: req.query.source,
+            excludeType: req.query.excludeType
         });
 
         res.json({

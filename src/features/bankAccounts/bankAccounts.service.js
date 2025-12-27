@@ -182,6 +182,10 @@ const listBankAccounts = async (userId, profileId, options = {}) => {
             where.source = options.source;
         }
 
+        if (options.excludeType) {
+            where.type = { [Op.ne]: options.excludeType };
+        }
+
         const accounts = await BankAccount.findAll({
             where,
             order: [['isDefault', 'DESC'], ['createdAt', 'ASC']] // Default first
