@@ -32,9 +32,9 @@ const BROKERS_LIST = [
     },
     {
         code: 'RICO',
-        name: 'Rico',
-        color: '#FF5200',
-        logoUrl: 'https://logo.clearbit.com/rico.com.vc',
+        name: 'Rico Investimentos',
+        color: '#FF6600',
+        logoUrl: 'https://i.imgur.com/uSxEe0t.jpeg',
         icon: 'trending-up',
         type: 'DIGITAL'
     },
