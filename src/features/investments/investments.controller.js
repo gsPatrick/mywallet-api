@@ -27,7 +27,11 @@ const createInvestment = async (req, res, next) => {
 
 const getPortfolio = async (req, res, next) => {
     try {
-        const portfolio = await investmentsService.getPortfolio(req.userId);
+        const options = {};
+        if (req.query.brokerId) {
+            options.brokerId = parseInt(req.query.brokerId);
+        }
+        const portfolio = await investmentsService.getPortfolio(req.userId, options);
         res.json({ data: portfolio });
     } catch (error) {
         next(error);

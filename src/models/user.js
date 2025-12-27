@@ -120,6 +120,39 @@ module.exports = (sequelize) => {
                 key: 'id'
             },
             comment: 'Active profile focus for WhatsApp bot transactions'
+        },
+        // ========================================
+        // PRIVACY SETTINGS
+        // ========================================
+        privacyAnalytics: {
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: true,
+            comment: 'Permite compartilhamento anônimo de dados de uso'
+        },
+        privacyCookies: {
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: true,
+            comment: 'Permite cookies de terceiros'
+        },
+        // ========================================
+        // SECURITY TRACKING
+        // ========================================
+        passwordChangedAt: {
+            type: DataTypes.DATE,
+            allowNull: true,
+            comment: 'Data da última alteração de senha'
+        },
+        // Account deletion
+        deletedAt: {
+            type: DataTypes.DATE,
+            allowNull: true,
+            comment: 'Soft delete timestamp'
+        },
+        deleteReason: {
+            type: DataTypes.STRING(500),
+            allowNull: true
         }
     }, {
         tableName: 'users',

@@ -60,6 +60,11 @@ const Broker = require('./broker')(sequelize);
 // Importar models - Fase 11 (Cache FII Data)
 const FIIData = require('./fiiData')(sequelize);
 
+// Importar models - Fase 12 (Settings Avançado)
+const UserSession = require('./userSession')(sequelize);
+const NotificationPreference = require('./notificationPreference')(sequelize);
+const PaymentMethod = require('./paymentMethod')(sequelize);
+
 // ===========================================
 // ASSOCIAÇÕES - Fase 1
 // ===========================================
@@ -391,5 +396,9 @@ module.exports = {
     // Fase 10 - Corretoras
     Broker,
     // Fase 11 - Cache FII Data
-    FIIData
+    FIIData,
+    // Fase 12 - Settings Avançado
+    UserSession,
+    NotificationPreference,
+    PaymentMethod
 };

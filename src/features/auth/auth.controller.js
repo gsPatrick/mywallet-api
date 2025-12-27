@@ -15,7 +15,7 @@ const register = async (req, res, next) => {
     try {
         const { name, email, password, salary, salaryDay } = req.body;
 
-        const result = await authService.register({ name, email, password, salary, salaryDay });
+        const result = await authService.register({ name, email, password, salary, salaryDay }, req);
 
         res.status(201).json({
             message: 'Usuário registrado com sucesso',
@@ -39,7 +39,7 @@ const login = async (req, res, next) => {
         const ipAddress = getClientIp(req);
         const userAgent = req.get('User-Agent') || 'unknown';
 
-        const result = await authService.login({ email, password, ipAddress, userAgent });
+        const result = await authService.login({ email, password, ipAddress, userAgent }, req);
 
         // --- GATILHOS EM BACKGROUND (Fire and Forget) ---
         // Não usamos 'await' para o login ser rápido

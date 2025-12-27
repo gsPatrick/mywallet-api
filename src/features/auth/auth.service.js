@@ -8,10 +8,19 @@ const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = requir
 const { logger } = require('../../config/logger');
 const { AppError } = require('../../middlewares/errorHandler');
 
+// Lazy import to avoid circular dependency
+let settingsService = null;
+const getSettingsService = () => {
+    if (!settingsService) {
+        settingsService = require('../settings/settings.service');
+    }
+    return settingsService;
+};
+
 /**
  * Registra um novo usuário
  */
-const register = async ({ name, email, password, salary, salaryDay }) => {
+const register = async ({ name, email, password, salary, salaryDay }, req = null) => {
     // Verificar se email já existe
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
@@ -42,6 +51,15 @@ const register = async ({ name, email, password, salary, salaryDay }) => {
     const accessToken = generateAccessToken({ userId: user.id, email: user.email });
     const refreshToken = generateRefreshToken({ userId: user.id });
 
+    // Create session for device tracking
+    if (req) {
+        try {
+            await getSettingsService().createSession(user.id, req, accessToken);
+        } catch (error) {
+            logger.warn(`Failed to create session for new user: ${error.message}`);
+        }
+    }
+
     return {
         user: user.toSafeObject(),
         accessToken,
@@ -52,11 +70,16 @@ const register = async ({ name, email, password, salary, salaryDay }) => {
 /**
  * Realiza login
  */
-const login = async ({ email, password, ipAddress, userAgent }) => {
+const login = async ({ email, password, ipAddress, userAgent }, req = null) => {
     // Buscar usuário
     const user = await User.findOne({ where: { email } });
     if (!user) {
         throw new AppError('Credenciais inválidas', 401, 'INVALID_CREDENTIALS');
+    }
+
+    // Check if account is deleted
+    if (user.deletedAt) {
+        throw new AppError('Esta conta foi desativada', 401, 'ACCOUNT_DELETED');
     }
 
     // Verificar senha
@@ -81,6 +104,15 @@ const login = async ({ email, password, ipAddress, userAgent }) => {
     // Gerar tokens
     const accessToken = generateAccessToken({ userId: user.id, email: user.email });
     const refreshToken = generateRefreshToken({ userId: user.id });
+
+    // Create session for device tracking
+    if (req) {
+        try {
+            await getSettingsService().createSession(user.id, req, accessToken);
+        } catch (error) {
+            logger.warn(`Failed to create session: ${error.message}`);
+        }
+    }
 
     return {
         user: user.toSafeObject(),

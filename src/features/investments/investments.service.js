@@ -148,10 +148,8 @@ const createInvestment = async (userId, data) => {
 
         await account.save();
     } else {
-        // Se não informar conta, lançamos erro ou permitimos legado?
-        // Com base no requisito "a pessoa SO deve conseguir comprar...", vou lançar Warning ou Error opcional.
-        // Para não quebrar testes antigos que não mandam conta, vou deixar passar mas logar.
-        // throw new AppError('É necessário selecionar uma conta Corretora para operar.', 400);
+        // Enforce broker account requirement
+        throw new AppError('É necessário selecionar uma conta Corretora para operar.', 400, 'BROKER_ACCOUNT_REQUIRED');
     }
 
     // 2. Busca o ativo no banco local
@@ -222,11 +220,21 @@ const createInvestment = async (userId, data) => {
 
 /**
  * Calcula o Portfólio Consolidado
+ * @param {number} userId - ID do usuário
+ * @param {Object} options - Filtros opcionais
+ * @param {number} options.brokerId - Filtrar por corretora específica
  */
-const getPortfolio = async (userId) => {
+const getPortfolio = async (userId, options = {}) => {
+    const { brokerId } = options;
+
     // 1. Busca operações de renda variável
+    const investmentWhere = { userId };
+    if (brokerId) {
+        investmentWhere.brokerId = brokerId;
+    }
+
     const investments = await Investment.findAll({
-        where: { userId },
+        where: investmentWhere,
         include: [{ model: Asset, as: 'asset' }]
     });
 

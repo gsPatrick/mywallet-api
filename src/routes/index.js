@@ -145,6 +145,12 @@ router.use('/brokers', brokersRoutes);
 const adminRoutes = require('../features/admin/admin.routes');
 router.use('/admin', adminRoutes);
 
+// ===========================================
+// REGISTRAR ROTAS - FASE 12 (SETTINGS AVANÇADO)
+// ===========================================
+const { settingsRoutes } = require('../features/settings');
+router.use('/settings', settingsRoutes);
+
 // Webhook do Mercado Pago (rota separada)
 router.post('/webhooks/mercadopago', (req, res, next) => {
     const webhookController = require('../features/subscription/webhook.controller');
