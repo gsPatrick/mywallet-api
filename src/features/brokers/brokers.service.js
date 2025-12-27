@@ -7,6 +7,7 @@
 const { Broker, Profile } = require('../../models');
 const { BROKERS_LIST, getDefaultBroker } = require('../../utils/brokersList');
 const { logger } = require('../../config/logger');
+const bankAccountsService = require('../bankAccounts/bankAccounts.service');
 
 class BrokersService {
     /**
@@ -69,6 +70,24 @@ class BrokersService {
         });
 
         logger.info(`📈 Corretora criada: ${broker.name} para perfil ${profileId}`);
+
+        // ✅ AUTO-CREATE: Create linked digital account for transfers
+        try {
+            await bankAccountsService.createBankAccount(userId, profileId, {
+                bankName: broker.name,
+                nickname: broker.name,
+                type: 'CORRETORA',
+                color: broker.color,
+                icon: broker.icon,
+                initialBalance: 0,
+                source: 'AUTO' // Mark as system-created
+            });
+            logger.info(`🏦 Conta digital criada automaticamente para corretora: ${broker.name}`);
+        } catch (err) {
+            // Log but don't fail the broker creation (soft failure)
+            logger.error(`⚠️ Erro ao criar conta digital automática para ${broker.name}:`, err);
+        }
+
         return broker;
     }
 
