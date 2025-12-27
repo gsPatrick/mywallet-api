@@ -76,6 +76,11 @@ module.exports = (sequelize) => {
             type: DataTypes.DECIMAL(10, 4),
             allowNull: true
         },
+        // Descrição amigável do indexador (ex: "CDI + 1.5%", "IPCA + 6%")
+        indexerDescription: {
+            type: DataTypes.STRING(100),
+            allowNull: true
+        },
         // Liquidez
         liquidity: {
             type: DataTypes.STRING(100),

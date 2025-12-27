@@ -99,6 +99,15 @@ module.exports = (sequelize) => {
         notes: {
             type: DataTypes.TEXT,
             allowNull: true
+        },
+        // Conta Bancária/Corretora usada na transação (Origem/Destino dos fundos)
+        bankAccountId: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            references: {
+                model: 'bank_accounts',
+                key: 'id'
+            }
         }
     }, {
         tableName: 'investments',

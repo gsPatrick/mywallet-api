@@ -79,7 +79,8 @@ module.exports = (sequelize) => {
                 'CONTA_POUPANCA',
                 'CONTA_PAGAMENTO',
                 'CONTA_SALARIO',
-                'CARTEIRA' // For general wallet
+                'CARTEIRA', // For general wallet
+                'CORRETORA' // Investment account
             ),
             allowNull: false,
             defaultValue: 'CONTA_CORRENTE'
