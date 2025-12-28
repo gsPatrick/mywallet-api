@@ -10,7 +10,7 @@ module.exports = (sequelize) => {
         version: {
             type: DataTypes.STRING,
             allowNull: false,
-            unique: true,
+            // unique: true, // Moved to indexes to avoid sync error with alter: true
             comment: 'Version number like 1.01',
         },
         title: {
@@ -42,6 +42,12 @@ module.exports = (sequelize) => {
     }, {
         tableName: 'patch_notes',
         timestamps: true,
+        indexes: [
+            {
+                unique: true,
+                fields: ['version']
+            }
+        ]
     });
 
     return PatchNote;

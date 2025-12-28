@@ -43,7 +43,7 @@ const startServer = async () => {
       // DEVELOPMENT: Sync com alter adiciona novas tabelas/colunas sem apagar dados
       // Para produção: use DB_SYNC=true para sincronizar uma vez
       await sequelize.sync({ force: true });
-      logger.info('✅ Models sincronizados (alter: true - tabelas novas criadas automaticamente)');
+      logger.info('✅ Models sincronizados (force: true - tabelas novas criadas automaticamente)');
     } else {
       // PRODUCTION: Apenas valida conexão, não altera schema automaticamente
       logger.info('📌 Produção: Schema sync desabilitado (use DB_SYNC=true ou migrations)');
