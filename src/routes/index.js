@@ -140,6 +140,12 @@ const brokersRoutes = require('../features/brokers/brokers.routes');
 router.use('/brokers', brokersRoutes);
 
 // ===========================================
+// REGISTRAR ROTAS - FASE 13 (PATCH NOTES)
+// ===========================================
+const patchNotesRoutes = require('../features/patch-notes/patchNotes.routes');
+router.use('/patch-notes', patchNotesRoutes);
+
+// ===========================================
 // REGISTRAR ROTAS - FASE 9 (SAAS - ADMIN)
 // ===========================================
 const adminRoutes = require('../features/admin/admin.routes');

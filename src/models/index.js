@@ -65,6 +65,9 @@ const UserSession = require('./userSession')(sequelize);
 const NotificationPreference = require('./notificationPreference')(sequelize);
 const PaymentMethod = require('./paymentMethod')(sequelize);
 
+// Importar models - Fase 13 (Patch Notes)
+const PatchNote = require('./patchNote')(sequelize);
+
 // ===========================================
 // ASSOCIAÇÕES - Fase 1
 // ===========================================
@@ -400,5 +403,7 @@ module.exports = {
     // Fase 12 - Settings Avançado
     UserSession,
     NotificationPreference,
-    PaymentMethod
+    PaymentMethod,
+    // Fase 13 - Patch Notes
+    PatchNote
 };
