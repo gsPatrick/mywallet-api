@@ -49,6 +49,82 @@ const startServer = async () => {
       logger.info('📌 Produção: Schema sync desabilitado (use DB_SYNC=true ou migrations)');
     }
 
+    // ============================================
+    // SEEDER INICIAL DE PATCH NOTES (LAUNCH 1.0)
+    // ============================================
+    const { PatchNote } = require('./models');
+    try {
+      const launchNoteData = {
+        version: '1.0.0',
+        title: 'Lançamento Oficial: O Início da Sua Liberdade Financeira',
+        description: 'Bem-vindo à versão 1.0! Estamos orgulhosos de apresentar a plataforma definitiva para o seu controle financeiro. Esta atualização consolida todas as ferramentas que você precisa para deixar de apenas "pagar contas" e começar a construir riqueza real. Assuma o controle, defina suas regras e deixe que a tecnologia trabalhe por você. O seu "eu" do futuro agradece.',
+        releaseDate: new Date(),
+        bannerUrl: 'https://images.unsplash.com/photo-1642543492481-44e81e3914a7?q=80&w=2560&auto=format&fit=crop',
+        isActive: true,
+        updates: [
+          {
+            type: 'new',
+            content: 'Dashboard Inteligente: Visão 360º do seu patrimônio, receitas e despesas em tempo real.'
+          },
+          {
+            type: 'new',
+            content: 'Open Finance Real: Conecte bancos e cartões automaticamente. Adeus, digitação manual!'
+          },
+          {
+            type: 'new',
+            content: 'Gestão de Investimentos: Ações, FIIs, Renda Fixa e Cripto consolidado em um só lugar com cotações ao vivo.'
+          },
+          {
+            type: 'new',
+            content: 'Metas & Objetivos: Transforme sonhos em planos. Defina valores, prazos e acompanhe o progresso da sua evolução.'
+          },
+          {
+            type: 'new',
+            content: 'Orçamentos (Budgets): Defina limites por categoria e seja alertado antes de sair dos trilhos.'
+          },
+          {
+            type: 'new',
+            content: 'Central do Assinante: Gestão completa de recorrências (Netflix, Spotify, etc) para cortar gastos invisíveis.'
+          },
+          {
+            type: 'new',
+            content: 'Gamificação Financeira: Conquiste medalhas, suba de nível e torne a disciplina financeira um hábito.'
+          },
+          {
+            type: 'new',
+            content: 'Central MEI (DAS): Controle suas guias e obrigações de microempreendedor integrado ao seu fluxo de caixa.'
+          },
+          {
+            type: 'new',
+            content: 'Relatórios Avançados: Exporte seus dados e analise sua evolução patrimonial mês a mês.'
+          },
+          {
+            type: 'new',
+            content: 'Integração WhatsApp: Receba seu "Morning Briefing" financeiro e consulte saldo pelo chat.'
+          },
+          {
+            type: 'new',
+            content: 'Multi-Contexto: Separe suas finanças Pessoais das Empresariais ou Familiares com facilidade.'
+          }
+        ]
+      };
+
+      const existingPatch = await PatchNote.findOne({ where: { version: '1.0.0' } });
+
+      if (existingPatch) {
+        // Atualiza se já existir (para corrigir o conteúdo anterior)
+        await existingPatch.update(launchNoteData);
+        logger.info('✨ Patch Note 1.0 atualizado com o conteúdo oficial de lançamento!');
+      } else {
+        // Cria se não existir
+        await PatchNote.create(launchNoteData);
+        logger.info('✨ Patch Note 1.0 criado com sucesso!');
+      }
+    } catch (seedError) {
+      logger.error('❌ Erro ao criar/atualizar patch note inicial:', seedError);
+    }
+    // ============================================
+
     // =====================================================
     // 🚀 GATILHO DE POPULAÇÃO DO MERCADO
     // =====================================================
