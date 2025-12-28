@@ -45,12 +45,14 @@ class ReportsService {
             positions.push({
                 ticker: inv.asset.ticker,
                 name: inv.asset.name,
+                logoUrl: inv.asset.logoUrl,
                 type: inv.asset.type,
                 quantity: inv.quantity,
                 averagePrice: inv.price,
                 currentPrice: mockCurrentPrice, // Mock
                 totalCost: cost,
                 totalCurrentValue: currentValue,
+                currentBalance: currentValue,
                 profit: currentValue - cost,
                 profitPercent: ((currentValue - cost) / cost) * 100
             });
