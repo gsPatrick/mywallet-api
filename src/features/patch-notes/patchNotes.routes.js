@@ -9,6 +9,7 @@ const { authMiddleware } = require('../../middlewares/authMiddleware');
 // Public Routes
 router.get('/', patchNotesController.listPatchNotes);
 router.get('/latest', patchNotesController.getLatestPatchNote);
+router.get('/:id', patchNotesController.getPatchNoteById);
 
 // Admin Routes - Protected
 // Note: Assuming 'authenticate' populates req.user. We should verify admin status in controller or separate middleware.

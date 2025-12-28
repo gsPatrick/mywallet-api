@@ -46,6 +46,23 @@ const patchNotesController = {
         }
     },
 
+    // Public: Get patch note by ID
+    getPatchNoteById: async (req, res, next) => {
+        try {
+            const { id } = req.params;
+            const note = await PatchNote.findByPk(id);
+
+            if (!note) {
+                return res.status(404).json({ message: 'Patch note not found' });
+            }
+
+            return res.json(note);
+        } catch (error) {
+            logger.error('Error fetching patch note by ID:', error);
+            next(error);
+        }
+    },
+
     // Admin: Create patch note
     createPatchNote: async (req, res, next) => {
         try {
