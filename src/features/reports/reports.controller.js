@@ -4,7 +4,8 @@ const statementService = require('./statement.service');
 class ReportsController {
     async getPortfolio(req, res) {
         try {
-            const data = await reportsService.getPortfolioSummary(req.user.id);
+            const { brokerId } = req.query;
+            const data = await reportsService.getPortfolioSummary(req.user.id, brokerId);
             res.json(data);
         } catch (error) {
             res.status(500).json({ error: error.message });

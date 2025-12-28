@@ -4,10 +4,16 @@ const {
 const { Op } = require('sequelize');
 
 class ReportsService {
-    async getPortfolioSummary(userId) {
+    async getPortfolioSummary(userId, brokerId) {
+        // Build where clause
+        const where = { userId };
+        if (brokerId) {
+            where.brokerId = brokerId;
+        }
+
         // Buscar todos os investimentos do usuário
         const investments = await Investment.findAll({
-            where: { userId },
+            where,
             include: [{ model: Asset, as: 'asset' }]
         });
 
