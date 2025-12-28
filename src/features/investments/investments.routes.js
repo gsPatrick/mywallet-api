@@ -7,14 +7,23 @@
 
 const { Router } = require('express');
 const investmentsController = require('./investments.controller');
+const healthController = require('./investmentHealth.controller');
 const { authMiddleware } = require('../../middlewares/authMiddleware');
 const { profileMiddleware } = require('../../middlewares/profileMiddleware');
 const { validate } = require('../../utils/validators');
 
 const router = Router();
 
-// ✅ Auth first, then profile isolation
-router.use(authMiddleware);
+// ==========================================
+// HEALTH DIAGNOSTICS (No profile isolation needed)
+// ==========================================
+router.use(authMiddleware); // Auth required
+router.get('/health/diagnostics', healthController.getDiagnostics);
+router.get('/health/test/:service', healthController.testSpecificService);
+
+// ==========================================
+// PROFILE-ISOLATED ROUTES
+// ==========================================
 router.use(profileMiddleware);
 
 const createSchema = {
