@@ -6,16 +6,12 @@
  * - getAvailableFIIs: Lista FIIs usando type=fund
  * - getDividendsHistory: Busca proventos de FIIs
  * - Validação: NÃO cachear preços zerados/null
+ * - REDIS: Cache compartilhado entre usuários
  */
 
 const axios = require('axios');
-const NodeCache = require('node-cache');
+const cacheService = require('../../services/cache.service');
 const { logger } = require('../../config/logger');
-
-// Cache de cotações (TTL em segundos)
-const cache = new NodeCache({
-    stdTTL: parseInt(process.env.BRAPI_CACHE_TTL) || 900 // 15 minutos
-});
 
 const BRAPI_BASE_URL = process.env.BRAPI_BASE_URL || 'https://brapi.dev/api';
 const BRAPI_TOKEN = process.env.BRAPI_TOKEN;
@@ -25,8 +21,8 @@ const BRAPI_TOKEN = process.env.BRAPI_TOKEN;
  * VALIDAÇÃO CRÍTICA: Não cacheia se preço for 0 ou null
  */
 const getQuote = async (ticker) => {
-    const cacheKey = `quote_${ticker}`;
-    const cached = cache.get(cacheKey);
+    const cacheKey = cacheService.KEYS.BRAPI_QUOTE(ticker);
+    const cached = await cacheService.get(cacheKey);
 
     if (cached) {
         return cached;
@@ -58,7 +54,7 @@ const getQuote = async (ticker) => {
                 updatedAt: new Date(quote.regularMarketTime * 1000)
             };
 
-            cache.set(cacheKey, data);
+            await cacheService.set(cacheKey, data, cacheService.TTL.QUOTES);
             return data;
         }
 
@@ -77,10 +73,14 @@ const getQuotes = async (tickers) => {
     const results = {};
     const tickersToFetch = [];
 
+    // Check cache for each ticker
+    const cacheKeys = tickers.map(t => cacheService.KEYS.BRAPI_QUOTE(t));
+    const cachedResults = await cacheService.getMultiple(cacheKeys);
+
     for (const ticker of tickers) {
-        const cached = cache.get(`quote_${ticker}`);
-        if (cached) {
-            results[ticker] = cached;
+        const cacheKey = cacheService.KEYS.BRAPI_QUOTE(ticker);
+        if (cachedResults[cacheKey]) {
+            results[ticker] = cachedResults[cacheKey];
         } else {
             tickersToFetch.push(ticker);
         }
@@ -111,7 +111,7 @@ const getQuotes = async (tickers) => {
                     updatedAt: new Date(quote.regularMarketTime * 1000)
                 };
 
-                cache.set(`quote_${quote.symbol}`, data);
+                await cacheService.set(cacheService.KEYS.BRAPI_QUOTE(quote.symbol), data, cacheService.TTL.QUOTES);
                 results[quote.symbol] = data;
             }
         } catch (error) {
@@ -233,8 +233,8 @@ const getAssetInfo = async (ticker) => {
 /**
  * Limpa cache de cotações
  */
-const clearCache = () => {
-    cache.flushAll();
+const clearCache = async () => {
+    await cacheService.flushAll();
     logger.info('🗑️ [BRAPI] Cache limpo');
 };
 

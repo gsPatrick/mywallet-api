@@ -17,6 +17,9 @@ const { logger } = require('./config/logger');
 // IMPORTANTE: Importar o serviço de sync de ativos
 const assetsService = require('./features/investments/assets.service');
 
+// REDIS: Cache compartilhado para investimentos
+const { initRedis, disconnectRedis } = require('./config/redis');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -38,6 +41,10 @@ const startServer = async () => {
   try {
     await sequelize.authenticate();
     logger.info('✅ Conexão com banco de dados estabelecida');
+
+    // Inicializar Redis para cache compartilhado
+    initRedis();
+    logger.info('🔴 Redis inicializado para cache de investimentos');
 
     if (process.env.NODE_ENV === 'development' || process.env.DB_SYNC === 'false') {
       // DEVELOPMENT: Sync com alter adiciona novas tabelas/colunas sem apagar dados

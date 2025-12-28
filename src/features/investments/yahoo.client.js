@@ -12,9 +12,10 @@
  * Funcionalidades Extras:
  * - Detecta ativos BR vs Internacionais
  * - Converte automaticamente de USD para BRL se necessário
+ * - REDIS: Cache compartilhado entre usuários
  */
 
-const nodeCache = require('node-cache');
+const cacheService = require('../../services/cache.service');
 const { logger } = require('../../config/logger');
 
 // Importação flexível para suportar diferentes versões
@@ -34,9 +35,6 @@ try {
     logger.error('❌ [YAHOO] Erro ao inicializar:', error);
     yahooFinance = pkg.default || pkg;
 }
-
-// Cache de 15 minutos
-const cache = new nodeCache({ stdTTL: 900 });
 
 /**
  * Normaliza ticker para Yahoo (Tenta adivinhar se é BR ou US)
@@ -78,12 +76,15 @@ const getQuotes = async (tickers) => {
     const symbolsToFetch = [];
     const tickerMap = {};
 
-    // 1. Verifica cache
+    // 1. Verifica cache - usando Redis
+    const cacheKeys = tickers.map(t => cacheService.KEYS.YAHOO_QUOTE(normalizeTicker(t)));
+    const cachedResults = await cacheService.getMultiple(cacheKeys);
+
     for (const t of tickers) {
         const symbol = normalizeTicker(t);
-        const cached = cache.get(`yahoo_quote_${symbol}`);
-        if (cached) {
-            results[t] = cached;
+        const cacheKey = cacheService.KEYS.YAHOO_QUOTE(symbol);
+        if (cachedResults[cacheKey]) {
+            results[t] = cachedResults[cacheKey];
         } else {
             symbolsToFetch.push(symbol);
             tickerMap[symbol] = t;
@@ -214,7 +215,7 @@ const getQuotes = async (tickers) => {
                 logger.debug(`📝 [YAHOO] ${originalTicker}: dados fundamentais incompletos`);
             }
 
-            cache.set(`yahoo_quote_${symbol}`, data);
+            await cacheService.set(cacheService.KEYS.YAHOO_QUOTE(symbol), data, cacheService.TTL.QUOTES);
             results[originalTicker] = data;
 
         } catch (error) {

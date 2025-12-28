@@ -8,24 +8,21 @@
  *   - POST_FIXED (CDI %)
  *   - INFLATION (IPCA + spread)
  *   - PRE (Fixed rate)
- * - Caches rates to minimize external API calls
+ * - REDIS: Caches rates to share across all users
  */
 
 const axios = require('axios');
-const nodeCache = require('node-cache');
+const cacheService = require('../../services/cache.service');
 const moment = require('moment');
 const { logger } = require('../../config/logger');
 
-// Cache rates for 24 hours
-const rateCache = new nodeCache({ stdTTL: 86400 });
-
 /**
  * Fetch real market rates (CDI, IPCA, Selic) from BCB API
- * Uses independent caching to ensure availability
+ * Uses Redis caching to ensure availability and share across users
  */
 const getFees = async () => {
-    // Check cache
-    const cached = rateCache.get('market_rates');
+    // Check Redis cache
+    const cached = await cacheService.get(cacheService.KEYS.MARKET_RATES);
     if (cached) return cached;
 
     try {
@@ -59,7 +56,8 @@ const getFees = async () => {
 
         logger.info(`✅ [BCB] Rates updated: CDI ${rates.cdi}%, IPCA ${rates.ipca}%`);
 
-        rateCache.set('market_rates', rates);
+        // Cache for 24 hours (rates rarelly change intraday)
+        await cacheService.set(cacheService.KEYS.MARKET_RATES, rates, cacheService.TTL.RATES);
         return rates;
     } catch (error) {
         logger.error(`❌ Failed to fetch BCB rates: ${error.message}`);
