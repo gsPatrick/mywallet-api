@@ -44,12 +44,12 @@ const getUserContext = async (userId, profileId = null) => {
 
     const banks = await BankAccount.findAll({
         where: { userId, isActive: true },
-        attributes: ['id', 'bankName', 'nickname', 'type', 'balance']
+        attributes: ['id', 'bankName', 'nickname', 'type', 'balance', 'icon']
     });
 
     const cards = await CreditCard.findAll({
         where: { userId, isActive: true },
-        attributes: ['id', 'name', 'bankName', 'brand', 'lastFourDigits', 'creditLimit', 'availableLimit', 'closingDay', 'dueDay']
+        attributes: ['id', 'name', 'bankName', 'brand', 'lastFourDigits', 'creditLimit', 'availableLimit', 'closingDay', 'dueDay', 'brandIcon', 'bankIcon']
     });
 
     const categoryWhere = profileId
