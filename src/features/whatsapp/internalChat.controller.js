@@ -49,7 +49,7 @@ const getUserContext = async (userId, profileId = null) => {
 
     const cards = await CreditCard.findAll({
         where: { userId, isActive: true },
-        attributes: ['id', 'name', 'bankName', 'brand', 'lastFourDigits', 'creditLimit', 'usedLimit', 'closingDay', 'dueDay']
+        attributes: ['id', 'name', 'bankName', 'brand', 'lastFourDigits', 'creditLimit', 'availableLimit', 'closingDay', 'dueDay']
     });
 
     const categoryWhere = profileId
@@ -191,8 +191,8 @@ const handleShortcutCommand = async (text, user, activeProfile, context) => {
 
         const cardsList = context.cards.map(card => {
             const limit = parseFloat(card.creditLimit) || 0;
-            const used = parseFloat(card.usedLimit) || 0;
-            const available = limit - used;
+            const available = parseFloat(card.availableLimit) || limit;
+            const used = limit - available;
             const usagePercent = limit > 0 ? Math.round((used / limit) * 100) : 0;
 
             totalLimit += limit;
@@ -465,7 +465,7 @@ const processMessage = async (req, res) => {
                         name: c.name || c.bankName,
                         lastFour: c.lastFourDigits,
                         limit: parseFloat(c.creditLimit) || 0,
-                        used: parseFloat(c.usedLimit) || 0
+                        used: parseFloat(c.creditLimit) - (parseFloat(c.availableLimit) || parseFloat(c.creditLimit) || 0)
                     })),
                     profile: activeProfile?.name
                 };
