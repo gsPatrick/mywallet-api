@@ -42,14 +42,19 @@ const getUserContext = async (userId, profileId = null) => {
         attributes: ['id', 'name', 'type', 'isDefault']
     });
 
+    const whereClause = { userId, isActive: true };
+    if (profileId) {
+        whereClause.profileId = profileId;
+    }
+
     const banks = await BankAccount.findAll({
-        where: { userId, isActive: true },
+        where: whereClause,
         attributes: ['id', 'bankName', 'nickname', 'type', 'balance', 'icon']
     });
 
     const cards = await CreditCard.findAll({
-        where: { userId, isActive: true },
-        attributes: ['id', 'name', 'bankName', 'brand', 'lastFourDigits', 'creditLimit', 'availableLimit', 'closingDay', 'dueDay', 'brandIcon', 'bankIcon']
+        where: whereClause,
+        attributes: ['id', 'name', 'bankName', 'brand', 'lastFourDigits', 'creditLimit', 'availableLimit', 'closingDay', 'dueDay', 'brandIcon', 'bankIcon', 'color']
     });
 
     const categoryWhere = profileId
@@ -210,7 +215,8 @@ const handleShortcutCommand = async (text, user, activeProfile, context) => {
                 closingDay: card.closingDay,
                 dueDay: card.dueDay,
                 brandIcon: card.brandIcon,
-                bankIcon: card.bankIcon
+                bankIcon: card.bankIcon,
+                color: card.color
             };
         });
 
@@ -269,6 +275,115 @@ const handleShortcutCommand = async (text, user, activeProfile, context) => {
         };
     }
 
+    // PAGAR FATURA: Register invoice payment
+    if (upperText.startsWith('PAGAR FATURA')) {
+        const cards = await CreditCard.findAll({
+            where: { userId: user.id, isActive: true }
+        });
+
+        if (cards.length === 0) {
+            return { type: 'ERROR', text: '❌ Nenhum cartão cadastrado.' };
+        }
+
+        // Extract amount from command
+        const match = upperText.match(/PAGAR FATURA\s+(\d+(?:[.,]\d+)?)/);
+        let paymentAmount = 0;
+        let paymentType = 'FULL';
+
+        if (match) {
+            paymentAmount = parseFloat(match[1].replace(',', '.'));
+            paymentType = 'PARTIAL';
+        }
+
+        const now = new Date();
+        const month = now.getMonth() + 1;
+        const year = now.getFullYear();
+
+        // Get main card (first active)
+        const card = cards[0];
+
+        // Get or create invoice
+        let invoice = await CardInvoice.findOne({
+            where: { cardId: card.id, referenceMonth: month, referenceYear: year }
+        });
+
+        if (!invoice) {
+            invoice = await invoicesService.generateInvoice(user.id, activeProfile?.id, card.id, month, year);
+        }
+
+        const remaining = parseFloat(invoice.totalAmount) - parseFloat(invoice.paidAmount);
+
+        if (remaining <= 0) {
+            return { type: 'ERROR', text: `✅ A fatura do cartão *${card.name || card.bankName}* já está totalmente paga!` };
+        }
+
+        // If no amount specified, pay full
+        if (paymentAmount <= 0) {
+            paymentAmount = remaining;
+            paymentType = 'FULL';
+        }
+
+        try {
+            const result = await invoicesService.payInvoice(user.id, activeProfile?.id, invoice.id, {
+                amount: paymentAmount,
+                paymentType,
+                paymentMethod: 'PIX',
+                notes: 'Pagamento via WhatsApp'
+            });
+
+            return {
+                type: 'INVOICE_PAYMENT',
+                cardName: card.name || card.bankName,
+                amount: result.payment.amount,
+                date: new Date(),
+                remaining: result.invoice.remainingAmount,
+                status: result.invoice.remainingAmount <= 0 ? 'PAID' : 'PARTIAL',
+                profile: activeProfile?.name
+            };
+        } catch (err) {
+            return { type: 'ERROR', text: `❌ Erro ao registrar pagamento: ${err.message}` };
+        }
+    }
+
+    // HISTORICO FATURAS: Invoice history
+    if (upperText === 'HISTORICO FATURAS' || upperText === 'HISTÓRICO FATURAS') {
+        const cards = await CreditCard.findAll({
+            where: { userId: user.id, isActive: true }
+        });
+
+        if (cards.length === 0) {
+            return { type: 'ERROR', text: '❌ Nenhum cartão cadastrado.' };
+        }
+
+        const history = [];
+
+        for (const card of cards) {
+            const invoices = await CardInvoice.findAll({
+                where: { cardId: card.id },
+                order: [['referenceYear', 'DESC'], ['referenceMonth', 'DESC']],
+                limit: 6
+            });
+
+            if (invoices.length === 0) continue;
+
+            history.push({
+                cardName: card.name || card.bankName,
+                invoices: invoices.map(inv => ({
+                    month: inv.referenceMonth,
+                    year: inv.referenceYear,
+                    total: parseFloat(inv.totalAmount),
+                    status: inv.status
+                }))
+            });
+        }
+
+        return {
+            type: 'INVOICE_HISTORY',
+            history,
+            profile: activeProfile?.name
+        };
+    }
+
     // MENU
     if (upperText === 'MENU') {
         return {
@@ -278,18 +393,110 @@ const handleShortcutCommand = async (text, user, activeProfile, context) => {
                 { cmd: 'BANCOS', desc: 'Ver saldo por conta' },
                 { cmd: 'CARTOES', desc: 'Ver cartões' },
                 { cmd: 'FATURA', desc: 'Ver faturas atuais' },
+                { cmd: 'PAGAR FATURA [valor]', desc: 'Registrar pagamento' },
+                { cmd: 'HISTORICO FATURAS', desc: 'Histórico de faturas' },
                 { cmd: 'PF/PJ', desc: 'Alternar perfil' }
             ],
             examples: [
                 'Gastei 50 no Uber',
                 'Recebi 1000 de salário',
-                'Quanto gastei hoje?'
+                'Quanto gastei hoje?',
+                'Resumo do mês'
             ],
             profile: activeProfile?.name
         };
     }
 
     return null;
+};
+
+// ========================================
+// QUERY ENGINE
+// ========================================
+
+const executeQuery = async (queryOptions, userId, profileId, activeProfile) => {
+    const { period = 'month', filter = 'all' } = queryOptions;
+
+    // Calculate date range
+    const now = new Date();
+    let startDate, endDate = now;
+
+    switch (period) {
+        case 'day':
+            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            break;
+        case 'week':
+            const dayOfWeek = now.getDay();
+            startDate = new Date(now);
+            startDate.setDate(now.getDate() - dayOfWeek);
+            startDate.setHours(0, 0, 0, 0);
+            break;
+        case 'year':
+            startDate = new Date(now.getFullYear(), 0, 1);
+            break;
+        case 'month':
+        default:
+            startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            break;
+    }
+
+    // Build where clause
+    const whereClause = {
+        userId,
+        date: { [Op.between]: [startDate, endDate] }
+    };
+
+    if (profileId) {
+        whereClause.profileId = profileId;
+    }
+
+    if (filter === 'income') {
+        whereClause.type = 'INCOME';
+    } else if (filter === 'expense') {
+        whereClause.type = 'EXPENSE';
+    }
+
+    // Query manual transactions
+    const manualTransactions = await ManualTransaction.findAll({
+        where: whereClause,
+        order: [['date', 'DESC']],
+        limit: 50,
+        include: [{ model: Category, as: 'category', attributes: ['name'] }]
+    });
+
+    // Calculate totals
+    let totalIncome = 0;
+    let totalExpense = 0;
+
+    manualTransactions.forEach(t => {
+        if (t.type === 'INCOME') {
+            totalIncome += parseFloat(t.amount);
+        } else {
+            totalExpense += parseFloat(t.amount);
+        }
+    });
+
+    const balance = totalIncome - totalExpense;
+
+    return {
+        type: 'QUERY_RESULT',
+        period,
+        startDate,
+        endDate,
+        totalIncome,
+        totalExpense,
+        balance,
+        transactions: manualTransactions.map(t => ({
+            id: t.id,
+            shortId: generateShortId(t.id),
+            type: t.type,
+            amount: parseFloat(t.amount),
+            description: t.description,
+            category: t.category?.name || 'Sem categoria',
+            date: t.date
+        })),
+        profile: activeProfile?.name
+    };
 };
 
 // ========================================
@@ -437,12 +644,12 @@ const processMessage = async (req, res) => {
 
             case 'QUERY':
                 // Execute query (simplified for now)
-                response = {
-                    type: 'QUERY_RESULT',
-                    period: parsed.queryOptions?.period || 'month',
-                    filter: parsed.queryOptions?.filter || 'all',
-                    profile: activeProfile?.name
-                };
+                response = await executeQuery(
+                    parsed.queryOptions,
+                    userId,
+                    activeProfile?.id,
+                    activeProfile
+                );
                 break;
 
             case 'BALANCE':
