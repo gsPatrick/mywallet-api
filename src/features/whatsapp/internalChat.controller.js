@@ -153,7 +153,8 @@ const handleShortcutCommand = async (text, user, activeProfile, context) => {
             banks: context.banks.map(b => ({
                 name: b.bankName,
                 nickname: b.nickname,
-                balance: parseFloat(b.balance) || 0
+                balance: parseFloat(b.balance) || 0,
+                icon: b.icon
             })),
             profile: activeProfile?.name
         };
@@ -169,7 +170,7 @@ const handleShortcutCommand = async (text, user, activeProfile, context) => {
         const banksList = context.banks.map(b => {
             const balance = parseFloat(b.balance) || 0;
             totalBalance += balance;
-            return { name: b.bankName, nickname: b.nickname, balance };
+            return { name: b.bankName, nickname: b.nickname, balance, icon: b.icon };
         });
 
         return {
@@ -207,7 +208,9 @@ const handleShortcutCommand = async (text, user, activeProfile, context) => {
                 available,
                 usagePercent,
                 closingDay: card.closingDay,
-                dueDay: card.dueDay
+                dueDay: card.dueDay,
+                brandIcon: card.brandIcon,
+                bankIcon: card.bankIcon
             };
         });
 
