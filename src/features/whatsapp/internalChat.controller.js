@@ -180,8 +180,8 @@ const handleShortcutCommand = async (text, user, activeProfile, context) => {
         };
     }
 
-    // CARTOES
-    if (upperText === 'CARTOES' || upperText === 'CARTÕES') {
+    // CARTOES (accept singular CARTAO too)
+    if (upperText === 'CARTOES' || upperText === 'CARTÕES' || upperText === 'CARTAO' || upperText === 'CARTÃO') {
         if (context.cards.length === 0) {
             return { type: 'ERROR', text: '❌ Nenhum cartão cadastrado.' };
         }
