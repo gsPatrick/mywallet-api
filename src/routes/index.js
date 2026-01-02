@@ -75,6 +75,19 @@ router.get('/', (req, res) => {
     });
 });
 
+// Health check endpoint for network status detection
+router.get('/health', (req, res) => {
+    res.status(200).json({
+        status: 'ok',
+        timestamp: new Date().toISOString()
+    });
+});
+
+// Also support HEAD for lightweight checks
+router.head('/health', (req, res) => {
+    res.status(200).end();
+});
+
 // ===========================================
 // REGISTRAR ROTAS - FASE 1
 // ===========================================
