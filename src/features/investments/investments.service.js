@@ -114,11 +114,14 @@ const listAssets = async (filters = {}) => {
  * Lista o histórico de operações (compras e vendas) do usuário
  */
 const listInvestments = async (userId, filters = {}) => {
-    const { assetType, page = 1, limit = 50 } = filters;
+    const { assetType, brokerId, page = 1, limit = 50 } = filters;
 
     const where = {};
     if (assetType) {
         where['$asset.type$'] = assetType;
+    }
+    if (brokerId) {
+        where.brokerId = brokerId;
     }
 
     const investments = await Investment.findAll({
@@ -144,6 +147,7 @@ const listInvestments = async (userId, filters = {}) => {
         price: parseFloat(inv.price),
         totalValue: inv.getTotalValue(),
         date: inv.date,
+        brokerId: inv.brokerId, // Return brokerId for clarity
         broker: inv.broker
     }));
 };
@@ -285,19 +289,26 @@ const getPortfolio = async (userId, options = {}) => {
     });
 
     // 2. Busca produtos financeiros manuais
-    const financialProducts = await FinancialProduct.findAll({
-        where: { userId, status: 'ACTIVE' }
-    });
+    // Se estiver filtrando por corretora, NÃO traz produtos manuais (pois não têm vínculo estrito de ID)
+    const financialProducts = !brokerId
+        ? await FinancialProduct.findAll({ where: { userId, status: 'ACTIVE' } })
+        : [];
 
-    // 3. Busca dividendos dos últimos 12 meses para cálculo do DY (especialmente FIIs)
+    // 3. Busca dividendos estatísticos (apenas para cálculo, ou histórico geral)
+    // Se for visualização por corretora, idealmente restringir ou não mostrar total geral
     const twelveMonthsAgo = new Date();
     twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
 
+    const dividendsWhere = {
+        userId,
+        paymentDate: { [Op.gte]: twelveMonthsAgo }
+    };
+
+    // Se tiver brokerId, os dividendos gerais não devem ser somados no "total recebido" dessa view
+    // Mas precisamos deles para calcular o DY dos ativos que aparecerem?
+    // Decisão: Manter busca para cálculo de indicadores (DY), mas filtrar o retorno visual se necessário.
     const dividends = await Dividend.findAll({
-        where: {
-            userId,
-            paymentDate: { [Op.gte]: twelveMonthsAgo }
-        },
+        where: dividendsWhere,
         include: [{ model: Asset, as: 'asset', attributes: ['ticker', 'type'] }]
     });
 
