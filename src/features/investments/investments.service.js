@@ -57,9 +57,9 @@ const listAssets = async (filters = {}) => {
 
     tickers.forEach(t => {
         const cleanTicker = t.toUpperCase().replace('.SA', '');
-        // Regex MELHORADO para B3: Aceita letras E números nos 4 primeiros chars (Ex: A1AP34)
-        // Padrão: 4 alfanuméricos + 1 ou 2 dígitos + opcional 'B'
-        const isB3Pattern = /^[A-Z0-9]{4}\d{1,2}B?$/.test(cleanTicker);
+        // Regex MELHORADO para B3: Aceita letras E números (BDRs) + Sufixo B (BDR) ou F (Fracionário)
+        // Ex: PETR4, PETR4F, A1AP34, ALUP11, ALUP11F
+        const isB3Pattern = /^[A-Z0-9]{4}\d{1,2}(B|F)?$/.test(cleanTicker);
 
         if (isB3Pattern || t.endsWith('.SA')) {
             brTickers.push(cleanTicker);
@@ -367,8 +367,8 @@ const getPortfolio = async (userId, options = {}) => {
 
     allTickers.forEach(t => {
         const cleanTicker = t.toUpperCase().replace('.SA', '');
-        // Regex MELHORADO para B3: Aceita letras E números nos 4 primeiros chars (Ex: A1AP34)
-        const isB3Pattern = /^[A-Z0-9]{4}\d{1,2}B?$/.test(cleanTicker);
+        // Regex MELHORADO para B3: Aceita letras E números (BDRs) + Sufixo B (BDR) ou F (Fracionário)
+        const isB3Pattern = /^[A-Z0-9]{4}\d{1,2}(B|F)?$/.test(cleanTicker);
 
         if (isB3Pattern || t.endsWith('.SA')) {
             brTickers.push(cleanTicker);
