@@ -48,7 +48,52 @@ const listAssets = async (filters = {}) => {
     // Tenta buscar cotação atual para a lista de mercado ficar bonita
     // (Opcional: pode deixar sem preço na busca se ficar lento)
     const tickers = assets.map(a => a.ticker);
-    const quotes = await yahooClient.getQuotes(tickers);
+
+    // =========================================================================
+    // HÍBRIDO: BRAPI + YAHOO (Igual ao getPortfolio)
+    // =========================================================================
+    const brTickers = [];
+    const intlTickers = [];
+
+    tickers.forEach(t => {
+        const cleanTicker = t.toUpperCase().replace('.SA', '');
+        // Regex MELHORADO para B3: Aceita letras E números nos 4 primeiros chars (Ex: A1AP34)
+        // Padrão: 4 alfanuméricos + 1 ou 2 dígitos + opcional 'B'
+        const isB3Pattern = /^[A-Z0-9]{4}\d{1,2}B?$/.test(cleanTicker);
+
+        if (isB3Pattern || t.endsWith('.SA')) {
+            brTickers.push(cleanTicker);
+        } else {
+            intlTickers.push(t);
+        }
+    });
+
+    let quotes = {};
+
+    // 1. Busca BRA (Brapi)
+    if (brTickers.length > 0) {
+        try {
+            const brapiResults = await brapiClient.getQuotes(brTickers);
+            Object.entries(brapiResults).forEach(([key, val]) => {
+                if (val) {
+                    quotes[key] = val;
+                    quotes[`${key}.SA`] = val;
+                }
+            });
+        } catch (error) {
+            logger.error(`❌ Erro Brapi (listAssets): ${error.message}`);
+        }
+    }
+
+    // 2. Busca INTL (Yahoo)
+    if (intlTickers.length > 0) {
+        try {
+            const yahooResults = await yahooClient.getQuotes(intlTickers);
+            quotes = { ...quotes, ...yahooResults };
+        } catch (error) {
+            logger.error(`❌ Erro Yahoo (listAssets): ${error.message}`);
+        }
+    }
 
     return {
         assets: assets.map(asset => ({
@@ -322,8 +367,8 @@ const getPortfolio = async (userId, options = {}) => {
 
     allTickers.forEach(t => {
         const cleanTicker = t.toUpperCase().replace('.SA', '');
-        // Regex para padrão B3 (4 letras + números, ex: PETR4, MXRF11, BOVA11)
-        const isB3Pattern = /^[A-Z]{4}\d{1,2}B?$/.test(cleanTicker);
+        // Regex MELHORADO para B3: Aceita letras E números nos 4 primeiros chars (Ex: A1AP34)
+        const isB3Pattern = /^[A-Z0-9]{4}\d{1,2}B?$/.test(cleanTicker);
 
         if (isB3Pattern || t.endsWith('.SA')) {
             brTickers.push(cleanTicker);
