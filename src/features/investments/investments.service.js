@@ -348,11 +348,25 @@ const getPortfolio = async (userId, options = {}) => {
     const variableIncomePositions = Object.values(positionsMap)
         .filter(p => p.quantity > 0.000001)
         .map(p => {
-            const quote = quotes[p.ticker];
-            const currentPrice = quote ? quote.price : (p.totalCost / p.quantity);
+            const normalizedTicker = p.ticker.trim().toUpperCase();
+            const quote = quotes[normalizedTicker] || quotes[p.ticker]; // Tenta normalizado, depois original
+
+            let currentPrice = 0;
+            let priceError = false;
+
+            if (quote && quote.price > 0) {
+                currentPrice = quote.price;
+            } else {
+                // FALLBACK REMOVIDO: Não mascarar erro com preço médio
+                // currentPrice = (p.totalCost / p.quantity); 
+                currentPrice = 0; // Ou mantém 0
+                priceError = true; // Sinaliza erro para o frontend
+            }
+
             const currentBalance = p.quantity * currentPrice;
-            const profit = currentBalance - p.totalCost;
-            const profitPercent = p.totalCost > 0 ? (profit / p.totalCost) * 100 : 0;
+            // Profit só faz sentido se tiver preço real
+            const profit = priceError ? 0 : (currentBalance - p.totalCost);
+            const profitPercent = (p.totalCost > 0 && !priceError) ? (profit / p.totalCost) * 100 : 0;
 
             totalInvested += p.totalCost;
             totalCurrentBalance += currentBalance;

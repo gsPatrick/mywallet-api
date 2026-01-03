@@ -23,16 +23,15 @@ const pkg = require('yahoo-finance2');
 let yahooFinance;
 
 try {
-    // Tenta instanciar se for a versão nova (v3+)
-    if (pkg.YahooFinance) {
-        yahooFinance = new pkg.YahooFinance({ suppressNotices: ['yahooSurvey'] });
-    } else if (typeof pkg.default === 'function') {
-        yahooFinance = new pkg.default({ suppressNotices: ['yahooSurvey'] });
-    } else {
-        yahooFinance = pkg.default || pkg;
-    }
+    // Versão requer instanciação (V2/V3)
+    // Tentamos passar a config de validação no construtor já que setGlobalConfig não existe
+    yahooFinance = new pkg.default({
+        validation: { logErrors: false },
+        suppressNotices: ['yahooSurvey']
+    });
 } catch (error) {
-    logger.error('❌ [YAHOO] Erro ao inicializar:', error);
+    logger.error('❌ [YAHOO] Erro crítico ao inicializar:', error);
+    // Fallback desesperado
     yahooFinance = pkg.default || pkg;
 }
 
