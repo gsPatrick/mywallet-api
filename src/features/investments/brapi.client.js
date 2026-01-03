@@ -115,7 +115,26 @@ const getQuotes = async (tickers) => {
                 results[quote.symbol] = data;
             }
         } catch (error) {
-            logger.error('❌ [BRAPI] Erro ao buscar cotações:', error.message);
+            // DETECÇÃO DE PLANO FREE (Limite de 1 ativo por vez)
+            const isPlanLimit = error.response?.data?.message?.includes('permite até 1 ações') ||
+                error.response?.status === 429;
+
+            if (isPlanLimit) {
+                logger.warn('⚠️ [BRAPI] Plano Gratuito detectado (Batch falhou). Alternando para busca individual...');
+
+                // Fallback: Busca 1 por 1 em paralelo
+                const individualResults = await Promise.all(
+                    tickersToFetch.map(t => getQuote(t))
+                );
+
+                individualResults.forEach(data => {
+                    if (data) {
+                        results[data.symbol] = data;
+                    }
+                });
+            } else {
+                logger.error('❌ [BRAPI] Erro ao buscar cotações em lote:', error.message);
+            }
         }
     }
 

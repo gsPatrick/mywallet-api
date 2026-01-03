@@ -5,6 +5,7 @@
 
 const { Investment, Asset, FinancialProduct, Dividend, FIIData, BankAccount } = require('../../models');
 const yahooClient = require('./yahoo.client');
+const brapiClient = require('./brapi.client');
 const fiiSyncService = require('./fiiSync.service');
 const autoDividendService = require('./autoDividend.service');
 const { AppError } = require('../../middlewares/errorHandler');
@@ -312,8 +313,51 @@ const getPortfolio = async (userId, options = {}) => {
         }
     });
 
-    // 5. Busca Cotações Yahoo
-    const quotes = await yahooClient.getQuotes(Array.from(tickersToFetch));
+    // 5. BUSCA DE COTAÇÕES (HÍBRIDO: BRAPI + YAHOO)
+    // =========================================================================
+
+    const allTickers = Array.from(tickersToFetch);
+    const brTickers = [];
+    const intlTickers = [];
+
+    allTickers.forEach(t => {
+        const cleanTicker = t.toUpperCase().replace('.SA', '');
+        // Regex para padrão B3 (4 letras + números, ex: PETR4, MXRF11, BOVA11)
+        const isB3Pattern = /^[A-Z]{4}\d{1,2}B?$/.test(cleanTicker);
+
+        if (isB3Pattern || t.endsWith('.SA')) {
+            brTickers.push(cleanTicker);
+        } else {
+            intlTickers.push(t);
+        }
+    });
+
+    let quotes = {};
+
+    // 5.1 Busca Ações e FIIs Brasileiros na BRAPI (Prioridade)
+    if (brTickers.length > 0) {
+        try {
+            const brapiResults = await brapiClient.getQuotes(brTickers);
+            Object.entries(brapiResults).forEach(([key, val]) => {
+                if (val) {
+                    quotes[key] = val;          // Salva "MXRF11"
+                    quotes[`${key}.SA`] = val;  // Salva "MXRF11.SA" (fallback)
+                }
+            });
+        } catch (error) {
+            logger.error(`❌ Erro Brapi: ${error.message}`);
+        }
+    }
+
+    // 5.2 Busca Internacional/Cripto no YAHOO
+    if (intlTickers.length > 0) {
+        try {
+            const yahooResults = await yahooClient.getQuotes(intlTickers);
+            quotes = { ...quotes, ...yahooResults };
+        } catch (error) {
+            logger.error(`❌ Erro Yahoo: ${error.message}`);
+        }
+    }
 
     // 5.1 Busca dados de FIIs do cache (Funds Explorer scraper)
     // Se não houver cache, busca ON-DEMAND (igual ações funcionam com Yahoo)
