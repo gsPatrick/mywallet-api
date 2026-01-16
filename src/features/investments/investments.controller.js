@@ -29,7 +29,8 @@ const getPortfolio = async (req, res, next) => {
     try {
         const options = {};
         if (req.query.brokerId) {
-            options.brokerId = parseInt(req.query.brokerId);
+            // brokerId is a UUID string, not an integer
+            options.brokerId = req.query.brokerId;
         }
         const portfolio = await investmentsService.getPortfolio(req.userId, options);
         res.json({ data: portfolio });
