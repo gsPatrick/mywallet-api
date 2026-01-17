@@ -235,7 +235,7 @@ const listSubscriptions = async (req, res) => {
     try {
         const profileId = req.headers['x-profile-id'];
         const subscriptions = await subscriptionService.listSubscriptions(req.user.id, profileId, req.query);
-        res.json(subscriptions);
+        res.json({ data: subscriptions });
     } catch (error) {
         console.error('Erro ao listar assinaturas:', error);
         res.status(500).json({ error: 'Erro ao listar assinaturas' });
@@ -250,7 +250,7 @@ const create = async (req, res) => {
     try {
         const profileId = req.headers['x-profile-id'];
         const subscription = await subscriptionService.createSubscription(req.user.id, profileId, req.body);
-        res.status(201).json(subscription);
+        res.status(201).json({ data: subscription });
     } catch (error) {
         console.error('Erro ao criar assinatura:', error);
         const errorMessage = error.message || 'Erro ao criar assinatura';
