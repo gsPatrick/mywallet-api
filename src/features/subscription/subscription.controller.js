@@ -7,7 +7,6 @@
  */
 
 const mercadopagoService = require('./mercadopago.service');
-const mercadopagoService = require('./mercadopago.service');
 const { User, PaymentHistory, Subscription, Category } = require('../../models');
 const { PLANS_CONFIG } = require('../../config/mercadopago');
 
@@ -227,11 +226,6 @@ const simulateWebhook = async (req, res) => {
 /**
  * GET /subscriptions
  * Lista assinaturas (Despesas Recorrentes) do usuário
- * TODO: Implementar lógica real de buscar transações recorrentes ou tabela específica
- */
-/**
- * GET /subscriptions
- * Lista assinaturas (Despesas Recorrentes) do usuário
  */
 const listSubscriptions = async (req, res) => {
     try {
@@ -327,8 +321,6 @@ module.exports = {
     getStatus,
     cancel,
     getHistory,
-    activateTest,
-    simulateWebhook,
     activateTest,
     simulateWebhook,
     listSubscriptions,
