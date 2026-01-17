@@ -27,7 +27,8 @@ const createCard = async (req, res, next) => {
         const card = await manualCardService.createManualCard(req.userId, req.profileId, req.body);
         res.status(201).json({
             message: 'Cartão criado com sucesso',
-            card: card // Return 'card' key for frontend to extract ID
+            message: 'Cartão criado com sucesso',
+            data: card // Return 'data' for consistency with other endpoints and frontend checks
         });
     } catch (error) {
         next(error);

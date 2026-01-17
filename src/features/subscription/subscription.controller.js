@@ -268,8 +268,11 @@ const create = async (req, res) => {
             color
         } = req.body;
 
+        const profileId = req.headers['x-profile-id'];
+
         const subscription = await Subscription.create({
             userId: req.user.id,
+            profileId, // ✅ Linked to profile
             name,
             amount,
             currency: currency || 'BRL',
