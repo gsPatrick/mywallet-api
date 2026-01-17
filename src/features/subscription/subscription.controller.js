@@ -7,7 +7,8 @@
  */
 
 const mercadopagoService = require('./mercadopago.service');
-const { User, PaymentHistory } = require('../../models');
+const mercadopagoService = require('./mercadopago.service');
+const { User, PaymentHistory, Subscription, Category } = require('../../models');
 const { PLANS_CONFIG } = require('../../config/mercadopago');
 
 /**
@@ -228,14 +229,95 @@ const simulateWebhook = async (req, res) => {
  * Lista assinaturas (Despesas Recorrentes) do usuário
  * TODO: Implementar lógica real de buscar transações recorrentes ou tabela específica
  */
+/**
+ * GET /subscriptions
+ * Lista assinaturas (Despesas Recorrentes) do usuário
+ */
 const listSubscriptions = async (req, res) => {
     try {
-        // Por enquanto retorna vazio para não quebrar o frontend
-        // Futuramente buscar de RecurringExpense ou Transaction where isRecurring=true
-        res.json({ data: [] });
+        const subscriptions = await Subscription.findAll({
+            where: { userId: req.user.id },
+            order: [['nextBillingDate', 'ASC']],
+            include: [
+                {
+                    model: Category,
+                    as: 'categoryDetails',
+                    attributes: ['id', 'name', 'color', 'icon']
+                }
+            ]
+        });
+        res.json(subscriptions);
     } catch (error) {
         console.error('Erro ao listar assinaturas:', error);
         res.status(500).json({ error: 'Erro ao listar assinaturas' });
+    }
+};
+
+/**
+ * POST /subscriptions
+ * Cria uma nova assinatura recorrente
+ */
+const create = async (req, res) => {
+    try {
+        const {
+            name,
+            amount,
+            currency,
+            frequency,
+            category,
+            categoryId,
+            startDate,
+            nextBillingDate,
+            autoGenerate,
+            notes,
+            serviceUrl,
+            color
+        } = req.body;
+
+        const subscription = await Subscription.create({
+            userId: req.user.id,
+            name,
+            amount,
+            currency: currency || 'BRL',
+            frequency,
+            category: category || 'OTHER',
+            categoryId,
+            startDate,
+            nextBillingDate,
+            autoGenerate: autoGenerate !== undefined ? autoGenerate : true,
+            notes,
+            serviceUrl,
+            color,
+            status: 'ACTIVE'
+        });
+
+        res.status(201).json(subscription);
+    } catch (error) {
+        console.error('Erro ao criar assinatura:', error);
+        res.status(500).json({ error: 'Erro ao criar assinatura' });
+    }
+};
+
+/**
+ * DELETE /subscriptions/:id
+ * Remove uma assinatura recorrente
+ */
+const remove = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const subscription = await Subscription.findOne({
+            where: { id, userId: req.user.id }
+        });
+
+        if (!subscription) {
+            return res.status(404).json({ error: 'Assinatura não encontrada' });
+        }
+
+        await subscription.destroy();
+        res.json({ message: 'Assinatura removida com sucesso' });
+    } catch (error) {
+        console.error('Erro ao remover assinatura:', error);
+        res.status(500).json({ error: 'Erro ao remover assinatura' });
     }
 };
 
@@ -247,5 +329,9 @@ module.exports = {
     getHistory,
     activateTest,
     simulateWebhook,
-    listSubscriptions
+    activateTest,
+    simulateWebhook,
+    listSubscriptions,
+    create,
+    remove
 };

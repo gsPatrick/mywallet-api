@@ -20,7 +20,11 @@ router.post('/subscribe', authMiddleware, subscriptionController.subscribe);
 router.get('/status', authMiddleware, subscriptionController.getStatus);
 router.post('/cancel', authMiddleware, subscriptionController.cancel);
 router.get('/history', authMiddleware, subscriptionController.getHistory);
+
+// CRUD de Despesas Recorrentes (User Subscriptions)
 router.get('/', authMiddleware, subscriptionController.listSubscriptions);
+router.post('/', authMiddleware, subscriptionController.create);
+router.delete('/:id', authMiddleware, subscriptionController.remove);
 
 // ⚠️ TESTE: Rotas para ativar assinatura manualmente
 router.post('/activate-test', authMiddleware, subscriptionController.activateTest);
