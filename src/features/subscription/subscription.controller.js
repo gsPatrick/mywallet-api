@@ -223,23 +223,18 @@ const simulateWebhook = async (req, res) => {
     }
 };
 
+const subscriptionService = require('./subscription.service');
+
+// ... (existing code)
+
 /**
  * GET /subscriptions
  * Lista assinaturas (Despesas Recorrentes) do usuário
  */
 const listSubscriptions = async (req, res) => {
     try {
-        const subscriptions = await Subscription.findAll({
-            where: { userId: req.user.id },
-            order: [['nextBillingDate', 'ASC']],
-            include: [
-                {
-                    model: Category,
-                    as: 'categoryDetails',
-                    attributes: ['id', 'name', 'color', 'icon']
-                }
-            ]
-        });
+        const profileId = req.headers['x-profile-id'];
+        const subscriptions = await subscriptionService.listSubscriptions(req.user.id, profileId, req.query);
         res.json(subscriptions);
     } catch (error) {
         console.error('Erro ao listar assinaturas:', error);
@@ -253,65 +248,27 @@ const listSubscriptions = async (req, res) => {
  */
 const create = async (req, res) => {
     try {
-        const {
-            name,
-            amount,
-            currency,
-            frequency,
-            category,
-            categoryId,
-            startDate,
-            nextBillingDate,
-            autoGenerate,
-            notes,
-            serviceUrl,
-            color
-        } = req.body;
-
         const profileId = req.headers['x-profile-id'];
-
-        const subscription = await Subscription.create({
-            userId: req.user.id,
-            profileId, // ✅ Linked to profile
-            name,
-            amount,
-            currency: currency || 'BRL',
-            frequency,
-            category: category || 'OTHER',
-            categoryId,
-            startDate,
-            nextBillingDate,
-            autoGenerate: autoGenerate !== undefined ? autoGenerate : true,
-            notes,
-            serviceUrl,
-            color,
-            status: 'ACTIVE'
-        });
-
+        const subscription = await subscriptionService.createSubscription(req.user.id, profileId, req.body);
         res.status(201).json(subscription);
     } catch (error) {
         console.error('Erro ao criar assinatura:', error);
-        res.status(500).json({ error: 'Erro ao criar assinatura' });
+        const errorMessage = error.message || 'Erro ao criar assinatura';
+        res.status(400).json({ error: errorMessage });
     }
 };
 
 /**
  * DELETE /subscriptions/:id
- * Remove uma assinatura recorrente
+ * Remove (Cancela) uma assinatura recorrente
  */
 const remove = async (req, res) => {
     try {
         const { id } = req.params;
-        const subscription = await Subscription.findOne({
-            where: { id, userId: req.user.id }
-        });
+        const profileId = req.headers['x-profile-id'];
 
-        if (!subscription) {
-            return res.status(404).json({ error: 'Assinatura não encontrada' });
-        }
-
-        await subscription.destroy();
-        res.json({ message: 'Assinatura removida com sucesso' });
+        await subscriptionService.cancelSubscription(req.user.id, profileId, id);
+        res.json({ message: 'Assinatura cancelada com sucesso' });
     } catch (error) {
         console.error('Erro ao remover assinatura:', error);
         res.status(500).json({ error: 'Erro ao remover assinatura' });
