@@ -242,6 +242,7 @@ const updateManualTransaction = async (userId, profileId, transactionId, data) =
  * ⚠️ SYSTEM PROTECTION: Transações com source='SYSTEM' não podem ser excluídas
  */
 const deleteManualTransaction = async (userId, profileId, transactionId) => {
+    // 1. Tentar encontrar como Transação Manual
     const whereClause = { id: transactionId, userId };
     if (profileId) whereClause.profileId = profileId; // ✅ PROFILE ISOLATION
 
@@ -249,55 +250,93 @@ const deleteManualTransaction = async (userId, profileId, transactionId) => {
         where: whereClause
     });
 
-    if (!transaction) {
+    if (transaction) {
+        // Encontrou ManualTransaction - Proceder com exclusão (Lógica original)
+
+        // ⚠️ Bloquear exclusão de transações recorrentes do sistema (Salário, DAS, Pró-labore)
+        const isSystemTransaction = transaction.isRecurring && (
+            transaction.source === 'SALARY' ||
+            (transaction.description && (
+                transaction.description.includes('DAS') ||
+                transaction.description === 'Salário' ||
+                transaction.description === 'Pró-labore'
+            ))
+        );
+
+        if (isSystemTransaction) {
+            throw new AppError(
+                'Transações recorrentes do sistema (Salário, DAS, Pró-labore) não podem ser excluídas. Você pode apenas editar o valor ou a data.',
+                403,
+                'SYSTEM_TRANSACTION_PROTECTED'
+            );
+        }
+
+        // ✅ NEW: Revert balance if had bankAccountId
+        if (transaction.bankAccountId && transaction.status === 'COMPLETED') {
+            const amountToRevert = transaction.type === 'INCOME'
+                ? -parseFloat(transaction.amount)
+                : parseFloat(transaction.amount);
+            await bankAccountsService.updateBalance(transaction.bankAccountId, amountToRevert);
+            console.log('💰 [BALANCE REVERT] Reverted balance for account:', transaction.bankAccountId, 'by', amountToRevert);
+        }
+
+        await TransactionMetadata.destroy({
+            where: {
+                transactionType: 'MANUAL',
+                transactionId
+            }
+        });
+
+        await transaction.destroy();
+
+        await AuditLog.log({
+            userId,
+            action: AuditLog.ACTIONS.TRANSACTION_DELETE,
+            resource: 'MANUAL_TRANSACTION',
+            resourceId: transactionId
+        });
+
+        return { message: 'Transação excluída com sucesso' };
+    }
+
+    // 2. Se não encontrou Manual, tentar CARD TRANSACTION
+    // CardTransaction não tem profileId direto, então verificamos através do cartão
+    const cardTransaction = await CardTransaction.findOne({
+        where: { id: transactionId, userId },
+        include: [{
+            model: CreditCard,
+            as: 'card',
+            attributes: ['id', 'profileId']
+        }]
+    });
+
+    if (!cardTransaction) {
         throw new AppError('Transação não encontrada', 404, 'TRANSACTION_NOT_FOUND');
     }
 
-    // ⚠️ Bloquear exclusão de transações recorrentes do sistema (Salário, DAS, Pró-labore)
-    // Essas transações são geradas automaticamente e só podem ser editadas
-    const isSystemTransaction = transaction.isRecurring && (
-        transaction.source === 'SALARY' ||
-        (transaction.description && (
-            transaction.description.includes('DAS') ||
-            transaction.description === 'Salário' ||
-            transaction.description === 'Pró-labore'
-        ))
-    );
-
-    if (isSystemTransaction) {
-        throw new AppError(
-            'Transações recorrentes do sistema (Salário, DAS, Pró-labore) não podem ser excluídas. Você pode apenas editar o valor ou a data.',
-            403,
-            'SYSTEM_TRANSACTION_PROTECTED'
-        );
+    // Checking Profile Isolation through Card
+    if (profileId && cardTransaction.card && cardTransaction.card.profileId !== profileId) {
+        // Se pertencer a outro perfil, retornar Not Found para isolamento
+        throw new AppError('Transação não encontrada', 404, 'TRANSACTION_NOT_FOUND');
     }
 
-    // ✅ NEW: Revert balance if had bankAccountId
-    if (transaction.bankAccountId && transaction.status === 'COMPLETED') {
-        const amountToRevert = transaction.type === 'INCOME'
-            ? -parseFloat(transaction.amount)
-            : parseFloat(transaction.amount);
-        await bankAccountsService.updateBalance(transaction.bankAccountId, amountToRevert);
-        console.log('💰 [BALANCE REVERT] Reverted balance for account:', transaction.bankAccountId, 'by', amountToRevert);
-    }
-
+    // Excluir metadata associado (se houver)
     await TransactionMetadata.destroy({
         where: {
-            transactionType: 'MANUAL',
-            transactionId
+            transactionId: transactionId
         }
     });
 
-    await transaction.destroy();
+    await cardTransaction.destroy();
 
     await AuditLog.log({
         userId,
         action: AuditLog.ACTIONS.TRANSACTION_DELETE,
-        resource: 'MANUAL_TRANSACTION',
+        resource: 'CARD_TRANSACTION',
         resourceId: transactionId
     });
 
-    return { message: 'Transação excluída com sucesso' };
+    return { message: 'Transação de cartão excluída com sucesso' };
 };
 
 // ===========================================
