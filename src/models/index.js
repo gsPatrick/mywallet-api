@@ -224,7 +224,7 @@ Subscription.hasMany(ManualTransaction, { foreignKey: 'subscriptionId', as: 'man
 ManualTransaction.belongsTo(Subscription, { foreignKey: 'subscriptionId', as: 'subscription' });
 
 // Subscription -> Category
-Subscription.belongsTo(Category, { foreignKey: 'categoryId', as: 'category' });
+Subscription.belongsTo(Category, { foreignKey: 'categoryId', as: 'categoryDetails' });
 Category.hasMany(Subscription, { foreignKey: 'categoryId', as: 'subscriptions' });
 
 
