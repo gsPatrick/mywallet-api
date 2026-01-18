@@ -36,11 +36,11 @@ const previewOFX = async (req, res) => {
  */
 const confirmImport = async (req, res) => {
     try {
-        const { data } = req.body; // Dados já estruturados do preview
+        const { data, type } = req.body; // Dados já estruturados do preview + type
         const userId = req.user.id;
         const profileId = req.headers['x-profile-id'];
 
-        const result = await importService.processImport(userId, data, { profileId });
+        const result = await importService.processImport(userId, data, { profileId, type });
 
         res.json(result);
 

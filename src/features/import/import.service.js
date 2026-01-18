@@ -88,13 +88,53 @@ const parseOFX = (content) => {
     }
 };
 
+const detectSubscriptions = (transactions) => {
+    const keywords = {
+        'NETFLIX': { name: 'Netflix', icon: 'https://upload.wikimedia.org/wikipedia/commons/0/08/Netflix_2015_logo.svg', color: '#E50914' },
+        'SPOTIFY': { name: 'Spotify', icon: 'https://upload.wikimedia.org/wikipedia/commons/1/19/Spotify_logo_without_text.svg', color: '#1DB954' },
+        'AMAZON': { name: 'Amazon Prime', icon: 'https://upload.wikimedia.org/wikipedia/commons/4/41/Amazon_Prime_Video_logo.svg', color: '#00A8E1' },
+        'PRIME VIDEO': { name: 'Amazon Prime', icon: 'https://upload.wikimedia.org/wikipedia/commons/4/41/Amazon_Prime_Video_logo.svg', color: '#00A8E1' },
+        'APPLE': { name: 'Apple Services', icon: 'https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg', color: '#000000' },
+        'DISNEY': { name: 'Disney+', icon: 'https://upload.wikimedia.org/wikipedia/commons/3/3e/Disney%2B_logo.svg', color: '#113CCF' },
+        'HBO': { name: 'HBO Max', icon: 'https://upload.wikimedia.org/wikipedia/commons/1/17/HBO_Max_Logo.svg', color: '#5D05B5' },
+        'GLOBOPLAY': { name: 'Globoplay', icon: 'https://upload.wikimedia.org/wikipedia/commons/0/0f/Globoplay_logo_2020.svg', color: '#FB4F00' },
+        'YOUTUBE': { name: 'YouTube Premium', icon: 'https://upload.wikimedia.org/wikipedia/commons/b/b8/YouTube_Logo_2017.svg', color: '#FF0000' },
+        'SMARTFIT': { name: 'Smart Fit', icon: '', color: '#F7A500' },
+        'OPENAI': { name: 'ChatGPT', icon: '', color: '#10A37F' }
+    };
+
+    const potential = [];
+
+    transactions.forEach(tx => {
+        const desc = tx.description.toUpperCase();
+        for (const [key, config] of Object.entries(keywords)) {
+            if (desc.includes(key)) {
+                // Check if already added (avoid duplicates from same import)
+                // Note: Real logic might want to average amount if multiple found, but here we take the first/last
+                if (!potential.find(p => p.name === config.name)) {
+                    potential.push({
+                        name: config.name,
+                        amount: Math.abs(tx.amount), // Ensure positive value
+                        icon: config.icon,
+                        color: config.color,
+                        billingCycle: 'MONTHLY', // Default assumption
+                        startDate: new Date().toISOString().split('T')[0]
+                    });
+                }
+            }
+        }
+    });
+
+    return potential;
+};
+
 /**
  * Processa a importação dos dados analisados
  * Salva ou atualiza conta e insere transações
  */
 const processImport = async (userId, data, options = {}) => {
     const { bank, transactions } = data;
-    const { profileId } = options;
+    const { profileId, type } = options; // type: 'CHECKING' or 'INVESTMENT'
 
     // 1. Encontrar ou criar Conta Bancária
     let bankAccount = await BankAccount.findOne({
@@ -108,34 +148,26 @@ const processImport = async (userId, data, options = {}) => {
         bankAccount = await BankAccount.create({
             userId,
             profileId,
-            name: `${bank.name} - Importada`,
+            name: `${bank.name}${type === 'INVESTMENT' ? ' (Investimentos)' : ''} - Importada`,
             bankName: bank.name,
             accountNumber: bank.accountNumber,
             balance: 0, // Será ajustado pelas transações ou input do usuário
-            type: 'CHECKING', // Padrão
-            color: '#333333'
+            type: type || 'CHECKING', // Padrão
+            color: type === 'INVESTMENT' ? '#0ea5e9' : '#333333'
         });
         console.log(`✅ [IMPORT] Created new Bank Account: ${bankAccount.id}`);
     }
 
-    // 2. Inserir Transações
-    const createdTransactions = [];
-    let balanceImpact = 0;
+    // 2. Detectar Assinaturas
+    const detectedSubscriptions = detectSubscriptions(transactions);
 
-    for (const tx of transactions) {
-        // Verificar duplicidade pelo FITID (ID único do OFX)
-        // Como não temos campo fitId na tabela padrão, usamos combinação de data/valor/descrição ou ignoramos por enquanto
-        // Idealmente adicionaríamos coluna fitId nas transações
-
-        // Simplified implementation: insert as ManualTransaction linked to account
-        // In real world, check for existence
-
-        // TODO: Use transactions service to create
-        // For now, return the mapped data for the controller to show 'Preview'
-    }
+    // 3. Inserir Transações
+    // TODO: Implement transaction insertion logic properly
+    // For now we assume detection is the priority for this step
 
     return {
         bankAccount,
+        detectedSubscriptions,
         success: true,
         message: 'Dados bancários processados com sucesso'
     };
