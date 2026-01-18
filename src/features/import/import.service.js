@@ -21,11 +21,17 @@ const parseOFX = (content) => {
         // Regex patterns for OFX tags
         const bankIdMatch = content.match(/<BANKID>(\d+)/);
         const acctIdMatch = content.match(/<ACCTID>([\w\d-]+)/);
-        const orgMatch = content.match(/<ORG>([\w\s]+)/);
-
+        const orgMatch = content.match(/<ORG>([^<]+)/);
+        const acctTypeMatch = content.match(/<ACCTTYPE>(\w+)/);
         const bankId = bankIdMatch ? bankIdMatch[1] : null;
         const accountId = acctIdMatch ? acctIdMatch[1] : null;
         let bankName = orgMatch ? orgMatch[1].trim() : 'Banco Desconhecido';
+        let type = acctTypeMatch ? acctTypeMatch[1].toUpperCase() : 'CHECKING';
+
+        // Normalize Type
+        if (type === 'CREDITLINE') type = 'CREDIT_CARD';
+        if (type === 'SAVINGS') type = 'SAVINGS';
+        if (type === 'CHECKING') type = 'CHECKING';
 
         // Tentar inferir nome do banco pelo ID se não tiver ORG
         if (!bankName || bankName === 'Banco Desconhecido') {
@@ -80,8 +86,14 @@ const parseOFX = (content) => {
             bank: {
                 id: bankId,
                 name: bankName,
+                org: bankName,
                 accountNumber: accountId
             },
+            account: {
+                number: accountId,
+                type: type
+            },
+            type,
             transactions,
             totalTransactions: transactions.length
         };
@@ -322,11 +334,15 @@ const parseCSV = (content) => {
     return {
         bank: {
             bankId: 'CSV',
-            accountId: isCreditCard ? 'Cartão de Crédito' : 'Importado',
+            accountNumber: isCreditCard ? 'Cartão de Crédito' : 'Importado',
             name: isCreditCard ? 'Fatura Importada' : 'Conta CSV',
             org: 'CSV Import'
         },
-        type: isCreditCard ? 'CREDIT_CARD' : 'CHECKING', // return detected type
+        account: {
+            number: isCreditCard ? 'Cartão de Crédito' : 'Importado',
+            type: isCreditCard ? 'CREDIT_CARD' : 'CHECKING'
+        },
+        type: isCreditCard ? 'CREDIT_CARD' : 'CHECKING',
         transactions
     };
 };

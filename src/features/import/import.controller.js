@@ -21,9 +21,9 @@ const previewOFX = async (req, res) => {
 
         // Format transactions for frontend
         const preview = {
-            bankName: data.bank.org || 'Banco Desconhecido',
-            accountType: data.account.type || 'Tipo de Conta Desconhecido',
-            accountNumber: data.account.number || 'Número de Conta Desconhecido',
+            bankName: data.bank.name || 'Banco Desconhecido',
+            accountType: data.type || 'Tipo de Conta Desconhecido',
+            accountNumber: data.bank.accountNumber || 'Número de Conta Desconhecido',
             currency: data.currency || 'BRL',
             transactions: data.transactions.map(t => ({
                 date: t.date,
