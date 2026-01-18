@@ -1,0 +1,57 @@
+const importService = require('./import.service');
+
+/**
+ * Import Controller
+ * =================
+ */
+
+/**
+ * POST /import/ofx/preview
+ * Recebe o texto do OFX e retorna os dados analisados para visualização antes de salvar
+ */
+const previewOFX = async (req, res) => {
+    try {
+        const { content } = req.body;
+
+        if (!content) {
+            return res.status(400).json({ error: 'Conteúdo do arquivo é obrigatório' });
+        }
+
+        const parsedData = importService.parseOFX(content);
+
+        res.json({
+            success: true,
+            data: parsedData
+        });
+
+    } catch (error) {
+        console.error('Erro no preview OFX:', error);
+        res.status(400).json({ error: error.message });
+    }
+};
+
+/**
+ * POST /import/ofx/confirm
+ * Confirma a importação dos dados para o usuário
+ */
+const confirmImport = async (req, res) => {
+    try {
+        const { data } = req.body; // Dados já estruturados do preview
+        const userId = req.user.id;
+        const profileId = req.headers['x-profile-id'];
+
+        const result = await importService.processImport(userId, data, { profileId });
+
+        res.json(result);
+
+    } catch (error) {
+        console.error('Erro na confirmação da importação:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+
+module.exports = {
+    previewOFX,
+    confirmImport
+};
