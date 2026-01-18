@@ -20,13 +20,24 @@ const parseOFX = (content) => {
     try {
         // Regex patterns for OFX tags
         const bankIdMatch = content.match(/<BANKID>(\d+)/);
+        const fidMatch = content.match(/<FID>(\d+)/);
         const acctIdMatch = content.match(/<ACCTID>([\w\d-]+)/);
         const orgMatch = content.match(/<ORG>([^<]+)/);
         const acctTypeMatch = content.match(/<ACCTTYPE>(\w+)/);
-        const bankId = bankIdMatch ? bankIdMatch[1] : null;
+
+        // Detect Credit Card Specific Tags
+        const isCreditCardContext = content.includes('<CCSTMTRS>') || content.includes('<CREDITCARDMSGSRSV1>') || content.includes('<CCACCTFROM>');
+
+        const bankId = bankIdMatch ? bankIdMatch[1] : (fidMatch ? fidMatch[1] : null);
         const accountId = acctIdMatch ? acctIdMatch[1] : null;
         let bankName = orgMatch ? orgMatch[1].trim() : 'Banco Desconhecido';
-        let type = acctTypeMatch ? acctTypeMatch[1].toUpperCase() : 'CHECKING';
+
+        let type = 'CHECKING';
+        if (acctTypeMatch) {
+            type = acctTypeMatch[1].toUpperCase();
+        } else if (isCreditCardContext) {
+            type = 'CREDIT_CARD';
+        }
 
         // Normalize Type
         if (type === 'CREDITLINE') type = 'CREDIT_CARD';
