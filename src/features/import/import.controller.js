@@ -19,20 +19,8 @@ const previewOFX = async (req, res) => {
 
         const data = importService.parseFile(content);
 
-        // Format transactions for frontend
-        const preview = {
-            bankName: data.bank.name || 'Banco Desconhecido',
-            accountType: data.type || 'Tipo de Conta Desconhecido',
-            accountNumber: data.bank.accountNumber || 'Número de Conta Desconhecido',
-            currency: data.currency || 'BRL',
-            transactions: data.transactions.map(t => ({
-                date: t.date,
-                type: t.type,
-                amount: t.amount,
-                description: t.description,
-                fitid: t.fitid
-            }))
-        };
+        // Return full data structure to ensure compatibility with processImport
+        const preview = data;
 
         res.json({
             success: true,
@@ -51,7 +39,14 @@ const previewOFX = async (req, res) => {
  */
 const confirmImport = async (req, res) => {
     try {
-        const { data, type } = req.body; // Dados já estruturados do preview + type
+        let { data, type } = req.body;
+
+        // Backward Compatibility for Flat Payload (Legacy Frontend)
+        if (!data && (req.body.bankName || req.body.bank || req.body.transactions)) {
+            data = req.body;
+            console.log('⚠️ [IMPORT] Using flat body as data (Legacy Frontend detected)');
+        }
+
         const userId = req.user.id;
         const profileId = req.headers['x-profile-id'];
 
