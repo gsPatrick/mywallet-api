@@ -41,6 +41,12 @@ const confirmImport = async (req, res) => {
     try {
         let { data, type } = req.body;
 
+        // Handle Double Wrapping (data.data) - Robustness Fix
+        if (data && data.data && (data.data.bank || data.data.bankName)) {
+            console.log('⚠️ [IMPORT] Detected double-wrapped data. Unwrapping...');
+            data = data.data;
+        }
+
         // Backward Compatibility for Flat Payload (Legacy Frontend)
         if (!data && (req.body.bankName || req.body.bank || req.body.transactions)) {
             data = req.body;
