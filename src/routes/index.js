@@ -63,6 +63,7 @@ const dasRoutes = require('../features/das/das.routes');
 // ROTAS - FASE 9 (FATURAS DE CARTÃO)
 // ===========================================
 const invoicesRoutes = require('../features/invoices/invoices.routes');
+const importRoutes = require('../features/import/import.routes');
 
 const router = Router();
 
@@ -145,6 +146,7 @@ router.use('/das', dasRoutes);
 // REGISTRAR ROTAS - FASE 9 (FATURAS DE CARTÃO)
 // ===========================================
 router.use('/invoices', invoicesRoutes);
+router.use('/import', importRoutes);
 
 // ===========================================
 // REGISTRAR ROTAS - FASE 10 (CORRETORAS)
