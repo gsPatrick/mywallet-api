@@ -254,7 +254,7 @@ const updateSubscription = async (userId, profileId, subscriptionId, data) => {
  * Cancela uma assinatura
  * ✅ PROFILE ISOLATION
  */
-const cancelSubscription = async (userId, profileId, subscriptionId) => {
+const cancelSubscription = async (userId, profileId, subscriptionId, deleteTransaction = false) => {
     const where = { id: subscriptionId, userId };
     if (profileId) where.profileId = profileId; // ✅ PROFILE ISOLATION
 
@@ -262,6 +262,40 @@ const cancelSubscription = async (userId, profileId, subscriptionId) => {
 
     if (!subscription) {
         throw new AppError('Assinatura não encontrada', 404, 'SUBSCRIPTION_NOT_FOUND');
+    }
+
+    // Delete pending transaction if requested
+    if (deleteTransaction) {
+        try {
+            // Find PENDING transaction for this subscription
+            // Check CardTransaction
+            const cardTx = await CardTransaction.findOne({
+                where: {
+                    subscriptionId: subscription.id,
+                    status: 'PENDING'
+                }
+            });
+
+            if (cardTx) {
+                await cardTx.destroy();
+                console.log(`🗑️ [SUBSCRIPTION] Deleted pending CardTransaction ${cardTx.id}`);
+            } else {
+                // Check ManualTransaction
+                const manualTx = await ManualTransaction.findOne({
+                    where: {
+                        subscriptionId: subscription.id,
+                        status: 'PENDING'
+                    }
+                });
+                if (manualTx) {
+                    await manualTx.destroy();
+                    console.log(`🗑️ [SUBSCRIPTION] Deleted pending ManualTransaction ${manualTx.id}`);
+                }
+            }
+        } catch (error) {
+            console.error('Error deleting pending transaction:', error);
+            // Don't block cancellation if transaction deletion fails, just log it
+        }
     }
 
     subscription.status = 'CANCELLED';
@@ -272,7 +306,8 @@ const cancelSubscription = async (userId, profileId, subscriptionId) => {
         userId,
         action: 'SUBSCRIPTION_CANCEL',
         resource: 'SUBSCRIPTION',
-        resourceId: subscription.id
+        resourceId: subscription.id,
+        details: { deleteTransaction }
     });
 
     return { message: 'Assinatura cancelada com sucesso' };

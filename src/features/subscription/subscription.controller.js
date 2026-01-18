@@ -266,8 +266,9 @@ const remove = async (req, res) => {
     try {
         const { id } = req.params;
         const profileId = req.headers['x-profile-id'];
+        const deleteTransaction = req.query.deleteTransaction === 'true';
 
-        await subscriptionService.cancelSubscription(req.user.id, profileId, id);
+        await subscriptionService.cancelSubscription(req.user.id, profileId, id, deleteTransaction);
         res.json({ message: 'Assinatura cancelada com sucesso' });
     } catch (error) {
         console.error('Erro ao remover assinatura:', error);
