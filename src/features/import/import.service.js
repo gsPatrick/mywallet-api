@@ -1,7 +1,6 @@
 const { OFX } = require('ofx-js');
-const BankAccount = require('../../models/bankAccount');
-const CreditCard = require('../../models/creditCard'); // NEW
-const { Op } = require('sequelize'); // NEW
+const { BankAccount, CreditCard, ManualTransaction, Category } = require('../../models');
+const { Op } = require('sequelize');
 const fs = require('fs');
 const { AppError } = require('../../middlewares/errorHandler');
 const { v4: uuidv4 } = require('uuid');
