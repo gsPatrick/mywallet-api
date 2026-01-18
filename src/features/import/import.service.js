@@ -92,20 +92,39 @@ const parseOFX = (content) => {
             }
         }
 
+        // Extrair Saldo (LEDGERBAL)
+        const ledgerBalMatch = content.match(/<LEDGERBAL>[\s\S]*?<BALAMT>([\d.-]+)/);
+        const ledgerDateMatch = content.match(/<LEDGERBAL>[\s\S]*?<DTASOF>(\d+)/);
+
+        let balance = 0;
+        let balanceDate = null;
+
+        if (ledgerBalMatch) {
+            balance = parseFloat(ledgerBalMatch[1]);
+        }
+        if (ledgerDateMatch) {
+            const rawDate = ledgerDateMatch[1].substring(0, 8);
+            balanceDate = `${rawDate.substring(0, 4)}-${rawDate.substring(4, 6)}-${rawDate.substring(6, 8)}`;
+        }
+
         return {
             bank: {
                 id: bankId,
                 name: bankName,
                 org: bankName,
-                accountNumber: accountId
+                accountNumber: accountId,
+                balance: balance
             },
             account: {
                 number: accountId,
-                type: type
+                type: type,
+                balance: balance
             },
             type,
             transactions,
-            totalTransactions: transactions.length
+            totalTransactions: transactions.length,
+            balance,
+            balanceDate
         };
 
     } catch (error) {
@@ -159,8 +178,11 @@ const detectSubscriptions = (transactions) => {
  * Salva ou atualiza conta e insere transações
  */
 const processImport = async (userId, data, options = {}) => {
-    let { bank, transactions, type: parsedType } = data; // parsedType comes from parseCSV/OFX
+    let { bank, transactions, type: parsedType, balance: parsedBalance } = data; // parsedType comes from parseCSV/OFX
     const { profileId, type: forcedType, dryRun } = options;
+
+    // Determine initial balance (prefer parsed from file)
+    const initialBalance = parsedBalance !== undefined ? parsedBalance : (bank?.balance || 0);
 
     // Robustness / Backward Compatibility for Stale Frontend State
     if (!bank && data.bankName) {
@@ -194,7 +216,10 @@ const processImport = async (userId, data, options = {}) => {
             accountNumber: bank.accountNumber || 'CSV-ACC',
             type: effectiveType,
             color: '#6366F1',
-            isVirtual: true // Flag for frontend
+            type: effectiveType,
+            color: '#6366F1',
+            isVirtual: true, // Flag for frontend
+            balance: initialBalance // Include balance in preview
         };
         console.log(`✅ [IMPORT] Virtual Entity Created (Dry Run): ${entity.name}`);
     } else {
@@ -258,7 +283,7 @@ const processImport = async (userId, data, options = {}) => {
                     name: `${bank.name || 'Conta'} - Importada`,
                     bankName: bank.name || 'Desconhecido',
                     accountNumber: bank.accountNumber || 'CSV-ACC',
-                    balance: 0,
+                    balance: initialBalance, // Use parsed balance
                     type: effectiveType,
                     color: effectiveType === 'INVESTMENT' ? '#0ea5e9' : '#333333'
                 });
