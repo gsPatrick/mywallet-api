@@ -41,6 +41,14 @@ const confirmImport = async (req, res) => {
     try {
         let { data, type, dryRun } = req.body;
 
+        // Handle API Wrapping (req.body.data contains type/dryRun)
+        if (data && !type && data.type) {
+            type = data.type;
+        }
+        if (data && !dryRun && data.dryRun) {
+            dryRun = data.dryRun;
+        }
+
         // Handle Double Wrapping (data.data) - Robustness Fix
         if (data && data.data && (data.data.bank || data.data.bankName)) {
             console.log('⚠️ [IMPORT] Detected double-wrapped data. Unwrapping...');
