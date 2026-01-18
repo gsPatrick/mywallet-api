@@ -183,6 +183,23 @@ const processImport = async (userId, data, options = {}) => {
 
     console.log(`ℹ️ [IMPORT] Processing ${effectiveType} for User ${userId}`);
 
+    // Ensure valid Profile ID (Critical for Multi-Context)
+    let targetProfileId = profileId;
+    if (!targetProfileId) {
+        // Fallback: Fetch default profile
+        const { Profile } = require('../../models');
+        const defaultProfile = await Profile.findOne({ where: { userId, isDefault: true } });
+
+        if (defaultProfile) {
+            targetProfileId = defaultProfile.id;
+        } else {
+            // Fallback 2: Any profile
+            const anyProfile = await Profile.findOne({ where: { userId } });
+            if (anyProfile) targetProfileId = anyProfile.id;
+            else throw new AppError('Usuário não possui perfil. Crie um perfil antes de importar.', 400);
+        }
+    }
+
     let entity;
 
     if (effectiveType === 'CREDIT_CARD') {
@@ -201,7 +218,7 @@ const processImport = async (userId, data, options = {}) => {
         if (!entity) {
             entity = await CreditCard.create({
                 userId,
-                profileId,
+                profileId: targetProfileId,
                 name: `Cartão ${bank.name || 'Importado'}`,
                 brand: 'Mastercard', // Guess
                 lastFourDigits: 'CSV',
@@ -224,7 +241,7 @@ const processImport = async (userId, data, options = {}) => {
         if (!entity) {
             entity = await BankAccount.create({
                 userId,
-                profileId,
+                profileId: targetProfileId,
                 name: `${bank.name || 'Conta'} - Importada`,
                 bankName: bank.name || 'Desconhecido',
                 accountNumber: bank.accountNumber || 'CSV-ACC',
