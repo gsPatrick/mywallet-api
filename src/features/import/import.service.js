@@ -160,7 +160,7 @@ const detectSubscriptions = (transactions) => {
  */
 const processImport = async (userId, data, options = {}) => {
     let { bank, transactions, type: parsedType } = data; // parsedType comes from parseCSV/OFX
-    const { profileId, type: forcedType } = options; // forcedType from UI toggle (e.g. Investment)
+    const { profileId, type: forcedType, dryRun } = options;
 
     // Robustness / Backward Compatibility for Stale Frontend State
     if (!bank && data.bankName) {
@@ -181,75 +181,89 @@ const processImport = async (userId, data, options = {}) => {
     // If parsed says "CREDIT_CARD" and UI didn't override, use it.
     const effectiveType = (forcedType === 'INVESTMENT') ? 'INVESTMENT' : (parsedType || forcedType || 'CHECKING');
 
-    console.log(`ℹ️ [IMPORT] Processing ${effectiveType} for User ${userId}`);
-
-    // Ensure valid Profile ID (Critical for Multi-Context)
-    let targetProfileId = profileId;
-    if (!targetProfileId) {
-        // Fallback: Fetch default profile
-        const { Profile } = require('../../models');
-        const defaultProfile = await Profile.findOne({ where: { userId, isDefault: true } });
-
-        if (defaultProfile) {
-            targetProfileId = defaultProfile.id;
-        } else {
-            // Fallback 2: Any profile
-            const anyProfile = await Profile.findOne({ where: { userId } });
-            if (anyProfile) targetProfileId = anyProfile.id;
-            else throw new AppError('Usuário não possui perfil. Crie um perfil antes de importar.', 400);
-        }
-    }
+    console.log(`ℹ️ [IMPORT] Processing ${effectiveType} for User ${userId} ${dryRun ? '(DRY RUN)' : ''}`);
 
     let entity;
 
-    if (effectiveType === 'CREDIT_CARD') {
-        // Find or Create Credit Card
-        // Try to match by name or creates a new "Imported Card"
-        // Ideally we ask user to validade, but here we automagically create.
-        // We use a dummy last4 "CSV" or from file if available to find existing.
-        entity = await CreditCard.findOne({
-            where: {
-                userId,
-                // Flexible match: name contains bank name OR just name matches
-                name: { [Op.like]: `%${bank.name || 'Nubank'}%` }
-            }
-        });
-
-        if (!entity) {
-            entity = await CreditCard.create({
-                userId,
-                profileId: targetProfileId,
-                name: `Cartão ${bank.name || 'Importado'}`,
-                brand: 'Mastercard', // Guess
-                lastFourDigits: 'CSV',
-                limit: 0, // Unknown
-                closingDay: 1, // Default
-                dueDay: 10, // Default
-                color: '#820ad1' // Nubank Purple as default for imports usually
-            });
-            console.log(`✅ [IMPORT] Created New Credit Card: ${entity.id}`);
-        }
+    if (dryRun) {
+        // Virtual Entity for Wizard/Preview
+        entity = {
+            id: 'TEMP-' + uuidv4(),
+            name: effectiveType === 'CREDIT_CARD' ? `Cartão ${bank.name || 'Importado'}` : `${bank.name || 'Conta'} - Importada`,
+            bankName: bank.name || 'Desconhecido',
+            accountNumber: bank.accountNumber || 'CSV-ACC',
+            type: effectiveType,
+            color: '#6366F1',
+            isVirtual: true // Flag for frontend
+        };
+        console.log(`✅ [IMPORT] Virtual Entity Created (Dry Run): ${entity.name}`);
     } else {
-        // Bank Account Logic (Existing)
-        entity = await BankAccount.findOne({
-            where: {
-                userId,
-                accountNumber: bank.accountNumber || 'CSV-ACC'
-            }
-        });
+        // Ensure valid Profile ID (Critical for Multi-Context) ONLY if persisting
+        let targetProfileId = profileId;
+        if (!targetProfileId) {
+            // Fallback: Fetch default profile
+            const { Profile } = require('../../models');
+            const defaultProfile = await Profile.findOne({ where: { userId, isDefault: true } });
 
-        if (!entity) {
-            entity = await BankAccount.create({
-                userId,
-                profileId: targetProfileId,
-                name: `${bank.name || 'Conta'} - Importada`,
-                bankName: bank.name || 'Desconhecido',
-                accountNumber: bank.accountNumber || 'CSV-ACC',
-                balance: 0,
-                type: effectiveType,
-                color: effectiveType === 'INVESTMENT' ? '#0ea5e9' : '#333333'
+            if (defaultProfile) {
+                targetProfileId = defaultProfile.id;
+            } else {
+                // Fallback 2: Any profile
+                const anyProfile = await Profile.findOne({ where: { userId } });
+                if (anyProfile) targetProfileId = anyProfile.id;
+                else throw new AppError('Usuário não possui perfil. Crie um perfil antes de importar.', 400);
+            }
+        }
+
+        if (effectiveType === 'CREDIT_CARD') {
+            // Find or Create Credit Card
+            // Try to match by name or creates a new "Imported Card"
+            // Ideally we ask user to validade, but here we automagically create.
+            // We use a dummy last4 "CSV" or from file if available to find existing.
+            entity = await CreditCard.findOne({
+                where: {
+                    userId,
+                    // Flexible match: name contains bank name OR just name matches
+                    name: { [Op.like]: `%${bank.name || 'Nubank'}%` }
+                }
             });
-            console.log(`✅ [IMPORT] Created Bank Account: ${entity.id}`);
+
+            if (!entity) {
+                entity = await CreditCard.create({
+                    userId,
+                    profileId: targetProfileId,
+                    name: `Cartão ${bank.name || 'Importado'}`,
+                    brand: 'Mastercard', // Guess
+                    lastFourDigits: 'CSV',
+                    limit: 0, // Unknown
+                    closingDay: 1, // Default
+                    dueDay: 10, // Default
+                    color: '#820ad1' // Nubank Purple as default for imports usually
+                });
+                console.log(`✅ [IMPORT] Created New Credit Card: ${entity.id}`);
+            }
+        } else {
+            // Bank Account Logic (Existing)
+            entity = await BankAccount.findOne({
+                where: {
+                    userId,
+                    accountNumber: bank.accountNumber || 'CSV-ACC'
+                }
+            });
+
+            if (!entity) {
+                entity = await BankAccount.create({
+                    userId,
+                    profileId: targetProfileId,
+                    name: `${bank.name || 'Conta'} - Importada`,
+                    bankName: bank.name || 'Desconhecido',
+                    accountNumber: bank.accountNumber || 'CSV-ACC',
+                    balance: 0,
+                    type: effectiveType,
+                    color: effectiveType === 'INVESTMENT' ? '#0ea5e9' : '#333333'
+                });
+                console.log(`✅ [IMPORT] Created Bank Account: ${entity.id}`);
+            }
         }
     }
 

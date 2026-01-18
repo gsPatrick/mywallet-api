@@ -39,7 +39,7 @@ const previewOFX = async (req, res) => {
  */
 const confirmImport = async (req, res) => {
     try {
-        let { data, type } = req.body;
+        let { data, type, dryRun } = req.body;
 
         // Handle Double Wrapping (data.data) - Robustness Fix
         if (data && data.data && (data.data.bank || data.data.bankName)) {
@@ -56,7 +56,7 @@ const confirmImport = async (req, res) => {
         const userId = req.user.id;
         const profileId = req.headers['x-profile-id'];
 
-        const result = await importService.processImport(userId, data, { profileId, type });
+        const result = await importService.processImport(userId, data, { profileId, type, dryRun });
 
         res.json(result);
 
