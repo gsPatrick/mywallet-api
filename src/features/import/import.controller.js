@@ -14,14 +14,29 @@ const previewOFX = async (req, res) => {
         const { content } = req.body;
 
         if (!content) {
-            return res.status(400).json({ error: 'Conteúdo do arquivo é obrigatório' });
+            return res.status(400).json({ error: 'Conteúdo do arquivo não fornecido' });
         }
 
-        const parsedData = importService.parseOFX(content);
+        const data = importService.parseFile(content);
+
+        // Format transactions for frontend
+        const preview = {
+            bankName: data.bank.org || 'Banco Desconhecido',
+            accountType: data.account.type || 'Tipo de Conta Desconhecido',
+            accountNumber: data.account.number || 'Número de Conta Desconhecido',
+            currency: data.currency || 'BRL',
+            transactions: data.transactions.map(t => ({
+                date: t.date,
+                type: t.type,
+                amount: t.amount,
+                description: t.description,
+                fitid: t.fitid
+            }))
+        };
 
         res.json({
             success: true,
-            data: parsedData
+            data: preview
         });
 
     } catch (error) {

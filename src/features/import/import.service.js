@@ -173,7 +173,121 @@ const processImport = async (userId, data, options = {}) => {
     };
 };
 
+const parseCSV = (content) => {
+    const lines = content.split(/\r?\n/).filter(l => l.trim().length > 0);
+    if (lines.length < 2) throw new Error('CSV inválido ou vazio');
+
+    // Detect separator (comma or semicolon)
+    const firstLine = lines[0];
+    const separator = firstLine.includes(';') ? ';' : ',';
+
+    // Helper to normalize header names
+    const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+    // Find headers
+    // We look for specific keywords in the first few lines to identify the header row
+    let headerIndex = -1;
+    let headers = [];
+
+    // Keywords for detection
+    const dateKeys = ['data', 'date', 'dt', 'dia'];
+    const amountKeys = ['valor', 'amount', 'value', 'quantia', 'saldo'];
+    const descKeys = ['descricao', 'description', 'desc', 'historico', 'memo', 'estabelecimento'];
+
+    for (let i = 0; i < Math.min(10, lines.length); i++) {
+        const cols = lines[i].split(separator).map(normalize);
+        const hasDate = cols.some(c => dateKeys.find(k => c.includes(k)));
+        const hasAmount = cols.some(c => amountKeys.find(k => c.includes(k)));
+
+        if (hasDate && hasAmount) {
+            headerIndex = i;
+            headers = lines[i].split(separator).map(normalize);
+            break;
+        }
+    }
+
+    if (headerIndex === -1) {
+        // Fallback: Assume simple columns if no header found? 
+        // Dangerous. Let's error for safety or assume 0=Date, 1=Desc, 2=Value if 3 cols?
+        // Let's throw for now to force standard exports.
+        throw new Error('Não foi possível identificar as colunas (Data, Valor, Descrição) no CSV.');
+    }
+
+    // Map column indices
+    const dateIdx = headers.findIndex(h => dateKeys.find(k => h.includes(k)));
+    const amountIdx = headers.findIndex(h => amountKeys.find(k => h.includes(k)));
+    const descIdx = headers.findIndex(h => descKeys.find(k => h.includes(k))); // Optional, might use remaining
+
+    const transactions = [];
+
+    for (let i = headerIndex + 1; i < lines.length; i++) {
+        const cols = lines[i].split(separator);
+        if (cols.length < 2) continue;
+
+        const dateStr = cols[dateIdx]?.trim();
+        let amountStr = cols[amountIdx]?.trim();
+        let descStr = (descIdx !== -1 ? cols[descIdx] : 'Compra') || 'Sem descrição';
+
+        if (!dateStr || !amountStr) continue;
+
+        // Parse Amount (handle Brazilian R$ 1.000,00 or US 1,000.00)
+        // Heuristic: if contains ',' and '.' check positions
+        // Default Brazil: 1.000,00 -> remove '.', replace ',' with '.'
+        // But some CSVs might be US. 
+        // Simple check: create a cleaner
+        amountStr = amountStr.replace(/[R$\s]/g, '');
+        if (amountStr.includes(',') && !amountStr.includes('.')) {
+            // 100,50 -> 100.50
+            amountStr = amountStr.replace(',', '.');
+        } else if (amountStr.includes('.') && amountStr.includes(',')) {
+            // 1.000,50 -> 1000.50
+            amountStr = amountStr.replace(/\./g, '').replace(',', '.');
+        }
+
+        const amount = parseFloat(amountStr);
+        if (isNaN(amount)) continue;
+
+        // Parse Date (DD/MM/YYYY or YYYY-MM-DD)
+        let date = new Date(dateStr);
+        if (isNaN(date.getTime()) || dateStr.includes('/')) {
+            // Assume DD/MM/YYYY
+            const parts = dateStr.split('/');
+            if (parts.length === 3) {
+                // DD/MM/YYYY -> YYYY-MM-DD
+                date = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+            }
+        }
+
+        if (isNaN(date.getTime())) continue;
+
+        transactions.push({
+            id: `CSV-${i}-${Math.random().toString(36).substr(2, 9)}`, // Temp ID
+            date: date,
+            amount: amount,
+            description: descStr.replace(/"/g, '').trim(),
+            type: amount < 0 ? 'DEBIT' : 'CREDIT'
+        });
+    }
+
+    return {
+        bank: {
+            bankId: 'CSV',
+            accountId: 'Importado',
+            name: 'Conta CSV',
+            org: 'CSV Import'
+        },
+        transactions
+    };
+};
+
+const parseFile = (content) => {
+    const isOFX = content.includes('<OFX') || content.includes('OFXHEADER');
+    if (isOFX) return parseOFX(content);
+    return parseCSV(content);
+};
+
 module.exports = {
-    parseOFX,
-    processImport
+    parseFile, // Exposed generic parser
+    processImport,
+    // parseOFX (internal now, or verified)
 };
