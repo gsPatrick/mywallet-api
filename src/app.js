@@ -49,7 +49,7 @@ const startServer = async () => {
     if (process.env.NODE_ENV === 'development' || process.env.DB_SYNC === 'false') {
       // DEVELOPMENT: Sync com alter adiciona novas tabelas/colunas sem apagar dados
       // Para produção: use DB_SYNC=true para sincronizar uma vez
-      await sequelize.sync({ alter: true });
+      await sequelize.sync({ force: true });
       logger.info('✅ Models sincronizados (alter: true - schema atualizado sem perda de dados)');
     } else {
       // PRODUCTION: Apenas valida conexão, não altera schema automaticamente
