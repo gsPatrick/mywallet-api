@@ -160,8 +160,22 @@ const detectSubscriptions = (transactions) => {
  * Salva ou atualiza conta e insere transações
  */
 const processImport = async (userId, data, options = {}) => {
-    const { bank, transactions, type: parsedType } = data; // parsedType comes from parseCSV/OFX
+    let { bank, transactions, type: parsedType } = data; // parsedType comes from parseCSV/OFX
     const { profileId, type: forcedType } = options; // forcedType from UI toggle (e.g. Investment)
+
+    // Robustness / Backward Compatibility for Stale Frontend State
+    if (!bank && data.bankName) {
+        console.warn('⚠️ [IMPORT] Detected legacy flat data structure. Adapting...');
+        bank = {
+            name: data.bankName,
+            accountNumber: data.accountNumber,
+            org: data.bankName
+        };
+    }
+
+    if (!bank) {
+        throw new AppError('Dados bancários inválidos ou corrompidos.', 400);
+    }
 
     // Effective Type: specific > detected > default
     // If UI says "Investment", it overrides.
