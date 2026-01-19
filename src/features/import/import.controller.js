@@ -39,15 +39,12 @@ const previewOFX = async (req, res) => {
  */
 const confirmImport = async (req, res) => {
     try {
-        let { data, type, dryRun } = req.body;
+        let { data, type, dryRun, overrideTargetId } = req.body;
 
-        // Handle API Wrapping (req.body.data contains type/dryRun)
-        if (data && !type && data.type) {
-            type = data.type;
-        }
-        if (data && !dryRun && data.dryRun) {
-            dryRun = data.dryRun;
-        }
+        // Handle API Wrapping (req.body.data contains type/dryRun/overrideTargetId)
+        if (data && !type && data.type) type = data.type;
+        if (data && !dryRun && data.dryRun) dryRun = data.dryRun;
+        if (data && !overrideTargetId && data.overrideTargetId) overrideTargetId = data.overrideTargetId;
 
         // Handle Double Wrapping (data.data) - Robustness Fix
         if (data && data.data && (data.data.bank || data.data.bankName)) {
@@ -64,7 +61,7 @@ const confirmImport = async (req, res) => {
         const userId = req.user.id;
         const profileId = req.headers['x-profile-id'];
 
-        const result = await importService.processImport(userId, data, { profileId, type, dryRun });
+        const result = await importService.processImport(userId, data, { profileId, type, dryRun, overrideTargetId });
 
         res.json(result);
 

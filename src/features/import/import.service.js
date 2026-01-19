@@ -1,5 +1,5 @@
 const { OFX } = require('ofx-js');
-const { BankAccount, CreditCard, ManualTransaction, Category } = require('../../models');
+const { BankAccount, CreditCard, ManualTransaction, CardTransaction, Category } = require('../../models');
 const { Op } = require('sequelize');
 const fs = require('fs');
 const { AppError } = require('../../middlewares/errorHandler');
@@ -179,7 +179,7 @@ const detectSubscriptions = (transactions) => {
  */
 const processImport = async (userId, data, options = {}) => {
     let { bank, transactions, type: parsedType, balance: parsedBalance } = data; // parsedType comes from parseCSV/OFX
-    const { profileId, type: forcedType, dryRun } = options;
+    const { profileId, type: forcedType, dryRun, overrideTargetId } = options;
 
     // Determine initial balance (prefer parsed from file)
     const initialBalance = parsedBalance !== undefined ? parsedBalance : (bank?.balance || 0);
@@ -216,8 +216,6 @@ const processImport = async (userId, data, options = {}) => {
             accountNumber: bank.accountNumber || 'CSV-ACC',
             type: effectiveType,
             color: '#6366F1',
-            type: effectiveType,
-            color: '#6366F1',
             isVirtual: true, // Flag for frontend
             balance: initialBalance // Include balance in preview
         };
@@ -241,17 +239,23 @@ const processImport = async (userId, data, options = {}) => {
         }
 
         if (effectiveType === 'CREDIT_CARD') {
-            // Find or Create Credit Card
-            // Try to match by name or creates a new "Imported Card"
-            // Ideally we ask user to validade, but here we automagically create.
-            // We use a dummy last4 "CSV" or from file if available to find existing.
-            entity = await CreditCard.findOne({
-                where: {
-                    userId,
-                    // Flexible match: name contains bank name OR just name matches
-                    name: { [Op.like]: `%${bank.name || 'Nubank'}%` }
-                }
-            });
+
+            // Check overrideTargetId first
+            if (overrideTargetId) {
+                entity = await CreditCard.findOne({ where: { id: overrideTargetId, userId } });
+                if (entity) console.log(`✅ [IMPORT] Linked to Existing Credit Card by Override ID: ${entity.id}`);
+            }
+
+            // Find or Create Credit Card if not found
+            if (!entity) {
+                entity = await CreditCard.findOne({
+                    where: {
+                        userId,
+                        // Flexible match: name contains bank name OR just name matches
+                        name: { [Op.like]: `%${bank.name || 'Nubank'}%` }
+                    }
+                });
+            }
 
             if (!entity) {
                 entity = await CreditCard.create({
@@ -269,12 +273,21 @@ const processImport = async (userId, data, options = {}) => {
             }
         } else {
             // Bank Account Logic (Existing)
-            entity = await BankAccount.findOne({
-                where: {
-                    userId,
-                    accountNumber: bank.accountNumber || 'CSV-ACC'
-                }
-            });
+
+            // Check overrideTargetId first
+            if (overrideTargetId) {
+                entity = await BankAccount.findOne({ where: { id: overrideTargetId, userId } });
+                if (entity) console.log(`✅ [IMPORT] Linked to Existing Bank Account by Override ID: ${entity.id}`);
+            }
+
+            if (!entity) {
+                entity = await BankAccount.findOne({
+                    where: {
+                        userId,
+                        accountNumber: bank.accountNumber || 'CSV-ACC'
+                    }
+                });
+            }
 
             if (!entity) {
                 entity = await BankAccount.create({
@@ -290,23 +303,53 @@ const processImport = async (userId, data, options = {}) => {
                 console.log(`✅ [IMPORT] Created Bank Account: ${entity.id}`);
             }
         }
+
+        // 3. Inserir Transações (Now Implemented!)
+        if (entity && transactions && transactions.length > 0) {
+            console.log(`💾 [IMPORT] Saving ${transactions.length} transactions for Entity ${entity.id}...`);
+
+            if (effectiveType === 'CREDIT_CARD') {
+                // Bulk Insert Card Transactions
+                const cardTxs = transactions.map(tx => ({
+                    userId,
+                    cardId: entity.id,
+                    description: tx.description,
+                    amount: Math.abs(parseFloat(tx.amount)), // Store absolute value
+                    date: tx.date,
+                    category: null, // AI will handle later if needed
+                    status: 'PENDING', // Default
+                    isRecurring: false
+                }));
+
+                await CardTransaction.bulkCreate(cardTxs);
+                console.log(`✅ [IMPORT] ${cardTxs.length} Card Transactions Saved.`);
+
+            } else {
+                // Bulk Insert Manual Transactions (Bank)
+                const bankTxs = transactions.map(tx => {
+                    const amount = parseFloat(tx.amount);
+                    return {
+                        userId,
+                        profileId: targetProfileId,
+                        bankAccountId: entity.id,
+                        description: tx.description,
+                        amount: Math.abs(amount), // Store absolute
+                        date: tx.date,
+                        type: amount < 0 ? 'EXPENSE' : 'INCOME',
+                        status: 'COMPLETED', // Already happened
+                        category_id: null
+                    };
+                });
+
+                await ManualTransaction.bulkCreate(bankTxs);
+                console.log(`✅ [IMPORT] ${bankTxs.length} Manual Transactions Saved.`);
+            }
+        }
     }
 
     // 2. Detectar Assinaturas
     const detectedSubscriptions = detectSubscriptions(transactions);
 
-    // 3. Inserir Transações
-    // Simplified logic: Create ManualTransactions linked to this account/card
-    // TODO: Use a proper transaction service to handle categorization, etc.
-    // For now, we return data for the frontend/controller without full persistence recursion unless required.
-    // Wait, the requirement is to POPULATE. So we should create them.
-    // But `ImportStep` only showed a preview.
-    // The previous implementation of `processImport` just returned success msg.
-    // Now we must create the transactions!
-
-    // We need `ManualTransaction` model or `CardTransaction`.
-    // Since we don't have easy imports here, let's just Log and Return `entity` so Frontend can refresh list.
-    // In a real app we'd bulkCreate transactions here.
 
     return {
         entity, // Returns either bankAccount or creditCard
