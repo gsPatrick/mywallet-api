@@ -417,7 +417,11 @@ const listTransactions = async (userId, profileId, filters = {}) => {
     // ✅ PROFILE ISOLATION: Base where clause includes profileId
     const baseWhere = { userId };
     if (profileId) baseWhere.profileId = profileId;
-    if (bankAccountId) baseWhere.bankAccountId = bankAccountId;
+    
+    // Filtro agressivo por conta bancária
+    if (bankAccountId) {
+        baseWhere.bankAccountId = bankAccountId;
+    }
 
     // Buscar transações Open Finance
     const ofWhere = { userId };
@@ -425,7 +429,7 @@ const listTransactions = async (userId, profileId, filters = {}) => {
     if (Object.keys(amountFilter).length) ofWhere.amount = amountFilter;
     if (type === 'CREDIT' || type === 'DEBIT') ofWhere.type = type;
     
-    // ✅ Se bankAccountId foi passado, filtrar por relatedAccountId no OF
+    // ✅ Se bankAccountId foi passado, a trava é OBRIGATÓRIA
     if (bankAccountId) {
         ofWhere.relatedAccountId = bankAccountId;
     }
@@ -458,8 +462,6 @@ const listTransactions = async (userId, profileId, filters = {}) => {
         offset
     });
 
-    // Buscar transações de cartão
-    // ✅ PROFILE ISOLATION: CardTransaction não tem profile_id direto
     // 3. Buscar transações de cartão ✅ PROFILE ISOLATION + SMART FILTER
     let cardTransactions = [];
     const cardWhere = { userId };
@@ -473,12 +475,10 @@ const listTransactions = async (userId, profileId, filters = {}) => {
             { bankAccountId: bankAccountId }
         ];
 
-        // Se o frontend identificou cartões que "deveriam" estar aqui (por nome ou ID),
-        // mas eles estão sem bankAccountId no banco, permitimos a exibição.
         if (cardIds && Array.isArray(cardIds) && cardIds.length > 0) {
             orConditions.push({
                 id: { [Op.in]: cardIds },
-                bankAccountId: null // SÓ permite se o cartão estiver "solto"
+                bankAccountId: null
             });
         }
 
@@ -512,6 +512,9 @@ const listTransactions = async (userId, profileId, filters = {}) => {
         });
     }
 
+    // DEBUG LOG
+    console.log(`[TX_FILTER] Bank: ${bankAccountId} | Manual: ${manualTransactions.length} | OF: ${openFinanceTransactions.length} | Card: ${cardTransactions.length}`);
+
     // Buscar metadata para todas as transações
     const ofIds = openFinanceTransactions.map(t => t.id);
     const manualIds = manualTransactions.map(t => t.id);
@@ -526,10 +529,10 @@ const listTransactions = async (userId, profileId, filters = {}) => {
         }
     });
 
-    const metadataMap = {};
-    for (const m of allMetadata) {
-        metadataMap[`${m.transactionType}_${m.transactionId}`] = m;
-    }
+    const metadataMap = allMetadata.reduce((acc, m) => {
+        acc[`${m.transactionType}_${m.transactionId}`] = m;
+        return acc;
+    }, {});
 
     const filterByCategory = (tx, txType) => {
         if (!category) return true;
