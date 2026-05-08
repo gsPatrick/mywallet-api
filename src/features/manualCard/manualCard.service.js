@@ -48,7 +48,8 @@ const listCards = async (userId, profileId, filters = {}) => {
         isVirtual: c.isVirtual,
         color: c.color,
         holderName: c.holderName,
-        isActive: c.isActive
+        isActive: c.isActive,
+        bankAccountId: c.bankAccountId
     }));
 };
 
