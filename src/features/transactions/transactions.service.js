@@ -390,6 +390,7 @@ const listTransactions = async (userId, profileId, filters = {}) => {
         category,
         minAmount,
         maxAmount,
+        bankAccountId,
         page = 1,
         limit = 50
     } = filters;
@@ -408,6 +409,7 @@ const listTransactions = async (userId, profileId, filters = {}) => {
     // ✅ PROFILE ISOLATION: Base where clause includes profileId
     const baseWhere = { userId };
     if (profileId) baseWhere.profileId = profileId;
+    if (bankAccountId) baseWhere.bankAccountId = bankAccountId;
 
     // Buscar transações Open Finance
     const ofWhere = { userId }; // OF não tem profileId por enquanto
@@ -450,9 +452,10 @@ const listTransactions = async (userId, profileId, filters = {}) => {
     if (Object.keys(dateFilter).length) cardWhere.date = dateFilter;
     if (Object.keys(amountFilter).length) cardWhere.amount = amountFilter;
 
-    // Filtro para o cartão associado (para isolar por perfil)
+    // Filtro para o cartão associado (para isolar por perfil e/ou bankAccountId)
     const cardIncludeWhere = {};
     if (profileId) cardIncludeWhere.profileId = profileId;
+    if (bankAccountId) cardIncludeWhere.bankAccountId = bankAccountId;
 
     let cardTransactions = [];
     if (!type || type === 'EXPENSE') {
