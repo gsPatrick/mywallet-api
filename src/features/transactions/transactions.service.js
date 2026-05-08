@@ -466,18 +466,19 @@ const listTransactions = async (userId, profileId, filters = {}) => {
     if (Object.keys(dateFilter).length) cardWhere.date = dateFilter;
     if (Object.keys(amountFilter).length) cardWhere.amount = amountFilter;
 
-    // Filtro complexo para cartões: por bankAccountId OU por lista explícita de cardIds
+    // Filtro estrito: Prioridade total ao bankAccountId se fornecido
     let cardIncludeWhere = {};
-    if (bankAccountId || cardIds) {
-        const orConditions = [];
-        if (bankAccountId) orConditions.push({ bankAccountId });
-        if (cardIds && Array.isArray(cardIds) && cardIds.length > 0) {
-            orConditions.push({ id: { [Op.in]: cardIds } });
-        }
+    if (bankAccountId) {
+        // Se estamos em um banco, SÓ queremos cartões desse banco
+        cardIncludeWhere.bankAccountId = bankAccountId;
         
-        if (orConditions.length > 0) {
-            cardIncludeWhere[Op.or] = orConditions;
+        // Se também houver IDs de cartões, eles devem ser um subconjunto desse banco
+        if (cardIds && Array.isArray(cardIds) && cardIds.length > 0) {
+            cardIncludeWhere.id = { [Op.in]: cardIds };
         }
+    } else if (cardIds && Array.isArray(cardIds) && cardIds.length > 0) {
+        // Se não há banco (ex: página geral de cartões), filtramos apenas pelos IDs
+        cardIncludeWhere.id = { [Op.in]: cardIds };
     } else if (profileId) {
         cardIncludeWhere.profileId = profileId;
     }

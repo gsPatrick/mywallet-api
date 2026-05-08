@@ -35,18 +35,15 @@ const getMonthlyStatement = async (userId, year, month, bankAccountId = null, ca
         attributes: ['id', 'description', 'amount', 'type', 'date', 'createdAt']
     });
 
-    // 3. Buscar transações de cartão (por bankAccountId OU lista de IDs)
-    let cardTransactions = [];
-    const cardWhere = { userId, date: periodFilter };
+    // Filtro estrito: Prioridade total ao bankAccountId se fornecido
     let cardIncludeWhere = {};
-
-    if (bankAccountId || cardIds) {
-        const orConditions = [];
-        if (bankAccountId) orConditions.push({ bankAccountId });
+    if (bankAccountId) {
+        cardIncludeWhere.bankAccountId = bankAccountId;
         if (cardIds && Array.isArray(cardIds) && cardIds.length > 0) {
-            orConditions.push({ id: { [Op.in]: cardIds } });
+            cardIncludeWhere.id = { [Op.in]: cardIds };
         }
-        cardIncludeWhere[Op.or] = orConditions;
+    } else if (cardIds && Array.isArray(cardIds) && cardIds.length > 0) {
+        cardIncludeWhere.id = { [Op.in]: cardIds };
     }
 
     cardTransactions = await CardTransaction.findAll({
@@ -152,16 +149,16 @@ const calculatePreviousBalance = async (userId, beforeDate, bankAccountId = null
         else total -= val;
     });
 
-    // Card (Expenses only) - SMART MATCHED
+    // Card (Expenses only)
     const cardWhere = { userId, date: beforeFilter };
     let cardIncludeWhere = {};
-    if (bankAccountId || cardIds) {
-        const orConditions = [];
-        if (bankAccountId) orConditions.push({ bankAccountId });
+    if (bankAccountId) {
+        cardIncludeWhere.bankAccountId = bankAccountId;
         if (cardIds && Array.isArray(cardIds) && cardIds.length > 0) {
-            orConditions.push({ id: { [Op.in]: cardIds } });
+            cardIncludeWhere.id = { [Op.in]: cardIds };
         }
-        cardIncludeWhere[Op.or] = orConditions;
+    } else if (cardIds && Array.isArray(cardIds) && cardIds.length > 0) {
+        cardIncludeWhere.id = { [Op.in]: cardIds };
     }
 
     const cards = await CardTransaction.findAll({
