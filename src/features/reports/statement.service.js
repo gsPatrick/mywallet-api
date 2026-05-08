@@ -35,18 +35,42 @@ const getMonthlyStatement = async (userId, year, month, bankAccountId = null) =>
         attributes: ['id', 'description', 'amount', 'type', 'date', 'createdAt']
     });
 
-    // 3. Buscar transações de cartão (apenas se o cartão estiver vinculado a esta conta)
+    // 3. Buscar transações de cartão (apenas se o cartão estiver vinculado a esta conta ou for "smart-matched")
     let cardTransactions = [];
     const cardWhere = { userId, date: periodFilter };
-    const cardIncludeWhere = {};
-    if (bankAccountId) cardIncludeWhere.bankAccountId = bankAccountId;
+    let cardIncludeWhere = {};
+
+    if (bankAccountId) {
+        const account = await BankAccount.findByPk(bankAccountId);
+        if (account) {
+            const bankName = account.bankName;
+            cardIncludeWhere = {
+                [Op.or]: [
+                    { bankAccountId: bankAccountId },
+                    {
+                        [Op.and]: [
+                            { bankAccountId: null },
+                            {
+                                [Op.or]: [
+                                    { bankName: { [Op.iLike]: `%${bankName}%` } },
+                                    { name: { [Op.iLike]: `%${bankName}%` } }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            };
+        } else {
+            cardIncludeWhere.bankAccountId = bankAccountId;
+        }
+    }
 
     cardTransactions = await CardTransaction.findAll({
         where: cardWhere,
         include: [{
             model: CreditCard,
             as: 'card',
-            attributes: ['id', 'name', 'bankAccountId'],
+            attributes: ['id', 'name', 'bankAccountId', 'bankName'],
             where: Object.keys(cardIncludeWhere).length > 0 ? cardIncludeWhere : undefined,
             required: !!bankAccountId
         }],
@@ -144,13 +168,42 @@ const calculatePreviousBalance = async (userId, beforeDate, bankAccountId = null
         else total -= val;
     });
 
-    // Card (Expenses only)
+    // Card (Expenses only) - SMART MATCHED
     const cardWhere = { userId, date: beforeFilter };
-    const cardIncludeWhere = {};
-    if (bankAccountId) cardIncludeWhere.bankAccountId = bankAccountId;
+    let cardIncludeWhere = {};
+    if (bankAccountId) {
+        const account = await BankAccount.findByPk(bankAccountId);
+        if (account) {
+            const bankName = account.bankName;
+            cardIncludeWhere = {
+                [Op.or]: [
+                    { bankAccountId: bankAccountId },
+                    {
+                        [Op.and]: [
+                            { bankAccountId: null },
+                            {
+                                [Op.or]: [
+                                    { bankName: { [Op.iLike]: `%${bankName}%` } },
+                                    { name: { [Op.iLike]: `%${bankName}%` } }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            };
+        } else {
+            cardIncludeWhere.bankAccountId = bankAccountId;
+        }
+    }
+
     const cards = await CardTransaction.findAll({
         where: cardWhere,
-        include: [{ model: CreditCard, as: 'card', where: Object.keys(cardIncludeWhere).length > 0 ? cardIncludeWhere : undefined, required: !!bankAccountId }]
+        include: [{ 
+            model: CreditCard, 
+            as: 'card', 
+            where: Object.keys(cardIncludeWhere).length > 0 ? cardIncludeWhere : undefined, 
+            required: !!bankAccountId 
+        }]
     });
     cards.forEach(t => total -= parseFloat(t.amount));
 

@@ -459,16 +459,43 @@ const listTransactions = async (userId, profileId, filters = {}) => {
 
     // Buscar transações de cartão
     // ✅ PROFILE ISOLATION: CardTransaction não tem profile_id direto
+    // 3. Buscar transações de cartão ✅ PROFILE ISOLATION + SMART FILTER
+    let cardTransactions = [];
     const cardWhere = { userId };
     if (Object.keys(dateFilter).length) cardWhere.date = dateFilter;
     if (Object.keys(amountFilter).length) cardWhere.amount = amountFilter;
 
-    // Filtro para o cartão associado (para isolar por perfil e/ou bankAccountId)
-    const cardIncludeWhere = {};
-    if (profileId) cardIncludeWhere.profileId = profileId;
-    if (bankAccountId) cardIncludeWhere.bankAccountId = bankAccountId;
+    // Se bankAccountId foi passado, ser "esperto" e buscar por ID ou Nome do Banco
+    let cardIncludeWhere = {};
+    if (bankAccountId) {
+        const BankAccount = require('../../models/bankAccount')(require('../../config/database').sequelize);
+        const account = await BankAccount.findByPk(bankAccountId);
+        
+        if (account) {
+            const bankName = account.bankName;
+            cardIncludeWhere = {
+                [Op.or]: [
+                    { bankAccountId: bankAccountId },
+                    {
+                        [Op.and]: [
+                            { bankAccountId: null },
+                            {
+                                [Op.or]: [
+                                    { bankName: { [Op.iLike]: `%${bankName}%` } },
+                                    { name: { [Op.iLike]: `%${bankName}%` } }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            };
+        } else {
+            cardIncludeWhere.bankAccountId = bankAccountId;
+        }
+    } else if (profileId) {
+        cardIncludeWhere.profileId = profileId;
+    }
 
-    let cardTransactions = [];
     if (!type || type === 'EXPENSE') {
         cardTransactions = await CardTransaction.findAll({
             where: cardWhere,
@@ -481,9 +508,9 @@ const listTransactions = async (userId, profileId, filters = {}) => {
                 {
                     model: CreditCard,
                     as: 'card',
-                    attributes: ['id', 'name', 'lastFourDigits', 'profileId', 'bankAccountId'],
+                    attributes: ['id', 'name', 'bankAccountId', 'bankName'],
                     where: Object.keys(cardIncludeWhere).length > 0 ? cardIncludeWhere : undefined,
-                    required: !!(profileId || bankAccountId) // ✅ Se profileId OU bankAccountId foram passados, exigir cartão correspondente
+                    required: !!bankAccountId
                 }
             ],
             order: [['date', 'DESC']],
