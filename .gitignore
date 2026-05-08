@@ -36,3 +36,4 @@ coverage/
 # Temporários
 tmp/
 temp/
+database.sqlite
