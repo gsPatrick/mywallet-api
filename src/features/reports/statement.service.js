@@ -12,20 +12,26 @@ const { Op } = require('sequelize');
  * @param {number} year - Ano
  * @param {number} month - Mês (1-12)
  */
-const getMonthlyStatement = async (userId, year, month) => {
+const getMonthlyStatement = async (userId, year, month, bankAccountId = null) => {
     // Período do mês
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59); // Último dia do mês
 
+    const whereClause = {
+        userId,
+        date: {
+            [Op.between]: [startDate, endDate]
+        },
+        status: { [Op.ne]: 'CANCELLED' } // Ignorar canceladas
+    };
+
+    if (bankAccountId) {
+        whereClause.bankAccountId = bankAccountId;
+    }
+
     // Busca todas transações do período
     const transactions = await ManualTransaction.findAll({
-        where: {
-            userId,
-            date: {
-                [Op.between]: [startDate, endDate]
-            },
-            status: { [Op.ne]: 'CANCELLED' } // Ignorar canceladas
-        },
+        where: whereClause,
         include: [{
             model: Category,
             as: 'category',
@@ -65,7 +71,7 @@ const getMonthlyStatement = async (userId, year, month) => {
     });
 
     // Buscar saldo anterior (soma de tudo antes deste mês)
-    const previousBalance = await calculatePreviousBalance(userId, startDate);
+    const previousBalance = await calculatePreviousBalance(userId, startDate, bankAccountId);
 
     // Calcula saldo final
     const netChange = totalIncome - totalExpense;
@@ -95,13 +101,19 @@ const getMonthlyStatement = async (userId, year, month) => {
 /**
  * Calcula saldo anterior ao período
  */
-const calculatePreviousBalance = async (userId, beforeDate) => {
+const calculatePreviousBalance = async (userId, beforeDate, bankAccountId = null) => {
+    const whereClause = {
+        userId,
+        date: { [Op.lt]: beforeDate },
+        status: { [Op.ne]: 'CANCELLED' }
+    };
+
+    if (bankAccountId) {
+        whereClause.bankAccountId = bankAccountId;
+    }
+
     const result = await ManualTransaction.findAll({
-        where: {
-            userId,
-            date: { [Op.lt]: beforeDate },
-            status: { [Op.ne]: 'CANCELLED' }
-        },
+        where: whereClause,
         attributes: ['type', 'amount']
     });
 

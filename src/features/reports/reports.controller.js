@@ -33,14 +33,14 @@ class ReportsController {
     // Statement (Extrato Financeiro)
     async getStatement(req, res) {
         try {
-            const { year, month } = req.query;
+            const { year, month, bankAccountId } = req.query;
             const currentDate = new Date();
 
             const y = parseInt(year) || currentDate.getFullYear();
             const m = parseInt(month) || (currentDate.getMonth() + 1);
 
             const userId = req.user?.id || req.userId;
-            const data = await statementService.getMonthlyStatement(userId, y, m);
+            const data = await statementService.getMonthlyStatement(userId, y, m, bankAccountId);
             res.json({ data });
         } catch (error) {
             res.status(500).json({ error: error.message, code: 'INTERNAL_ERROR' });
