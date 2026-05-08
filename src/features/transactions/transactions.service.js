@@ -391,6 +391,7 @@ const listTransactions = async (userId, profileId, filters = {}) => {
         minAmount,
         maxAmount,
         bankAccountId,
+        cardIds,
         page = 1,
         limit = 50
     } = filters;
