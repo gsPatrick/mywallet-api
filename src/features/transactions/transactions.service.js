@@ -601,7 +601,6 @@ const listTransactions = async (userId, profileId, filters = {}) => {
                 createdAt: tx.createdAt
             };
         });
-
     // Formatar transações de cartão
     const formattedCard = cardTransactions
         .filter(tx => {
@@ -630,13 +629,30 @@ const listTransactions = async (userId, profileId, filters = {}) => {
                 editable: true,
                 createdAt: tx.createdAt,
                 cardId: tx.cardId,
+                bankAccountId: tx.card?.bankAccountId || null,
                 status: tx.status
             };
         });
 
     // Combinar e ordenar por data
-    const allTransactions = [...formattedOF, ...formattedManual, ...formattedCard]
-        .sort((a, b) => new Date(b.date) - new Date(a.date));
+    let allTransactions = [
+        ...formattedOF.map(t => ({ ...t, bankAccountId })), // OF já vem filtrado
+        ...formattedManual.map(t => ({ ...t, bankAccountId })), // Manual já vem filtrado
+        ...formattedCard
+    ];
+
+    // ✅ TRIPLE LOCK: Fail-safe filter to ensure NO leak between bank accounts
+    if (bankAccountId) {
+        allTransactions = allTransactions.filter(tx => {
+            // Se o objeto tem um bankAccountId explícito, ele DEVE bater com o filtro
+            if (tx.bankAccountId && String(tx.bankAccountId) !== String(bankAccountId)) {
+                return false;
+            }
+            return true;
+        });
+    }
+
+    allTransactions = allTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
 
     return {
         transactions: allTransactions,
