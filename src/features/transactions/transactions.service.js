@@ -397,6 +397,13 @@ const listTransactions = async (userId, profileId, filters = {}) => {
 
     const offset = (page - 1) * limit;
 
+    // DEBUG: Log received filters to a file
+    try {
+        const fs = require('fs');
+        const logMsg = `[DEBUG] ${new Date().toISOString()} | bankAccountId: ${bankAccountId} | profileId: ${profileId}\n`;
+        fs.appendFileSync('/Users/patrickgomessiqueira/mywallet/mywallet-api/scratch/api_debug.log', logMsg);
+    } catch (e) {}
+
     // Construir filtros base
     const dateFilter = {};
     if (startDate) dateFilter[Op.gte] = startDate;
@@ -412,10 +419,15 @@ const listTransactions = async (userId, profileId, filters = {}) => {
     if (bankAccountId) baseWhere.bankAccountId = bankAccountId;
 
     // Buscar transações Open Finance
-    const ofWhere = { userId }; // OF não tem profileId por enquanto
+    const ofWhere = { userId };
     if (Object.keys(dateFilter).length) ofWhere.date = dateFilter;
     if (Object.keys(amountFilter).length) ofWhere.amount = amountFilter;
     if (type === 'CREDIT' || type === 'DEBIT') ofWhere.type = type;
+    
+    // ✅ Se bankAccountId foi passado, filtrar por relatedAccountId no OF
+    if (bankAccountId) {
+        ofWhere.relatedAccountId = bankAccountId;
+    }
 
     const openFinanceTransactions = await OpenFinanceTransaction.findAll({
         where: ofWhere,
@@ -447,7 +459,6 @@ const listTransactions = async (userId, profileId, filters = {}) => {
 
     // Buscar transações de cartão
     // ✅ PROFILE ISOLATION: CardTransaction não tem profile_id direto
-    // A isolação é feita via o cartão associado (CreditCard.profileId)
     const cardWhere = { userId };
     if (Object.keys(dateFilter).length) cardWhere.date = dateFilter;
     if (Object.keys(amountFilter).length) cardWhere.amount = amountFilter;
@@ -470,9 +481,9 @@ const listTransactions = async (userId, profileId, filters = {}) => {
                 {
                     model: CreditCard,
                     as: 'card',
-                    attributes: ['id', 'name', 'lastFourDigits', 'profileId'],
+                    attributes: ['id', 'name', 'lastFourDigits', 'profileId', 'bankAccountId'],
                     where: Object.keys(cardIncludeWhere).length > 0 ? cardIncludeWhere : undefined,
-                    required: !!profileId // ✅ Se profileId foi passado, exigir cartão do perfil correto
+                    required: !!(profileId || bankAccountId) // ✅ Se profileId OU bankAccountId foram passados, exigir cartão correspondente
                 }
             ],
             order: [['date', 'DESC']],

@@ -1,152 +1,167 @@
-/**
- * Statement Service
- * Gera extrato financeiro mensal (estilo banco)
- */
-
-const { ManualTransaction, Category } = require('../../models');
+const { ManualTransaction, OpenFinanceTransaction, CardTransaction, CreditCard, Category } = require('../../models');
 const { Op } = require('sequelize');
 
 /**
  * Obtém extrato mensal completo
- * @param {string} userId - ID do usuário
- * @param {number} year - Ano
- * @param {number} month - Mês (1-12)
+ * ✅ Suporta múltiplas fontes (Manual, Open Finance, Cartão)
+ * ✅ Suporta filtro por conta bancária
  */
 const getMonthlyStatement = async (userId, year, month, bankAccountId = null) => {
     // Período do mês
     const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0, 23, 59, 59); // Último dia do mês
+    const endDate = new Date(year, month, 0, 23, 59, 59);
 
-    const whereClause = {
-        userId,
-        date: {
-            [Op.between]: [startDate, endDate]
-        },
-        status: { [Op.ne]: 'CANCELLED' } // Ignorar canceladas
-    };
+    const periodFilter = { [Op.between]: [startDate, endDate] };
 
-    if (bankAccountId) {
-        whereClause.bankAccountId = bankAccountId;
-    }
+    // 1. Buscar transações manuais
+    const manualWhere = { userId, date: periodFilter, status: { [Op.ne]: 'CANCELLED' } };
+    if (bankAccountId) manualWhere.bankAccountId = bankAccountId;
 
-    // Busca todas transações do período
-    const transactions = await ManualTransaction.findAll({
-        where: whereClause,
-        include: [{
-            model: Category,
-            as: 'category',
-            attributes: ['id', 'name', 'icon', 'color']
-        }],
-        order: [['date', 'ASC'], ['createdAt', 'ASC']],
+    const manualTransactions = await ManualTransaction.findAll({
+        where: manualWhere,
+        include: [{ model: Category, as: 'category', attributes: ['id', 'name', 'icon', 'color'] }],
         attributes: ['id', 'description', 'amount', 'type', 'status', 'date', 'source', 'createdAt']
     });
 
-    // Calcula totais
-    let totalIncome = 0;
-    let totalExpense = 0;
-    let totalTransfer = 0;
+    // 2. Buscar transações Open Finance (se não houver bankAccountId ou se for o específico)
+    let openFinanceTransactions = [];
+    const ofWhere = { userId, date: periodFilter };
+    if (bankAccountId) {
+        ofWhere.relatedAccountId = bankAccountId;
+    }
 
-    const formattedTransactions = transactions.map(t => {
-        const amount = parseFloat(t.amount);
-
-        if (t.type === 'INCOME') totalIncome += amount;
-        else if (t.type === 'EXPENSE') totalExpense += amount;
-        else if (t.type === 'TRANSFER') totalTransfer += amount;
-
-        return {
-            id: t.id,
-            date: t.date,
-            description: t.description || 'Sem descrição',
-            type: t.type,
-            status: t.status,
-            amount: amount,
-            category: t.category ? {
-                id: t.category.id,
-                name: t.category.name,
-                icon: t.category.icon,
-                color: t.category.color
-            } : null,
-            source: t.source
-        };
+    openFinanceTransactions = await OpenFinanceTransaction.findAll({
+        where: ofWhere,
+        attributes: ['id', 'description', 'amount', 'type', 'date', 'createdAt']
     });
 
-    // Buscar saldo anterior (soma de tudo antes deste mês)
+    // 3. Buscar transações de cartão (apenas se o cartão estiver vinculado a esta conta)
+    let cardTransactions = [];
+    const cardWhere = { userId, date: periodFilter };
+    const cardIncludeWhere = {};
+    if (bankAccountId) cardIncludeWhere.bankAccountId = bankAccountId;
+
+    cardTransactions = await CardTransaction.findAll({
+        where: cardWhere,
+        include: [{
+            model: CreditCard,
+            as: 'card',
+            attributes: ['id', 'name', 'bankAccountId'],
+            where: Object.keys(cardIncludeWhere).length > 0 ? cardIncludeWhere : undefined,
+            required: !!bankAccountId
+        }],
+        attributes: ['id', 'description', 'amount', 'date', 'createdAt']
+    });
+
+    // Unificar e formatar
+    let totalIncome = 0;
+    let totalExpense = 0;
+
+    const allFormatted = [
+        ...manualTransactions.map(t => {
+            const amount = parseFloat(t.amount);
+            if (t.type === 'INCOME') totalIncome += amount;
+            else if (t.type === 'EXPENSE') totalExpense += amount;
+            return {
+                id: t.id,
+                date: t.date,
+                description: t.description,
+                type: t.type,
+                amount,
+                source: t.source,
+                category: t.category,
+                origin: 'MANUAL'
+            };
+        }),
+        ...openFinanceTransactions.map(t => {
+            const amount = parseFloat(t.amount);
+            const type = t.type === 'CREDIT' ? 'INCOME' : 'EXPENSE';
+            if (type === 'INCOME') totalIncome += amount;
+            else totalExpense += amount;
+            return {
+                id: t.id,
+                date: t.date,
+                description: t.description,
+                type,
+                amount,
+                source: 'OPEN_FINANCE',
+                origin: 'OPEN_FINANCE'
+            };
+        }),
+        ...cardTransactions.map(t => {
+            const amount = parseFloat(t.amount);
+            totalExpense += amount; // Card transactions are always expenses in this context
+            return {
+                id: t.id,
+                date: t.date,
+                description: t.description,
+                type: 'EXPENSE',
+                amount,
+                source: 'CARD',
+                origin: 'CARD'
+            };
+        })
+    ].sort((a, b) => new Date(a.date) - new Date(b.date) || new Date(a.createdAt) - new Date(b.createdAt));
+
+    // Buscar saldo anterior
     const previousBalance = await calculatePreviousBalance(userId, startDate, bankAccountId);
 
-    // Calcula saldo final
     const netChange = totalIncome - totalExpense;
     const closingBalance = previousBalance + netChange;
 
     return {
-        period: {
-            year,
-            month,
-            startDate: startDate.toISOString().split('T')[0],
-            endDate: endDate.toISOString().split('T')[0],
-            monthName: startDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
-        },
-        summary: {
-            openingBalance: previousBalance,
-            totalIncome,
-            totalExpense,
-            totalTransfer,
-            netChange,
-            closingBalance
-        },
-        transactions: formattedTransactions,
-        transactionCount: formattedTransactions.length
+        period: { year, month, startDate: startDate.toISOString().split('T')[0], endDate: endDate.toISOString().split('T')[0] },
+        summary: { openingBalance: previousBalance, totalIncome, totalExpense, netChange, closingBalance },
+        transactions: allFormatted,
+        transactionCount: allFormatted.length
     };
 };
 
 /**
- * Calcula saldo anterior ao período
+ * Calcula saldo anterior ao período considerando todas as fontes
  */
 const calculatePreviousBalance = async (userId, beforeDate, bankAccountId = null) => {
-    const whereClause = {
-        userId,
-        date: { [Op.lt]: beforeDate },
-        status: { [Op.ne]: 'CANCELLED' }
-    };
+    const beforeFilter = { [Op.lt]: beforeDate };
+    let total = 0;
 
-    if (bankAccountId) {
-        whereClause.bankAccountId = bankAccountId;
-    }
-
-    const result = await ManualTransaction.findAll({
-        where: whereClause,
-        attributes: ['type', 'amount']
+    // Manual
+    const manualWhere = { userId, date: beforeFilter, status: { [Op.ne]: 'CANCELLED' } };
+    if (bankAccountId) manualWhere.bankAccountId = bankAccountId;
+    const manual = await ManualTransaction.findAll({ where: manualWhere, attributes: ['type', 'amount'] });
+    manual.forEach(t => {
+        const val = parseFloat(t.amount);
+        if (t.type === 'INCOME') total += val;
+        else if (t.type === 'EXPENSE') total -= val;
     });
 
-    let balance = 0;
-    result.forEach(t => {
-        const amount = parseFloat(t.amount);
-        if (t.type === 'INCOME') balance += amount;
-        else if (t.type === 'EXPENSE') balance -= amount;
+    // Open Finance
+    const ofWhere = { userId, date: beforeFilter };
+    if (bankAccountId) ofWhere.relatedAccountId = bankAccountId;
+    const of = await OpenFinanceTransaction.findAll({ where: ofWhere, attributes: ['type', 'amount'] });
+    of.forEach(t => {
+        const val = parseFloat(t.amount);
+        if (t.type === 'CREDIT') total += val;
+        else total -= val;
     });
 
-    return balance;
+    // Card (Expenses only)
+    const cardWhere = { userId, date: beforeFilter };
+    const cardIncludeWhere = {};
+    if (bankAccountId) cardIncludeWhere.bankAccountId = bankAccountId;
+    const cards = await CardTransaction.findAll({
+        where: cardWhere,
+        include: [{ model: CreditCard, as: 'card', where: Object.keys(cardIncludeWhere).length > 0 ? cardIncludeWhere : undefined, required: !!bankAccountId }]
+    });
+    cards.forEach(t => total -= parseFloat(t.amount));
+
+    return total;
 };
 
-/**
- * Lista anos disponíveis para extrato
- */
 const getAvailableYears = async (userId) => {
-    const transactions = await ManualTransaction.findAll({
-        where: { userId },
-        attributes: ['date'],
-        order: [['date', 'ASC']]
-    });
-
-    if (transactions.length === 0) {
-        return [new Date().getFullYear()];
-    }
-
-    const years = new Set();
-    transactions.forEach(t => {
-        years.add(new Date(t.date).getFullYear());
-    });
-
-    return Array.from(years).sort((a, b) => b - a); // Mais recente primeiro
+    const manual = await ManualTransaction.findAll({ where: { userId }, attributes: ['date'] });
+    const years = new Set([new Date().getFullYear()]);
+    manual.forEach(t => years.add(new Date(t.date).getFullYear()));
+    return Array.from(years).sort((a, b) => b - a);
 };
 
 module.exports = {

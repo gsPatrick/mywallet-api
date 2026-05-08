@@ -19,6 +19,7 @@ const listTransactions = async (req, res, next) => {
             type: req.query.type,
             source: req.query.source,
             category: req.query.category,
+            bankAccountId: req.query.bankAccountId,
             minAmount: req.query.minAmount,
             maxAmount: req.query.maxAmount,
             page: parseInt(req.query.page) || 1,
