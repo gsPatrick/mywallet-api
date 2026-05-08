@@ -206,7 +206,7 @@ const listConsents = async (userId) => {
  */
 const listAccounts = async (userId) => {
     return await BankAccount.findAll({
-        where: { userId },
+        where: { userId, source: 'OPEN_FINANCE' },
         order: [['bankName', 'ASC']]
     });
 };

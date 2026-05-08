@@ -59,7 +59,8 @@ const listCards = async (userId, profileId, filters = {}) => {
 const createManualCard = async (userId, profileId, data) => {
     const {
         name, bankName, bankIcon, brand, brandIcon, lastFourDigits,
-        creditLimit, availableLimit, closingDay, dueDay, isVirtual, color, holderName
+        creditLimit, availableLimit, closingDay, dueDay, isVirtual, color, holderName,
+        bankAccountId
     } = data;
 
     const card = await CreditCard.create({
@@ -79,6 +80,7 @@ const createManualCard = async (userId, profileId, data) => {
         isVirtual: isVirtual || false,
         color: color || '#1E40AF',
         holderName: holderName || '',
+        bankAccountId,
         isActive: true
     });
 
@@ -116,7 +118,7 @@ const updateManualCard = async (userId, profileId, cardId, data) => {
     const updateableFields = [
         'name', 'bankName', 'brand', 'lastFourDigits',
         'creditLimit', 'availableLimit', 'blockedLimit', 'closingDay', 'dueDay',
-        'isVirtual', 'color', 'isActive'
+        'isVirtual', 'color', 'isActive', 'bankAccountId'
     ];
 
     for (const field of updateableFields) {

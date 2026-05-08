@@ -53,7 +53,8 @@ const createBankAccount = async (userId, profileId, data) => {
             balance: data.initialBalance || 0,
             currency: data.currency || 'BRL',
             isActive: true,
-            isDefault: isFirstAccount // First account is auto-default
+            isDefault: isFirstAccount, // First account is auto-default
+            includeInTotals: data.includeInTotals !== undefined ? data.includeInTotals : true
         });
 
         return account;
@@ -238,7 +239,7 @@ const updateBankAccount = async (userId, profileId, accountId, data) => {
         }
 
         // Only allow updating certain fields
-        const allowedFields = ['bankName', 'bankCode', 'nickname', 'color', 'icon', 'type', 'accountNumber', 'branchCode', 'isActive'];
+        const allowedFields = ['bankName', 'bankCode', 'nickname', 'color', 'icon', 'type', 'accountNumber', 'branchCode', 'isActive', 'includeInTotals'];
 
         for (const field of allowedFields) {
             if (data[field] !== undefined) {
@@ -356,7 +357,10 @@ const getTotalBalance = async (userId, profileId) => {
             where: {
                 userId,
                 profileId,
-                isActive: true
+                isActive: true,
+                type: {
+                    [Op.ne]: 'CORRETORA'
+                }
             },
             attributes: [
                 [sequelize.fn('SUM', sequelize.col('balance')), 'totalBalance']
