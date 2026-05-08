@@ -468,17 +468,27 @@ const listTransactions = async (userId, profileId, filters = {}) => {
     if (Object.keys(dateFilter).length) cardWhere.date = dateFilter;
     if (Object.keys(amountFilter).length) cardWhere.amount = amountFilter;
 
-    // Filtro inteligente: Prioridade ao bankAccountId, mas permite cartões órfãos se IDs forem fornecidos
+    // Filtro inteligente: Prioridade total ao bankAccountId, mas permite cartões se fornecidos pelo frontend
     let cardIncludeWhere = {};
     if (bankAccountId) {
         const orConditions = [
+            // 1. Cartões explicitamente vinculados a este banco
             { bankAccountId: bankAccountId }
         ];
 
+        // 2. Se o frontend nos enviou IDs de cartões específicos (porque ele detectou que pertencem a este banco)
         if (cardIds && Array.isArray(cardIds) && cardIds.length > 0) {
             orConditions.push({
-                id: { [Op.in]: cardIds },
-                bankAccountId: null
+                [Op.and]: [
+                    { id: { [Op.in]: cardIds } },
+                    // SÓ permitimos se o cartão for "órfão" OU se o ID do banco for o mesmo
+                    {
+                        [Op.or]: [
+                            { bankAccountId: null },
+                            { bankAccountId: bankAccountId }
+                        ]
+                    }
+                ]
             });
         }
 

@@ -44,7 +44,12 @@ const getMonthlyStatement = async (userId, year, month, bankAccountId = null, ca
     if (bankAccountId) {
         const orConditions = [{ bankAccountId: bankAccountId }];
         if (cardIds && Array.isArray(cardIds) && cardIds.length > 0) {
-            orConditions.push({ id: { [Op.in]: cardIds }, bankAccountId: null });
+            orConditions.push({
+                [Op.and]: [
+                    { id: { [Op.in]: cardIds } },
+                    { [Op.or]: [{ bankAccountId: null }, { bankAccountId: bankAccountId }] }
+                ]
+            });
         }
         cardIncludeWhere[Op.or] = orConditions;
     } else if (cardIds && Array.isArray(cardIds) && cardIds.length > 0) {
@@ -160,7 +165,12 @@ const calculatePreviousBalance = async (userId, beforeDate, bankAccountId = null
     if (bankAccountId) {
         const orConditions = [{ bankAccountId: bankAccountId }];
         if (cardIds && Array.isArray(cardIds) && cardIds.length > 0) {
-            orConditions.push({ id: { [Op.in]: cardIds }, bankAccountId: null });
+            orConditions.push({
+                [Op.and]: [
+                    { id: { [Op.in]: cardIds } },
+                    { [Op.or]: [{ bankAccountId: null }, { bankAccountId: bankAccountId }] }
+                ]
+            });
         }
         cardIncludeWhere[Op.or] = orConditions;
     } else if (cardIds && Array.isArray(cardIds) && cardIds.length > 0) {
