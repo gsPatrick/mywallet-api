@@ -35,6 +35,10 @@ const getMonthlyStatement = async (userId, year, month, bankAccountId = null, ca
         attributes: ['id', 'description', 'amount', 'type', 'date', 'createdAt']
     });
 
+    // 3. Buscar transações de cartão
+    let cardTransactions = [];
+    const cardWhere = { userId, date: periodFilter };
+    
     // Filtro inteligente: Prioridade ao bankAccountId, mas permite cartões órfãos se IDs forem fornecidos
     let cardIncludeWhere = {};
     if (bankAccountId) {
