@@ -35,13 +35,14 @@ const getMonthlyStatement = async (userId, year, month, bankAccountId = null, ca
         attributes: ['id', 'description', 'amount', 'type', 'date', 'createdAt']
     });
 
-    // Filtro estrito: Prioridade total ao bankAccountId se fornecido
+    // Filtro inteligente: Prioridade ao bankAccountId, mas permite cartões órfãos se IDs forem fornecidos
     let cardIncludeWhere = {};
     if (bankAccountId) {
-        cardIncludeWhere.bankAccountId = bankAccountId;
+        const orConditions = [{ bankAccountId: bankAccountId }];
         if (cardIds && Array.isArray(cardIds) && cardIds.length > 0) {
-            cardIncludeWhere.id = { [Op.in]: cardIds };
+            orConditions.push({ id: { [Op.in]: cardIds }, bankAccountId: null });
         }
+        cardIncludeWhere[Op.or] = orConditions;
     } else if (cardIds && Array.isArray(cardIds) && cardIds.length > 0) {
         cardIncludeWhere.id = { [Op.in]: cardIds };
     }
@@ -153,10 +154,11 @@ const calculatePreviousBalance = async (userId, beforeDate, bankAccountId = null
     const cardWhere = { userId, date: beforeFilter };
     let cardIncludeWhere = {};
     if (bankAccountId) {
-        cardIncludeWhere.bankAccountId = bankAccountId;
+        const orConditions = [{ bankAccountId: bankAccountId }];
         if (cardIds && Array.isArray(cardIds) && cardIds.length > 0) {
-            cardIncludeWhere.id = { [Op.in]: cardIds };
+            orConditions.push({ id: { [Op.in]: cardIds }, bankAccountId: null });
         }
+        cardIncludeWhere[Op.or] = orConditions;
     } else if (cardIds && Array.isArray(cardIds) && cardIds.length > 0) {
         cardIncludeWhere.id = { [Op.in]: cardIds };
     }

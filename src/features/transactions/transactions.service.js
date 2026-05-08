@@ -466,18 +466,24 @@ const listTransactions = async (userId, profileId, filters = {}) => {
     if (Object.keys(dateFilter).length) cardWhere.date = dateFilter;
     if (Object.keys(amountFilter).length) cardWhere.amount = amountFilter;
 
-    // Filtro estrito: Prioridade total ao bankAccountId se fornecido
+    // Filtro inteligente: Prioridade ao bankAccountId, mas permite cartões órfãos se IDs forem fornecidos
     let cardIncludeWhere = {};
     if (bankAccountId) {
-        // Se estamos em um banco, SÓ queremos cartões desse banco
-        cardIncludeWhere.bankAccountId = bankAccountId;
-        
-        // Se também houver IDs de cartões, eles devem ser um subconjunto desse banco
+        const orConditions = [
+            { bankAccountId: bankAccountId }
+        ];
+
+        // Se o frontend identificou cartões que "deveriam" estar aqui (por nome ou ID),
+        // mas eles estão sem bankAccountId no banco, permitimos a exibição.
         if (cardIds && Array.isArray(cardIds) && cardIds.length > 0) {
-            cardIncludeWhere.id = { [Op.in]: cardIds };
+            orConditions.push({
+                id: { [Op.in]: cardIds },
+                bankAccountId: null // SÓ permite se o cartão estiver "solto"
+            });
         }
+
+        cardIncludeWhere[Op.or] = orConditions;
     } else if (cardIds && Array.isArray(cardIds) && cardIds.length > 0) {
-        // Se não há banco (ex: página geral de cartões), filtramos apenas pelos IDs
         cardIncludeWhere.id = { [Op.in]: cardIds };
     } else if (profileId) {
         cardIncludeWhere.profileId = profileId;
