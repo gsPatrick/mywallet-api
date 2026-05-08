@@ -46,12 +46,10 @@ const startServer = async () => {
     initRedis();
     logger.info('🔴 Redis inicializado para cache de investimentos');
 
-    if (process.env.NODE_ENV === 'development' || process.env.DB_SYNC === 'false') {
+    if (process.env.NODE_ENV === 'development' || process.env.DB_SYNC === 'true') {
       // DEVELOPMENT: Sync com alter adiciona novas tabelas/colunas sem apagar dados
       // Para produção: use DB_SYNC=true para sincronizar uma vez
-      // DEVELOPMENT: Sync com force: true para resetar banco conforme solicitado
-      await sequelize.sync({ force: true });
-      logger.info('⚠️ Models sincronizados via FORCE: TRUE (Dados apagados e tabelas recriadas)');
+      await sequelize.sync({ alter: true });
       logger.info('✅ Models sincronizados (alter: true - schema atualizado sem perda de dados)');
     } else {
       // PRODUCTION: Apenas valida conexão, não altera schema automaticamente
