@@ -1,4 +1,4 @@
-const { ManualTransaction, OpenFinanceTransaction, CardTransaction, CreditCard, Category } = require('../../models');
+const { ManualTransaction, OpenFinanceTransaction, CardTransaction, CreditCard, Category, BankAccount } = require('../../models');
 const { Op } = require('sequelize');
 
 /**
@@ -6,7 +6,7 @@ const { Op } = require('sequelize');
  * ✅ Suporta múltiplas fontes (Manual, Open Finance, Cartão)
  * ✅ Suporta filtro por conta bancária
  */
-const getMonthlyStatement = async (userId, year, month, bankAccountId = null) => {
+const getMonthlyStatement = async (userId, year, month, bankAccountId = null, cardIds = null) => {
     // Período do mês
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59);
@@ -35,34 +35,18 @@ const getMonthlyStatement = async (userId, year, month, bankAccountId = null) =>
         attributes: ['id', 'description', 'amount', 'type', 'date', 'createdAt']
     });
 
-    // 3. Buscar transações de cartão (apenas se o cartão estiver vinculado a esta conta ou for "smart-matched")
+    // 3. Buscar transações de cartão (por bankAccountId OU lista de IDs)
     let cardTransactions = [];
     const cardWhere = { userId, date: periodFilter };
     let cardIncludeWhere = {};
 
-    if (bankAccountId) {
-        const account = await BankAccount.findByPk(bankAccountId);
-        if (account) {
-            const bankName = account.bankName;
-            cardIncludeWhere = {
-                [Op.or]: [
-                    { bankAccountId: bankAccountId },
-                    {
-                        [Op.and]: [
-                            { bankAccountId: null },
-                            {
-                                [Op.or]: [
-                                    { bankName: { [Op.iLike]: `%${bankName}%` } },
-                                    { name: { [Op.iLike]: `%${bankName}%` } }
-                                ]
-                            }
-                        ]
-                    }
-                ]
-            };
-        } else {
-            cardIncludeWhere.bankAccountId = bankAccountId;
+    if (bankAccountId || cardIds) {
+        const orConditions = [];
+        if (bankAccountId) orConditions.push({ bankAccountId });
+        if (cardIds && Array.isArray(cardIds) && cardIds.length > 0) {
+            orConditions.push({ id: { [Op.in]: cardIds } });
         }
+        cardIncludeWhere[Op.or] = orConditions;
     }
 
     cardTransactions = await CardTransaction.findAll({
@@ -72,7 +56,7 @@ const getMonthlyStatement = async (userId, year, month, bankAccountId = null) =>
             as: 'card',
             attributes: ['id', 'name', 'bankAccountId', 'bankName'],
             where: Object.keys(cardIncludeWhere).length > 0 ? cardIncludeWhere : undefined,
-            required: !!bankAccountId
+            required: !!(bankAccountId || cardIds)
         }],
         attributes: ['id', 'description', 'amount', 'date', 'createdAt']
     });
@@ -128,7 +112,7 @@ const getMonthlyStatement = async (userId, year, month, bankAccountId = null) =>
     ].sort((a, b) => new Date(a.date) - new Date(b.date) || new Date(a.createdAt) - new Date(b.createdAt));
 
     // Buscar saldo anterior
-    const previousBalance = await calculatePreviousBalance(userId, startDate, bankAccountId);
+    const previousBalance = await calculatePreviousBalance(userId, startDate, bankAccountId, cardIds);
 
     const netChange = totalIncome - totalExpense;
     const closingBalance = previousBalance + netChange;
@@ -144,7 +128,7 @@ const getMonthlyStatement = async (userId, year, month, bankAccountId = null) =>
 /**
  * Calcula saldo anterior ao período considerando todas as fontes
  */
-const calculatePreviousBalance = async (userId, beforeDate, bankAccountId = null) => {
+const calculatePreviousBalance = async (userId, beforeDate, bankAccountId = null, cardIds = null) => {
     const beforeFilter = { [Op.lt]: beforeDate };
     let total = 0;
 
@@ -171,29 +155,13 @@ const calculatePreviousBalance = async (userId, beforeDate, bankAccountId = null
     // Card (Expenses only) - SMART MATCHED
     const cardWhere = { userId, date: beforeFilter };
     let cardIncludeWhere = {};
-    if (bankAccountId) {
-        const account = await BankAccount.findByPk(bankAccountId);
-        if (account) {
-            const bankName = account.bankName;
-            cardIncludeWhere = {
-                [Op.or]: [
-                    { bankAccountId: bankAccountId },
-                    {
-                        [Op.and]: [
-                            { bankAccountId: null },
-                            {
-                                [Op.or]: [
-                                    { bankName: { [Op.iLike]: `%${bankName}%` } },
-                                    { name: { [Op.iLike]: `%${bankName}%` } }
-                                ]
-                            }
-                        ]
-                    }
-                ]
-            };
-        } else {
-            cardIncludeWhere.bankAccountId = bankAccountId;
+    if (bankAccountId || cardIds) {
+        const orConditions = [];
+        if (bankAccountId) orConditions.push({ bankAccountId });
+        if (cardIds && Array.isArray(cardIds) && cardIds.length > 0) {
+            orConditions.push({ id: { [Op.in]: cardIds } });
         }
+        cardIncludeWhere[Op.or] = orConditions;
     }
 
     const cards = await CardTransaction.findAll({
@@ -202,7 +170,7 @@ const calculatePreviousBalance = async (userId, beforeDate, bankAccountId = null
             model: CreditCard, 
             as: 'card', 
             where: Object.keys(cardIncludeWhere).length > 0 ? cardIncludeWhere : undefined, 
-            required: !!bankAccountId 
+            required: !!(bankAccountId || cardIds)
         }]
     });
     cards.forEach(t => total -= parseFloat(t.amount));

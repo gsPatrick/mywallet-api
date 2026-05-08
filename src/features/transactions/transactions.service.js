@@ -465,32 +465,17 @@ const listTransactions = async (userId, profileId, filters = {}) => {
     if (Object.keys(dateFilter).length) cardWhere.date = dateFilter;
     if (Object.keys(amountFilter).length) cardWhere.amount = amountFilter;
 
-    // Se bankAccountId foi passado, ser "esperto" e buscar por ID ou Nome do Banco
+    // Filtro complexo para cartões: por bankAccountId OU por lista explícita de cardIds
     let cardIncludeWhere = {};
-    if (bankAccountId) {
-        const BankAccount = require('../../models/bankAccount')(require('../../config/database').sequelize);
-        const account = await BankAccount.findByPk(bankAccountId);
+    if (bankAccountId || cardIds) {
+        const orConditions = [];
+        if (bankAccountId) orConditions.push({ bankAccountId });
+        if (cardIds && Array.isArray(cardIds) && cardIds.length > 0) {
+            orConditions.push({ id: { [Op.in]: cardIds } });
+        }
         
-        if (account) {
-            const bankName = account.bankName;
-            cardIncludeWhere = {
-                [Op.or]: [
-                    { bankAccountId: bankAccountId },
-                    {
-                        [Op.and]: [
-                            { bankAccountId: null },
-                            {
-                                [Op.or]: [
-                                    { bankName: { [Op.iLike]: `%${bankName}%` } },
-                                    { name: { [Op.iLike]: `%${bankName}%` } }
-                                ]
-                            }
-                        ]
-                    }
-                ]
-            };
-        } else {
-            cardIncludeWhere.bankAccountId = bankAccountId;
+        if (orConditions.length > 0) {
+            cardIncludeWhere[Op.or] = orConditions;
         }
     } else if (profileId) {
         cardIncludeWhere.profileId = profileId;
@@ -510,7 +495,7 @@ const listTransactions = async (userId, profileId, filters = {}) => {
                     as: 'card',
                     attributes: ['id', 'name', 'bankAccountId', 'bankName'],
                     where: Object.keys(cardIncludeWhere).length > 0 ? cardIncludeWhere : undefined,
-                    required: !!bankAccountId
+                    required: !!(bankAccountId || cardIds)
                 }
             ],
             order: [['date', 'DESC']],
