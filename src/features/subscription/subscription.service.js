@@ -65,6 +65,8 @@ const listSubscriptions = async (userId, profileId, filters = {}) => {
         where.profileId = profileId;
     }
 
+    console.log('📦 [SUBSCRIPTION] DB Query where:', JSON.stringify(where));
+
     if (status) where.status = status;
     if (category) where.category = category;
 
@@ -166,6 +168,8 @@ const createSubscription = async (userId, profileId, data) => {
             finalCategoryId = null;
         }
     }
+
+    console.log('💾 [SUBSCRIPTION] Creating DB record - userId:', userId, 'profileId:', profileId, 'bankAccountId:', resolvedBankAccountId);
 
     const subscription = await Subscription.create({
         userId,

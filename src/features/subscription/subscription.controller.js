@@ -234,6 +234,7 @@ const subscriptionService = require('./subscription.service');
 const listSubscriptions = async (req, res) => {
     try {
         const profileId = req.headers['x-profile-id'];
+        console.log('🔍 [SUBSCRIPTION] GET /subscriptions - profileId:', profileId);
         const subscriptions = await subscriptionService.listSubscriptions(req.user.id, profileId, req.query);
         res.json({ data: subscriptions });
     } catch (error) {
@@ -249,6 +250,7 @@ const listSubscriptions = async (req, res) => {
 const create = async (req, res) => {
     try {
         const profileId = req.headers['x-profile-id'];
+        console.log('🚀 [SUBSCRIPTION] POST /subscriptions - profileId:', profileId, 'body:', JSON.stringify(req.body));
         const subscription = await subscriptionService.createSubscription(req.user.id, profileId, req.body);
         res.status(201).json({ data: subscription });
     } catch (error) {
