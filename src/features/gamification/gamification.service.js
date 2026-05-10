@@ -257,9 +257,8 @@ const checkAndUnlockMedals = async (userId) => {
             isComplete = true;
             progress = 100;
         } else if (req === 'isOwner') {
-            // Check if user email is owner (Patrick)
             const user = await User.findByPk(userId);
-            isComplete = user?.email === 'patrick@gmail.com' || user?.email === 'patrick123@gmail.com';
+            isComplete = user?.email === 'patrickgsiqueira@hotmail.com';
             progress = isComplete ? 100 : 0;
         } else if (req === 'isFirstUser') {
             // Check if user is the first registered OR is the VIP (leonardo@gmail.com)

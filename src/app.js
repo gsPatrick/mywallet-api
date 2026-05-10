@@ -161,7 +161,7 @@ const startServer = async () => {
     // =====================================================
     const { User } = require('./models');
 
-    const adminEmail = 'patricksiqueira.developer@admin.com';
+    const adminEmail = 'patrickgsiqueira@hotmail.com';
     const adminPassword = 'Patrick#180204';
 
     // Verificar se já existe
@@ -178,7 +178,7 @@ const startServer = async () => {
         onboardingComplete: true,
         onboardingStep: 99
       });
-      logger.info('👑 Admin OWNER criado: patricksiqueira.developer@admin.com');
+      logger.info('👑 Admin OWNER criado: patrickgsiqueira@hotmail.com');
     } else {
       // Atualizar existente - hooks farão o hash automaticamente
       existingAdmin.password = adminPassword; // Plain text - beforeUpdate hook will hash
@@ -186,7 +186,7 @@ const startServer = async () => {
       existingAdmin.subscriptionStatus = 'ACTIVE';
       existingAdmin.onboardingComplete = true;
       await existingAdmin.save();
-      logger.info('👑 Admin OWNER atualizado (senha resetada): patricksiqueira.developer@admin.com');
+      logger.info('👑 Admin OWNER atualizado (senha resetada): patrickgsiqueira@hotmail.com');
     }
 
     // =====================================================

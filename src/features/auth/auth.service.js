@@ -8,6 +8,7 @@ const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = requir
 const { logger } = require('../../config/logger');
 const { AppError } = require('../../middlewares/errorHandler');
 const bankAccountsService = require('../bankAccounts/bankAccounts.service');
+const emailService = require('../../services/email.service');
 
 // Lazy import to avoid circular dependency
 let settingsService = null;
@@ -60,6 +61,11 @@ const register = async ({ name, email, password, salary, salaryDay }, req = null
             logger.warn(`Failed to create session for new user: ${error.message}`);
         }
     }
+
+    // Enviar email de boas-vindas (não bloquear resposta)
+    emailService.sendWelcomeEmail(user.email, user.name).catch(err => {
+        logger.error(`Erro ao enviar email de boas-vindas: ${err.message}`);
+    });
 
     return {
         user: user.toSafeObject(),
@@ -398,6 +404,69 @@ const updateSalary = async (userId, { salary, salaryDay, salaryDescription }) =>
     };
 };
 
+/**
+ * Solicita recuperação de senha (Gera OTP)
+ */
+const forgotPassword = async (email) => {
+    const user = await User.findOne({ where: { email } });
+    if (!user) {
+        // Por segurança, não dizer que email não existe
+        return { success: true, message: 'Se o email existir, um código foi enviado.' };
+    }
+
+    // Gerar OTP de 6 dígitos
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 min
+
+    user.resetPasswordOTP = otp;
+    user.resetPasswordOTPExpiresAt = expiresAt;
+    await user.save();
+
+    // Enviar email
+    await emailService.sendOTPEmail(user.email, otp);
+
+    return { success: true, message: 'Código de recuperação enviado para seu email.' };
+};
+
+/**
+ * Verifica se o OTP é válido
+ */
+const verifyOTP = async (email, otp) => {
+    const user = await User.findOne({ where: { email } });
+    if (!user || user.resetPasswordOTP !== otp) {
+        throw new AppError('Código inválido', 400, 'INVALID_OTP');
+    }
+
+    if (new Date() > new Date(user.resetPasswordOTPExpiresAt)) {
+        throw new AppError('Código expirado', 400, 'EXPIRED_OTP');
+    }
+
+    return { success: true, message: 'Código validado com sucesso' };
+};
+
+/**
+ * Redefine a senha usando OTP
+ */
+const resetPassword = async (email, otp, newPassword) => {
+    const user = await User.findOne({ where: { email } });
+    if (!user || user.resetPasswordOTP !== otp) {
+        throw new AppError('Código inválido', 400, 'INVALID_OTP');
+    }
+
+    if (new Date() > new Date(user.resetPasswordOTPExpiresAt)) {
+        throw new AppError('Código expirado', 400, 'EXPIRED_OTP');
+    }
+
+    // Atualizar senha
+    user.password = newPassword;
+    user.resetPasswordOTP = null;
+    user.resetPasswordOTPExpiresAt = null;
+    user.passwordChangedAt = new Date();
+    await user.save();
+
+    return { success: true, message: 'Senha redefinida com sucesso' };
+};
+
 module.exports = {
     register,
     login,
@@ -407,5 +476,8 @@ module.exports = {
     changePassword,
     completeOnboarding,
     saveOnboardingConfig,
-    updateSalary
+    updateSalary,
+    forgotPassword,
+    verifyOTP,
+    resetPassword
 };

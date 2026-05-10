@@ -212,6 +212,48 @@ const updateSalary = async (req, res, next) => {
     }
 };
 
+/**
+ * POST /auth/forgot-password
+ * Solicita recuperação de senha
+ */
+const forgotPassword = async (req, res, next) => {
+    try {
+        const { email } = req.body;
+        const result = await authService.forgotPassword(email);
+        res.json(result);
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * POST /auth/verify-otp
+ * Verifica validade do código
+ */
+const verifyOTP = async (req, res, next) => {
+    try {
+        const { email, otp } = req.body;
+        const result = await authService.verifyOTP(email, otp);
+        res.json(result);
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * POST /auth/reset-password
+ * Redefine senha com código
+ */
+const resetPassword = async (req, res, next) => {
+    try {
+        const { email, otp, newPassword } = req.body;
+        const result = await authService.resetPassword(email, otp, newPassword);
+        res.json(result);
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     register,
     login,
@@ -221,5 +263,8 @@ module.exports = {
     changePassword,
     completeOnboarding,
     saveOnboardingConfig,
-    updateSalary
+    updateSalary,
+    forgotPassword,
+    verifyOTP,
+    resetPassword
 };

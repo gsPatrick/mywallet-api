@@ -37,6 +37,9 @@ const changePasswordSchema = {
 router.post('/register', validate(registerSchema), authController.register);
 router.post('/login', validate(loginSchema), authController.login);
 router.post('/refresh', authController.refresh);
+router.post('/forgot-password', authController.forgotPassword);
+router.post('/verify-otp', authController.verifyOTP);
+router.post('/reset-password', authController.resetPassword);
 
 // Rotas protegidas
 router.get('/me', authMiddleware, authController.getMe);

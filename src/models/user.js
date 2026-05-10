@@ -153,6 +153,19 @@ module.exports = (sequelize) => {
         deleteReason: {
             type: DataTypes.STRING(500),
             allowNull: true
+        },
+        // ========================================
+        // PASSWORD RECOVERY (OTP)
+        // ========================================
+        resetPasswordOTP: {
+            type: DataTypes.STRING(6),
+            allowNull: true,
+            comment: '6-digit OTP for password recovery'
+        },
+        resetPasswordOTPExpiresAt: {
+            type: DataTypes.DATE,
+            allowNull: true,
+            comment: 'OTP expiration timestamp'
         }
     }, {
         tableName: 'users',
