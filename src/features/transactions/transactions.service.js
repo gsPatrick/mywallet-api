@@ -645,11 +645,10 @@ const listTransactions = async (userId, profileId, filters = {}) => {
     // ✅ TRIPLE LOCK: Fail-safe filter to ensure NO leak between bank accounts
     if (bankAccountId) {
         allTransactions = allTransactions.filter(tx => {
-            // Se o objeto tem um bankAccountId explícito, ele DEVE bater com o filtro
-            if (tx.bankAccountId && String(tx.bankAccountId) !== String(bankAccountId)) {
-                return false;
-            }
-            return true;
+            const txBankId = tx.bankAccountId || tx.relatedAccountId;
+            
+            // Se estamos filtrando por banco, a transação PRECISA bater com esse banco
+            return String(txBankId) === String(bankAccountId);
         });
     }
 
