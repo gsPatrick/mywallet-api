@@ -64,6 +64,10 @@ const createManualCard = async (userId, profileId, data) => {
         bankAccountId
     } = data;
 
+    // Validar se bankAccountId é um UUID válido, caso contrário ignorar (placeholder do front)
+    const isValidUUID = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+    const resolvedBankAccountId = bankAccountId && isValidUUID(bankAccountId) ? bankAccountId : null;
+
     const card = await CreditCard.create({
         userId,
         profileId, // ✅ PROFILE ISOLATION
@@ -81,7 +85,7 @@ const createManualCard = async (userId, profileId, data) => {
         isVirtual: isVirtual || false,
         color: color || '#1E40AF',
         holderName: holderName || '',
-        bankAccountId,
+        bankAccountId: resolvedBankAccountId,
         isActive: true
     });
 
@@ -124,7 +128,13 @@ const updateManualCard = async (userId, profileId, cardId, data) => {
 
     for (const field of updateableFields) {
         if (data[field] !== undefined) {
-            card[field] = data[field];
+            // Validação especial para bankAccountId
+            if (field === 'bankAccountId') {
+                const isValidUUID = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+                card[field] = data[field] && isValidUUID(data[field]) ? data[field] : null;
+            } else {
+                card[field] = data[field];
+            }
         }
     }
 

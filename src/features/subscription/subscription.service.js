@@ -124,6 +124,17 @@ const createSubscription = async (userId, profileId, data) => {
         }
     }
 
+    // Lógica para lidar com categorias enviadas como UUID pelo front (onboarding)
+    const isUUID = (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str);
+    
+    let finalCategory = category || 'OTHER';
+    let finalCategoryId = categoryId || null;
+
+    if (category && isUUID(category)) {
+        finalCategoryId = category;
+        finalCategory = 'OTHER'; // Valor ENUM seguro
+    }
+
     const subscription = await Subscription.create({
         userId,
         profileId, // ✅ PROFILE ISOLATION
@@ -132,8 +143,8 @@ const createSubscription = async (userId, profileId, data) => {
         description,
         amount,
         frequency: frequency || 'MONTHLY',
-        category: category || 'OTHER',
-        categoryId: categoryId || null,
+        category: finalCategory,
+        categoryId: finalCategoryId,
         startDate: startDate || new Date().toISOString().split('T')[0],
         nextBillingDate,
         endDate,
