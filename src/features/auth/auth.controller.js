@@ -116,9 +116,9 @@ const getMe = async (req, res, next) => {
  */
 const updateMe = async (req, res, next) => {
     try {
-        const { name } = req.body;
+        const { name, avatar } = req.body;
 
-        const user = await authService.updateUser(req.userId, { name });
+        const user = await authService.updateUser(req.userId, { name, avatar });
 
         res.json({
             message: 'Dados atualizados com sucesso',

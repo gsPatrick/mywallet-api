@@ -165,7 +165,7 @@ const getMe = async (userId) => {
 /**
  * Atualiza dados do usuário
  */
-const updateUser = async (userId, { name }) => {
+const updateUser = async (userId, { name, avatar }) => {
     const user = await User.findByPk(userId);
     if (!user) {
         throw new AppError('Usuário não encontrado', 404, 'USER_NOT_FOUND');
@@ -173,6 +173,9 @@ const updateUser = async (userId, { name }) => {
 
     if (name) {
         user.name = name;
+    }
+    if (avatar) {
+        user.avatar = avatar;
     }
 
     await user.save();
