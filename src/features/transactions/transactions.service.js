@@ -398,12 +398,8 @@ const listTransactions = async (userId, profileId, filters = {}) => {
 
     const offset = (page - 1) * limit;
 
-    // DEBUG: Log received filters to a file
-    try {
-        const fs = require('fs');
-        const logMsg = `[DEBUG] ${new Date().toISOString()} | bankAccountId: ${bankAccountId} | profileId: ${profileId}\n`;
-        fs.appendFileSync('/Users/patrickgomessiqueira/mywallet/mywallet-api/scratch/api_debug.log', logMsg);
-    } catch (e) {}
+    // DEBUG LOG
+    console.log(`[TX_FILTER] bankAccountId: ${bankAccountId || 'NONE'} | cardIds: ${cardIds ? cardIds.join(',') : 'NONE'}`);
 
     // Construir filtros base
     const dateFilter = {};

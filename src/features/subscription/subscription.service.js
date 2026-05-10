@@ -150,6 +150,13 @@ const createSubscription = async (userId, profileId, data) => {
     // Auto-criar primeira transação recorrente
     if (autoGenerate !== false) {
         try {
+            // Buscar bankAccountId do cartão (se houver) para vincular a transação ao banco
+            let resolvedBankAccountId = null;
+            if (cardId) {
+                const linkedCard = await CreditCard.findByPk(cardId, { attributes: ['bankAccountId'] });
+                resolvedBankAccountId = linkedCard?.bankAccountId || null;
+            }
+
             if (cardId) {
                 await CardTransaction.create({
                     userId,
@@ -169,6 +176,7 @@ const createSubscription = async (userId, profileId, data) => {
                 await ManualTransaction.create({
                     userId,
                     profileId, // ✅ PROFILE ISOLATION
+                    bankAccountId: resolvedBankAccountId, // ✅ VINCULA AO BANCO DO CARTÃO
                     type: 'EXPENSE',
                     description: name,
                     amount: parseFloat(amount),
@@ -346,6 +354,13 @@ const generatePendingTransactions = async (userId, profileId) => {
         });
 
         if (!existing) {
+            // Resolver bankAccountId do cartão da assinatura
+            let resolvedBankAccountId = null;
+            if (sub.cardId) {
+                const linkedCard = await CreditCard.findByPk(sub.cardId, { attributes: ['bankAccountId'] });
+                resolvedBankAccountId = linkedCard?.bankAccountId || null;
+            }
+
             if (sub.cardId) {
                 // Criar transação no cartão
                 const transaction = await CardTransaction.create({
@@ -364,10 +379,11 @@ const generatePendingTransactions = async (userId, profileId) => {
                 });
                 generated.push(transaction);
             } else {
-                // Criar transação manual
+                // Criar transação manual — SEM banco (não tem cartão vinculado)
                 const transaction = await ManualTransaction.create({
                     userId,
                     profileId: sub.profileId, // ✅ HERDA DA ASSINATURA
+                    bankAccountId: resolvedBankAccountId, // ✅ VINCULA AO BANCO
                     type: 'EXPENSE',
                     description: sub.name,
                     amount: sub.amount,
@@ -544,6 +560,13 @@ const markSubscriptionPaid = async (userId, profileId, subscriptionId, date = ne
 
     const payDate = new Date(date).toISOString().split('T')[0];
 
+    // Resolver bankAccountId do cartão
+    let resolvedBankAccountId = null;
+    if (subscription.cardId) {
+        const linkedCard = await CreditCard.findByPk(subscription.cardId, { attributes: ['bankAccountId'] });
+        resolvedBankAccountId = linkedCard?.bankAccountId || null;
+    }
+
     let transaction;
     if (subscription.cardId) {
         transaction = await CardTransaction.create({
@@ -564,6 +587,7 @@ const markSubscriptionPaid = async (userId, profileId, subscriptionId, date = ne
         transaction = await ManualTransaction.create({
             userId,
             profileId: subscription.profileId, // ✅ HERDA DA ASSINATURA
+            bankAccountId: resolvedBankAccountId, // ✅ VINCULA AO BANCO
             type: 'EXPENSE',
             status: 'COMPLETED',
             source: 'SUBSCRIPTION',
