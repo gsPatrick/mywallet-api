@@ -117,7 +117,7 @@ const updateManualCard = async (userId, profileId, cardId, data) => {
 
     // Campos atualizáveis
     const updateableFields = [
-        'name', 'bankName', 'bankIcon', 'brand', 'brandIcon', 'lastFourDigits',
+        'name', 'holderName', 'bankName', 'bankIcon', 'brand', 'brandIcon', 'lastFourDigits',
         'creditLimit', 'availableLimit', 'blockedLimit', 'closingDay', 'dueDay',
         'isVirtual', 'color', 'isActive', 'bankAccountId'
     ];
