@@ -30,7 +30,6 @@ const getMonthlyStatement = async (userId, year, month, bankAccountId = null, ca
     if (bankAccountId) {
         ofWhere.relatedAccountId = bankAccountId;
     }
-    if (profileId) ofWhere.profileId = profileId;
 
     openFinanceTransactions = await OpenFinanceTransaction.findAll({
         where: ofWhere,
@@ -158,7 +157,6 @@ const calculatePreviousBalance = async (userId, beforeDate, bankAccountId = null
     // Open Finance
     const ofWhere = { userId, date: beforeFilter };
     if (bankAccountId) ofWhere.relatedAccountId = bankAccountId;
-    if (profileId) ofWhere.profileId = profileId;
     const of = await OpenFinanceTransaction.findAll({ where: ofWhere, attributes: ['type', 'amount'] });
     of.forEach(t => {
         const val = parseFloat(t.amount);

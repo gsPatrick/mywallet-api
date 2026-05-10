@@ -430,7 +430,7 @@ const listTransactions = async (userId, profileId, filters = {}) => {
     if (bankAccountId) {
         ofWhere.relatedAccountId = bankAccountId;
     }
-    if (profileId) ofWhere.profileId = profileId;
+    // Removido profileId pois a coluna não existe em OpenFinanceTransaction
 
     const openFinanceTransactions = await OpenFinanceTransaction.findAll({
         where: ofWhere,
@@ -717,7 +717,7 @@ const getTransaction = async (userId, profileId, transactionId, transactionType)
 
     if (transactionType === 'OPEN_FINANCE') {
         const ofWhere = { id: transactionId, userId };
-        if (profileId) ofWhere.profileId = profileId;
+        // OF não tem profileId na tabela, filtragem é por conta relacionada
         transaction = await OpenFinanceTransaction.findOne({
             where: ofWhere
         });
