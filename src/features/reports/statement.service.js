@@ -70,56 +70,53 @@ const getMonthlyStatement = async (userId, year, month, bankAccountId = null, ca
     });
 
     // Unificar e formatar
-    let totalIncome = 0;
-    let totalExpense = 0;
+    // ✅ TRIPLE LOCK: Filtro rigoroso para garantir que nada de outro banco (ou sem banco) vaze no extrato
+    let allFormatted = [
+        ...manualTransactions.map(t => ({
+            id: t.id,
+            date: t.date,
+            description: t.description,
+            type: t.type,
+            amount: parseFloat(t.amount),
+            source: t.source,
+            category: t.category,
+            bankAccountId: t.bankAccountId,
+            origin: 'MANUAL'
+        })),
+        ...openFinanceTransactions.map(t => ({
+            id: t.id,
+            date: t.date,
+            description: t.description,
+            type: t.type === 'CREDIT' ? 'INCOME' : 'EXPENSE',
+            amount: parseFloat(t.amount),
+            source: 'OPEN_FINANCE',
+            bankAccountId: t.relatedAccountId,
+            origin: 'OPEN_FINANCE'
+        })),
+        ...cardTransactions.map(t => ({
+            id: t.id,
+            date: t.date,
+            description: t.description,
+            type: 'EXPENSE',
+            amount: parseFloat(t.amount),
+            source: 'CARD',
+            sourceName: t.card ? t.card.name : 'Cartão',
+            bankAccountId: t.card?.bankAccountId,
+            origin: 'CARD'
+        }))
+    ];
 
-    const allFormatted = [
-        ...manualTransactions.map(t => {
-            const amount = parseFloat(t.amount);
-            if (t.type === 'INCOME') totalIncome += amount;
-            else if (t.type === 'EXPENSE') totalExpense += amount;
-            return {
-                id: t.id,
-                date: t.date,
-                description: t.description,
-                type: t.type,
-                amount,
-                source: t.source,
-                category: t.category,
-                origin: 'MANUAL'
-            };
-        }),
-        ...openFinanceTransactions.map(t => {
-            const amount = parseFloat(t.amount);
-            const type = t.type === 'CREDIT' ? 'INCOME' : 'EXPENSE';
-            if (type === 'INCOME') totalIncome += amount;
-            else totalExpense += amount;
-            return {
-                id: t.id,
-                date: t.date,
-                description: t.description,
-                type,
-                amount,
-                source: 'OPEN_FINANCE',
-                origin: 'OPEN_FINANCE'
-            };
-        }),
-        ...cardTransactions.map(t => {
-            const amount = parseFloat(t.amount);
-            totalExpense += amount; 
-            return {
-                id: t.id,
-                date: t.date,
-                description: t.description,
-                type: 'EXPENSE',
-                amount,
-                source: 'CARD',
-                sourceName: t.card ? t.card.name : 'Cartão',
-                bankAccountId: t.card?.bankAccountId,
-                origin: 'CARD'
-            };
-        })
-    ].sort((a, b) => new Date(a.date) - new Date(b.date) || new Date(a.createdAt) - new Date(b.createdAt));
+    // Aplicar trava de banco se houver filtro
+    if (bankAccountId) {
+        allFormatted = allFormatted.filter(tx => String(tx.bankAccountId) === String(bankAccountId));
+    }
+
+    // Ordenar por data
+    allFormatted.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    // Calcular totais após o filtro rigoroso
+    totalIncome = allFormatted.filter(tx => tx.type === 'INCOME').reduce((sum, tx) => sum + tx.amount, 0);
+    totalExpense = allFormatted.filter(tx => tx.type === 'EXPENSE').reduce((sum, tx) => sum + tx.amount, 0);
 
     // Buscar saldo anterior
     const previousBalance = await calculatePreviousBalance(userId, startDate, bankAccountId, cardIds, profileId);
