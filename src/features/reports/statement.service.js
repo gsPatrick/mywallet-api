@@ -6,7 +6,7 @@ const { Op } = require('sequelize');
  * ✅ Suporta múltiplas fontes (Manual, Open Finance, Cartão)
  * ✅ Suporta filtro por conta bancária
  */
-const getMonthlyStatement = async (userId, year, month, bankAccountId = null, cardIds = null) => {
+const getMonthlyStatement = async (userId, year, month, bankAccountId = null, cardIds = null, profileId = null) => {
     // Período do mês
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59);
@@ -16,6 +16,7 @@ const getMonthlyStatement = async (userId, year, month, bankAccountId = null, ca
     // 1. Buscar transações manuais
     const manualWhere = { userId, date: periodFilter, status: { [Op.ne]: 'CANCELLED' } };
     if (bankAccountId) manualWhere.bankAccountId = bankAccountId;
+    if (profileId) manualWhere.profileId = profileId;
 
     const manualTransactions = await ManualTransaction.findAll({
         where: manualWhere,
@@ -29,6 +30,7 @@ const getMonthlyStatement = async (userId, year, month, bankAccountId = null, ca
     if (bankAccountId) {
         ofWhere.relatedAccountId = bankAccountId;
     }
+    if (profileId) ofWhere.profileId = profileId;
 
     openFinanceTransactions = await OpenFinanceTransaction.findAll({
         where: ofWhere,
@@ -38,6 +40,7 @@ const getMonthlyStatement = async (userId, year, month, bankAccountId = null, ca
     // 3. Buscar transações de cartão
     let cardTransactions = [];
     const cardWhere = { userId, date: periodFilter };
+    if (profileId) cardWhere.profileId = profileId;
     
     // Filtro inteligente: Prioridade ao bankAccountId, mas permite cartões órfãos se IDs forem fornecidos
     let cardIncludeWhere = {};
@@ -119,7 +122,7 @@ const getMonthlyStatement = async (userId, year, month, bankAccountId = null, ca
     ].sort((a, b) => new Date(a.date) - new Date(b.date) || new Date(a.createdAt) - new Date(b.createdAt));
 
     // Buscar saldo anterior
-    const previousBalance = await calculatePreviousBalance(userId, startDate, bankAccountId, cardIds);
+    const previousBalance = await calculatePreviousBalance(userId, startDate, bankAccountId, cardIds, profileId);
 
     const netChange = totalIncome - totalExpense;
     const closingBalance = previousBalance + netChange;
@@ -135,13 +138,14 @@ const getMonthlyStatement = async (userId, year, month, bankAccountId = null, ca
 /**
  * Calcula saldo anterior ao período considerando todas as fontes
  */
-const calculatePreviousBalance = async (userId, beforeDate, bankAccountId = null, cardIds = null) => {
+const calculatePreviousBalance = async (userId, beforeDate, bankAccountId = null, cardIds = null, profileId = null) => {
     const beforeFilter = { [Op.lt]: beforeDate };
     let total = 0;
 
     // Manual
     const manualWhere = { userId, date: beforeFilter, status: { [Op.ne]: 'CANCELLED' } };
     if (bankAccountId) manualWhere.bankAccountId = bankAccountId;
+    if (profileId) manualWhere.profileId = profileId;
     const manual = await ManualTransaction.findAll({ where: manualWhere, attributes: ['type', 'amount'] });
     manual.forEach(t => {
         const val = parseFloat(t.amount);
@@ -152,6 +156,7 @@ const calculatePreviousBalance = async (userId, beforeDate, bankAccountId = null
     // Open Finance
     const ofWhere = { userId, date: beforeFilter };
     if (bankAccountId) ofWhere.relatedAccountId = bankAccountId;
+    if (profileId) ofWhere.profileId = profileId;
     const of = await OpenFinanceTransaction.findAll({ where: ofWhere, attributes: ['type', 'amount'] });
     of.forEach(t => {
         const val = parseFloat(t.amount);
@@ -161,6 +166,7 @@ const calculatePreviousBalance = async (userId, beforeDate, bankAccountId = null
 
     // Card (Expenses only)
     const cardWhere = { userId, date: beforeFilter };
+    if (profileId) cardWhere.profileId = profileId;
     let cardIncludeWhere = {};
     if (bankAccountId) {
         const orConditions = [{ bankAccountId: bankAccountId }];
@@ -191,8 +197,10 @@ const calculatePreviousBalance = async (userId, beforeDate, bankAccountId = null
     return total;
 };
 
-const getAvailableYears = async (userId) => {
-    const manual = await ManualTransaction.findAll({ where: { userId }, attributes: ['date'] });
+const getAvailableYears = async (userId, profileId = null) => {
+    const where = { userId };
+    if (profileId) where.profileId = profileId;
+    const manual = await ManualTransaction.findAll({ where, attributes: ['date'] });
     const years = new Set([new Date().getFullYear()]);
     manual.forEach(t => years.add(new Date(t.date).getFullYear()));
     return Array.from(years).sort((a, b) => b - a);

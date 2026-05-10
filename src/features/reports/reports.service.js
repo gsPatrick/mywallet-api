@@ -4,11 +4,14 @@ const {
 const { Op } = require('sequelize');
 
 class ReportsService {
-    async getPortfolioSummary(userId, brokerId) {
+    async getPortfolioSummary(userId, brokerId, profileId = null) {
         // Build where clause
         const where = { userId };
         if (brokerId) {
             where.brokerId = brokerId;
+        }
+        if (profileId) {
+            where.profileId = profileId;
         }
 
         // Buscar todos os investimentos do usuário
@@ -78,12 +81,13 @@ class ReportsService {
         };
     }
 
-    async getEvolution(userId) {
+    async getEvolution(userId, profileId = null) {
         // Buscar snapshots históricos (idealmente diários ou mensais)
-        // Como o sistema é novo, talvez não tenha histórico real suficiente.
-        // Retornar dados reais do banco
+        const where = { userId };
+        if (profileId) where.profileId = profileId;
+
         const snapshots = await InvestmentSnapshot.findAll({
-            where: { userId },
+            where,
             order: [['date', 'ASC']],
             limit: 30 // Últimos 30 pontos
         });
@@ -94,9 +98,12 @@ class ReportsService {
         }));
     }
 
-    async getDividends(userId) {
+    async getDividends(userId, profileId = null) {
+        const where = { userId };
+        if (profileId) where.profileId = profileId;
+
         const dividends = await Dividend.findAll({
-            where: { userId },
+            where,
             include: [{ model: Asset, as: 'asset' }],
             order: [['paymentDate', 'DESC']]
         });
