@@ -108,7 +108,7 @@ const getMonthlyStatement = async (userId, year, month, bankAccountId = null, ca
         }),
         ...cardTransactions.map(t => {
             const amount = parseFloat(t.amount);
-            totalExpense += amount; // Card transactions are always expenses in this context
+            totalExpense += amount; 
             return {
                 id: t.id,
                 date: t.date,
@@ -116,6 +116,8 @@ const getMonthlyStatement = async (userId, year, month, bankAccountId = null, ca
                 type: 'EXPENSE',
                 amount,
                 source: 'CARD',
+                sourceName: t.card ? t.card.name : 'Cartão',
+                bankAccountId: t.card?.bankAccountId,
                 origin: 'CARD'
             };
         })
