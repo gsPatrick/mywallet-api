@@ -38,7 +38,7 @@ const createManualTransaction = async (userId, profileId, data) => {
     const {
         type, source, description, amount, date, category, tags, notes,
         isRecurring, frequency, recurringDay, status, cardId, categoryId,
-        forceOverbudget
+        forceOverbudget, paymentMethod
     } = data;
 
     console.log('📝 [CREATE MANUAL TX] Received data:', JSON.stringify(data, null, 2));
@@ -141,6 +141,7 @@ const createManualTransaction = async (userId, profileId, data) => {
         profileId, // ✅ PROFILE ISOLATION
         type,
         source: source || 'OTHER',
+        paymentMethod: paymentMethod || source || 'OTHER',
         description,
         amount,
         date,
@@ -593,6 +594,7 @@ const listTransactions = async (userId, profileId, filters = {}) => {
                 isRecurring: tx.isRecurring,
                 recurringFrequency: tx.recurringFrequency,
                 status: tx.status,
+                paymentMethod: tx.paymentMethod || tx.source || 'OTHER',
                 editable: true,
                 createdAt: tx.createdAt
             };
@@ -626,6 +628,7 @@ const listTransactions = async (userId, profileId, filters = {}) => {
                 createdAt: tx.createdAt,
                 cardId: tx.cardId,
                 bankAccountId: tx.card?.bankAccountId || null,
+                paymentMethod: 'CREDIT_CARD',
                 status: tx.status
             };
         });

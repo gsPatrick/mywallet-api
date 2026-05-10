@@ -71,9 +71,15 @@ module.exports = (sequelize) => {
         },
         // Fonte/método de pagamento
         source: {
-            type: DataTypes.ENUM('PIX', 'CASH', 'WIRE_TRANSFER', 'BOLETO', 'SALARY', 'SUBSCRIPTION', 'OTHER'),
+            type: DataTypes.STRING(30),
             allowNull: false,
             defaultValue: 'OTHER'
+        },
+        // Método de pagamento (PIX, CREDIT_CARD, DEBIT_CARD, CASH, BOLETO, WIRE_TRANSFER, OTHER)
+        paymentMethod: {
+            type: DataTypes.STRING(30),
+            allowNull: true,
+            defaultValue: null
         },
         // Link para assinatura (se gerada por subscription)
         subscriptionId: {
