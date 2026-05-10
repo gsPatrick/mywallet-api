@@ -233,7 +233,7 @@ const subscriptionService = require('./subscription.service');
  */
 const listSubscriptions = async (req, res) => {
     try {
-        const profileId = req.headers['x-profile-id'];
+        const profileId = req.profileId;
         console.log('🔍 [SUBSCRIPTION] GET /subscriptions - profileId:', profileId);
         const subscriptions = await subscriptionService.listSubscriptions(req.user.id, profileId, req.query);
         res.json({ data: subscriptions });
@@ -249,7 +249,7 @@ const listSubscriptions = async (req, res) => {
  */
 const create = async (req, res) => {
     try {
-        const profileId = req.headers['x-profile-id'];
+        const profileId = req.profileId;
         console.log('🚀 [SUBSCRIPTION] POST /subscriptions - profileId:', profileId, 'body:', JSON.stringify(req.body));
         const subscription = await subscriptionService.createSubscription(req.user.id, profileId, req.body);
         res.status(201).json({ data: subscription });
@@ -267,7 +267,7 @@ const create = async (req, res) => {
 const remove = async (req, res) => {
     try {
         const { id } = req.params;
-        const profileId = req.headers['x-profile-id'];
+        const profileId = req.profileId;
         const deleteTransaction = req.query.deleteTransaction === 'true';
 
         await subscriptionService.cancelSubscription(req.user.id, profileId, id, deleteTransaction);

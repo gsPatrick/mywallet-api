@@ -58,6 +58,14 @@ const authMiddleware = async (req, res, next) => {
         req.user = user;
         req.userId = user.id;
 
+        // ✅ PROFILE ISOLATION: Extrair perfil do header
+        const profileId = req.headers['x-profile-id'];
+        req.profileId = (profileId && profileId !== 'null' && profileId !== 'undefined') ? profileId : null;
+        
+        if (req.profileId) {
+            console.log(`🔑 [AUTH] Profile Context: ${req.profileId} (User: ${user.email})`);
+        }
+
         next();
     } catch (error) {
         logger.error('Erro no middleware de autenticação:', error);
@@ -83,6 +91,8 @@ const optionalAuthMiddleware = async (req, res, next) => {
             if (user) {
                 req.user = user;
                 req.userId = user.id;
+                const profileId = req.headers['x-profile-id'];
+                req.profileId = (profileId && profileId !== 'null' && profileId !== 'undefined') ? profileId : null;
             }
         }
 
