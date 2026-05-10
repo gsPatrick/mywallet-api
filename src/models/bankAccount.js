@@ -123,6 +123,23 @@ module.exports = (sequelize) => {
             type: DataTypes.BOOLEAN,
             allowNull: false,
             defaultValue: false
+        },
+        // Configuração de visibilidade no Dashboard
+        includeInTotals: {
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: true
+        },
+        // PIN de segurança de 4 dígitos
+        pin: {
+            type: DataTypes.STRING(4),
+            allowNull: true
+        },
+        // Opção para ocultar saldo na interface
+        hideBalance: {
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: false
         }
     }, {
         tableName: 'bank_accounts',

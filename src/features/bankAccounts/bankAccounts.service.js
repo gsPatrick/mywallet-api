@@ -239,7 +239,11 @@ const updateBankAccount = async (userId, profileId, accountId, data) => {
         }
 
         // Only allow updating certain fields
-        const allowedFields = ['bankName', 'bankCode', 'nickname', 'color', 'icon', 'type', 'accountNumber', 'branchCode', 'isActive', 'includeInTotals'];
+        const allowedFields = [
+            'bankName', 'bankCode', 'nickname', 'color', 'icon', 'type', 
+            'accountNumber', 'branchCode', 'isActive', 'includeInTotals',
+            'pin', 'hideBalance'
+        ];
 
         for (const field of allowedFields) {
             if (data[field] !== undefined) {
@@ -350,6 +354,7 @@ const updateBalance = async (accountId, amount, transaction = null) => {
 /**
  * Get total balance across all accounts for a profile
  * ✅ PROFILE ISOLATION: filters by profileId
+ * ✅ VISIBILITY: respects includeInTotals
  */
 const getTotalBalance = async (userId, profileId) => {
     try {
@@ -358,6 +363,7 @@ const getTotalBalance = async (userId, profileId) => {
                 userId,
                 profileId,
                 isActive: true,
+                includeInTotals: true, // Only sum accounts marked to be included
                 type: {
                     [Op.ne]: 'CORRETORA'
                 }
