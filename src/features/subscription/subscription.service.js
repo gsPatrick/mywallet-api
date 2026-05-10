@@ -139,6 +139,16 @@ const createSubscription = async (userId, profileId, data) => {
         finalCategory = 'OTHER'; // Valor ENUM seguro
     }
 
+    // Validar se finalCategoryId existe no banco para evitar erro de chave estrangeira
+    if (finalCategoryId) {
+        const { Category } = require('../../models');
+        const catExists = await Category.findByPk(finalCategoryId);
+        if (!catExists) {
+            console.log('⚠️ [SUBSCRIPTION] categoryId não encontrado no banco:', finalCategoryId);
+            finalCategoryId = null;
+        }
+    }
+
     const subscription = await Subscription.create({
         userId,
         profileId, // ✅ PROFILE ISOLATION

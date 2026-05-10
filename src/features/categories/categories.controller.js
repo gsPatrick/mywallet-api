@@ -7,24 +7,25 @@ const { Category } = require('../../models');
 const { Op } = require('sequelize');
 
 // Categorias padrão do sistema
+// Categorias padrão do sistema com UUIDs FIXOS para evitar quebra de vínculos após resets
 const DEFAULT_CATEGORIES = [
     // Despesas
-    { name: 'Alimentação', type: 'EXPENSE', icon: 'FiCoffee', color: '#f97316', order: 1 },
-    { name: 'Transporte', type: 'EXPENSE', icon: 'FiTruck', color: '#3b82f6', order: 2 },
-    { name: 'Moradia', type: 'EXPENSE', icon: 'FiHome', color: '#8b5cf6', order: 3 },
-    { name: 'Saúde', type: 'EXPENSE', icon: 'FiHeart', color: '#ef4444', order: 4 },
-    { name: 'Educação', type: 'EXPENSE', icon: 'FiBook', color: '#06b6d4', order: 5 },
-    { name: 'Lazer', type: 'EXPENSE', icon: 'FiMusic', color: '#ec4899', order: 6 },
-    { name: 'Compras', type: 'EXPENSE', icon: 'FiShoppingCart', color: '#f59e0b', order: 7 },
-    { name: 'Assinaturas', type: 'EXPENSE', icon: 'FiRepeat', color: '#6366f1', order: 8 },
-    { name: 'Serviços', type: 'EXPENSE', icon: 'FiTool', color: '#14b8a6', order: 9 },
-    { name: 'Outros', type: 'EXPENSE', icon: 'FiMoreHorizontal', color: '#64748b', order: 99 },
+    { id: '11111111-1111-4111-a111-111111111111', name: 'Alimentação', type: 'EXPENSE', icon: 'FiCoffee', color: '#f97316', order: 1 },
+    { id: '22222222-2222-4222-a222-222222222222', name: 'Transporte', type: 'EXPENSE', icon: 'FiTruck', color: '#3b82f6', order: 2 },
+    { id: '33333333-3333-4333-a333-333333333333', name: 'Moradia', type: 'EXPENSE', icon: 'FiHome', color: '#8b5cf6', order: 3 },
+    { id: '44444444-4444-4444-a444-444444444444', name: 'Saúde', type: 'EXPENSE', icon: 'FiHeart', color: '#ef4444', order: 4 },
+    { id: '55555555-5555-4555-a555-555555555555', name: 'Educação', type: 'EXPENSE', icon: 'FiBook', color: '#06b6d4', order: 5 },
+    { id: '66666666-6666-4666-a666-666666666666', name: 'Lazer', type: 'EXPENSE', icon: 'FiMusic', color: '#ec4899', order: 6 },
+    { id: '77777777-7777-4777-a777-777777777777', name: 'Compras', type: 'EXPENSE', icon: 'FiShoppingCart', color: '#f59e0b', order: 7 },
+    { id: '88888888-8888-4888-a888-888888888888', name: 'Assinaturas', type: 'EXPENSE', icon: 'FiRepeat', color: '#6366f1', order: 8 },
+    { id: '99999999-9999-4999-a999-999999999999', name: 'Serviços', type: 'EXPENSE', icon: 'FiTool', color: '#14b8a6', order: 9 },
+    { id: '00000000-0000-4000-a000-000000000000', name: 'Outros', type: 'EXPENSE', icon: 'FiMoreHorizontal', color: '#64748b', order: 99 },
     // Receitas
-    { name: 'Salário', type: 'INCOME', icon: 'FiDollarSign', color: '#22c55e', order: 1 },
-    { name: 'Freelance', type: 'INCOME', icon: 'FiBriefcase', color: '#10b981', order: 2 },
-    { name: 'Investimentos', type: 'INCOME', icon: 'FiTrendingUp', color: '#059669', order: 3 },
-    { name: 'Vendas', type: 'INCOME', icon: 'FiTag', color: '#34d399', order: 4 },
-    { name: 'Outros', type: 'INCOME', icon: 'FiMoreHorizontal', color: '#64748b', order: 99 },
+    { id: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', name: 'Salário', type: 'INCOME', icon: 'FiDollarSign', color: '#22c55e', order: 1 },
+    { id: 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb', name: 'Freelance', type: 'INCOME', icon: 'FiBriefcase', color: '#10b981', order: 2 },
+    { id: 'cccccccc-cccc-4ccc-cccc-cccccccccccc', name: 'Investimentos', type: 'INCOME', icon: 'FiTrendingUp', color: '#059669', order: 3 },
+    { id: 'dddddddd-dddd-4ddd-dddd-dddddddddddd', name: 'Vendas', type: 'INCOME', icon: 'FiTag', color: '#34d399', order: 4 },
+    { id: 'eeeeeeee-eeee-4eee-eeee-eeeeeeeeeeee', name: 'Outros', type: 'INCOME', icon: 'FiMoreHorizontal', color: '#64748b', order: 99 },
 ];
 
 /**
