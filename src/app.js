@@ -157,9 +157,23 @@ const startServer = async () => {
     await seedDefaultCategories();
 
     // =====================================================
-    // 👑 SEED ADMIN USER (OWNER)
+    // 🧹 RESET USERS (ONE-TIME / FLAG-BASED)
     // =====================================================
     const { User } = require('./models');
+    if (process.env.RESET_USERS === 'true') {
+      try {
+        logger.info('🧹 RESET_USERS=true detectado. Limpando tabela de usuários...');
+        // Truncate cascade para limpar todas as tabelas vinculadas (logs, transações, etc)
+        await User.truncate({ cascade: true, restartIdentity: true });
+        logger.info('✅ Todos os usuários e dados vinculados foram removidos.');
+      } catch (resetError) {
+        logger.error('❌ Erro ao resetar usuários:', resetError);
+      }
+    }
+
+    // =====================================================
+    // 👑 SEED ADMIN USER (OWNER)
+    // =====================================================
 
     const adminEmail = 'patrickgsiqueira@hotmail.com';
     const adminPassword = 'Patrick#180204';
