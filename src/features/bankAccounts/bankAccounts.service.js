@@ -240,7 +240,7 @@ const updateBankAccount = async (userId, profileId, accountId, data) => {
 
         // Only allow updating certain fields
         const allowedFields = [
-            'bankName', 'bankCode', 'nickname', 'color', 'icon', 'type', 
+            'bankName', 'bankCode', 'nickname', 'color', 'type',
             'accountNumber', 'branchCode', 'isActive', 'includeInTotals',
             'pin', 'hideBalance'
         ];
@@ -249,6 +249,12 @@ const updateBankAccount = async (userId, profileId, accountId, data) => {
             if (data[field] !== undefined) {
                 account[field] = data[field];
             }
+        }
+
+        // Handle icon separately — only update if explicitly provided (not undefined)
+        // Treat empty string same as undefined (don't overwrite)
+        if (data.icon !== undefined && data.icon !== '') {
+            account.icon = data.icon; // can be null (clear) or a URL (set)
         }
 
         // Handle isDefault separately (needs to unset others)
