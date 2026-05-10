@@ -5,7 +5,7 @@
  * ========================================
  */
 
-const { CreditCard, CardTransaction, Subscription, AuditLog } = require('../../models');
+const { CreditCard, CardTransaction, Subscription, AuditLog, BankAccount } = require('../../models');
 const { AppError } = require('../../middlewares/errorHandler');
 const { Op } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
@@ -70,9 +70,21 @@ const createManualCard = async (userId, profileId, data) => {
         bankAccountId
     } = data;
 
-    // Validar se bankAccountId é um UUID válido, caso contrário ignorar (placeholder do front)
+    // Validar se bankAccountId é um UUID válido, caso contrário buscar conta padrão do perfil
     const isValidUUID = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
-    const resolvedBankAccountId = bankAccountId && isValidUUID(bankAccountId) ? bankAccountId : null;
+    let resolvedBankAccountId = bankAccountId && isValidUUID(bankAccountId) ? bankAccountId : null;
+
+    if (!resolvedBankAccountId && profileId) {
+        // Buscar a primeira conta ativa do perfil para evitar cartão órfão
+        const defaultAccount = await BankAccount.findOne({
+            where: { profileId, isActive: true },
+            order: [['isDefault', 'DESC'], ['createdAt', 'ASC']]
+        });
+        if (defaultAccount) {
+            resolvedBankAccountId = defaultAccount.id;
+            console.log(`🔗 [CARD SERVICE] Auto-linking card "${name}" to bank "${defaultAccount.nickname}" (${resolvedBankAccountId})`);
+        }
+    }
 
     const card = await CreditCard.create({
         userId,

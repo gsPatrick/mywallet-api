@@ -62,7 +62,7 @@ const getMonthlyStatement = async (userId, year, month, bankAccountId = null, ca
         include: [{
             model: CreditCard,
             as: 'card',
-            attributes: ['id', 'name', 'bankAccountId', 'bankName'],
+            attributes: ['id', 'name', 'bankAccountId', 'bankName', 'lastFourDigits'],
             where: Object.keys(cardIncludeWhere).length > 0 ? cardIncludeWhere : undefined,
             required: !!(bankAccountId || cardIds)
         }],
@@ -75,32 +75,40 @@ const getMonthlyStatement = async (userId, year, month, bankAccountId = null, ca
         ...manualTransactions.map(t => ({
             id: t.id,
             date: t.date,
+            createdAt: t.createdAt, // Horário do lançamento
             description: t.description,
             type: t.type,
             amount: parseFloat(t.amount),
             source: t.source,
-            category: t.category,
+            sourceName: t.source === 'MANUAL' ? 'Saldo em Conta' : t.source,
+            category: t.category, // Objeto com ícone e cor
             bankAccountId: t.bankAccountId,
             origin: 'MANUAL'
         })),
         ...openFinanceTransactions.map(t => ({
             id: t.id,
             date: t.date,
+            createdAt: t.createdAt,
             description: t.description,
             type: t.type === 'CREDIT' ? 'INCOME' : 'EXPENSE',
             amount: parseFloat(t.amount),
             source: 'OPEN_FINANCE',
+            sourceName: 'Conexão Bancária',
+            category: null, // OF pode não ter categoria mapeada ainda
             bankAccountId: t.relatedAccountId,
             origin: 'OPEN_FINANCE'
         })),
         ...cardTransactions.map(t => ({
             id: t.id,
             date: t.date,
+            createdAt: t.createdAt,
             description: t.description,
             type: 'EXPENSE',
             amount: parseFloat(t.amount),
             source: 'CARD',
-            sourceName: t.card ? t.card.name : 'Cartão',
+            sourceName: t.card ? t.card.name : 'Cartão de Crédito',
+            lastFourDigits: t.card ? t.card.lastFourDigits : null, // ✅ Adicionado aqui
+            category: null,
             bankAccountId: t.card?.bankAccountId,
             origin: 'CARD'
         }))
