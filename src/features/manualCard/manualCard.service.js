@@ -22,7 +22,13 @@ const listCards = async (userId, profileId, filters = {}) => {
     const { source, isActive = true } = filters;
 
     const where = { userId };
-    if (profileId) where.profileId = profileId; // ✅ PROFILE ISOLATION
+    
+    // ✅ ESTRICT PROFILE ISOLATION
+    if (!profileId || profileId === 'null') {
+        where.profileId = null;
+    } else {
+        where.profileId = profileId;
+    }
     if (source) where.source = source;
     if (isActive !== undefined) where.isActive = isActive;
 

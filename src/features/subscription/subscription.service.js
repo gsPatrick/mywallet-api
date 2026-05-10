@@ -55,7 +55,16 @@ const listSubscriptions = async (userId, profileId, filters = {}) => {
     const { status, category, page = 1, limit = 50 } = filters;
 
     const where = { userId };
-    if (profileId) where.profileId = profileId; // ✅ PROFILE ISOLATION
+    
+    // ✅ ESTRICT PROFILE ISOLATION: 
+    // Se profileId for "null" (string) ou nulo, buscamos registros sem perfil.
+    // Caso contrário, filtramos estritamente pelo perfil informado.
+    if (!profileId || profileId === 'null') {
+        where.profileId = null;
+    } else {
+        where.profileId = profileId;
+    }
+
     if (status) where.status = status;
     if (category) where.category = category;
 
@@ -126,7 +135,16 @@ const createSubscription = async (userId, profileId, data) => {
 
     // Resolver bankAccountId se for placeholder (onboarding)
     const isValidUUID = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
-    const resolvedBankAccountId = bankAccountId && isValidUUID(bankAccountId) ? bankAccountId : null;
+    let resolvedBankAccountId = bankAccountId && isValidUUID(bankAccountId) ? bankAccountId : null;
+
+    // Se não informou banco mas informou cartão, herdar o banco do cartão
+    if (!resolvedBankAccountId && cardId && isValidUUID(cardId)) {
+        const linkedCard = await CreditCard.findByPk(cardId, { attributes: ['bankAccountId'] });
+        if (linkedCard?.bankAccountId) {
+            resolvedBankAccountId = linkedCard.bankAccountId;
+            console.log('🔗 [SUBSCRIPTION] Inherited bankAccountId from card:', resolvedBankAccountId);
+        }
+    }
 
     // Lógica para lidar com categorias enviadas como UUID pelo front (onboarding)
     const isUUID = (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str);
