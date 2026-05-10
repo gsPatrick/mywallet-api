@@ -430,6 +430,7 @@ const listTransactions = async (userId, profileId, filters = {}) => {
     if (bankAccountId) {
         ofWhere.relatedAccountId = bankAccountId;
     }
+    if (profileId) ofWhere.profileId = profileId;
 
     const openFinanceTransactions = await OpenFinanceTransaction.findAll({
         where: ofWhere,
@@ -462,6 +463,7 @@ const listTransactions = async (userId, profileId, filters = {}) => {
     // 3. Buscar transações de cartão ✅ PROFILE ISOLATION + SMART FILTER
     let cardTransactions = [];
     const cardWhere = { userId };
+    if (profileId) cardWhere.profileId = profileId;
     if (Object.keys(dateFilter).length) cardWhere.date = dateFilter;
     if (Object.keys(amountFilter).length) cardWhere.amount = amountFilter;
 
@@ -678,12 +680,14 @@ const listCategories = async (userId, profileId) => {
         order: [['name', 'ASC']]
     });
 
-    // Também buscar do metadata legado
+    const metadataWhere = { userId, category: { [Op.not]: null } };
+    if (profileId) metadataWhere.profileId = profileId;
+
     const metadataCategories = await TransactionMetadata.findAll({
         attributes: [
             [TransactionMetadata.sequelize.fn('DISTINCT', TransactionMetadata.sequelize.col('category')), 'category']
         ],
-        where: { userId, category: { [Op.not]: null } },
+        where: metadataWhere,
         order: [['category', 'ASC']]
     });
 
@@ -713,8 +717,10 @@ const getTransaction = async (userId, profileId, transactionId, transactionType)
     if (profileId) baseWhere.profileId = profileId;
 
     if (transactionType === 'OPEN_FINANCE') {
+        const ofWhere = { id: transactionId, userId };
+        if (profileId) ofWhere.profileId = profileId;
         transaction = await OpenFinanceTransaction.findOne({
-            where: { id: transactionId, userId } // OF não tem profileId
+            where: ofWhere
         });
     } else if (transactionType === 'CARD') {
         transaction = await CardTransaction.findOne({
