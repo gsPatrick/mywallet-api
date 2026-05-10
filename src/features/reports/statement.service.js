@@ -39,7 +39,6 @@ const getMonthlyStatement = async (userId, year, month, bankAccountId = null, ca
     // 3. Buscar transações de cartão
     let cardTransactions = [];
     const cardWhere = { userId, date: periodFilter };
-    if (profileId) cardWhere.profileId = profileId;
     
     // Filtro inteligente: Prioridade ao bankAccountId, mas permite cartões órfãos se IDs forem fornecidos
     let cardIncludeWhere = {};
@@ -166,7 +165,6 @@ const calculatePreviousBalance = async (userId, beforeDate, bankAccountId = null
 
     // Card (Expenses only)
     const cardWhere = { userId, date: beforeFilter };
-    if (profileId) cardWhere.profileId = profileId;
     let cardIncludeWhere = {};
     if (bankAccountId) {
         const orConditions = [{ bankAccountId: bankAccountId }];

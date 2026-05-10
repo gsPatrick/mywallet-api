@@ -463,7 +463,6 @@ const listTransactions = async (userId, profileId, filters = {}) => {
     // 3. Buscar transações de cartão ✅ PROFILE ISOLATION + SMART FILTER
     let cardTransactions = [];
     const cardWhere = { userId };
-    if (profileId) cardWhere.profileId = profileId;
     if (Object.keys(dateFilter).length) cardWhere.date = dateFilter;
     if (Object.keys(amountFilter).length) cardWhere.amount = amountFilter;
 
