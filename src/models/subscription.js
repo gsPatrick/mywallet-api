@@ -45,6 +45,15 @@ module.exports = (sequelize) => {
                 key: 'id'
             }
         },
+        // Banco associado (opcional, para assinaturas via débito/pix/boleto)
+        bankAccountId: {
+            type: DataTypes.UUID,
+            allowNull: true,
+            references: {
+                model: 'bank_accounts',
+                key: 'id'
+            }
+        },
         // Nome da assinatura
         name: {
             type: DataTypes.STRING(255),

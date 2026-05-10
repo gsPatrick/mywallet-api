@@ -105,7 +105,7 @@ const createSubscription = async (userId, profileId, data) => {
 
     const {
         name, description, amount, frequency, category, categoryId,
-        startDate, cardId, autoGenerate, alertDaysBefore,
+        startDate, cardId, bankAccountId, autoGenerate, alertDaysBefore,
         icon, color, notes, endDate
     } = data;
 
@@ -124,6 +124,10 @@ const createSubscription = async (userId, profileId, data) => {
         }
     }
 
+    // Resolver bankAccountId se for placeholder (onboarding)
+    const isValidUUID = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+    const resolvedBankAccountId = bankAccountId && isValidUUID(bankAccountId) ? bankAccountId : null;
+
     // Lógica para lidar com categorias enviadas como UUID pelo front (onboarding)
     const isUUID = (str) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str);
     
@@ -139,6 +143,7 @@ const createSubscription = async (userId, profileId, data) => {
         userId,
         profileId, // ✅ PROFILE ISOLATION
         cardId,
+        bankAccountId: resolvedBankAccountId,
         name,
         description,
         amount,
@@ -161,11 +166,13 @@ const createSubscription = async (userId, profileId, data) => {
     // Auto-criar primeira transação recorrente
     if (autoGenerate !== false) {
         try {
-            // Buscar bankAccountId do cartão (se houver) para vincular a transação ao banco
-            let resolvedBankAccountId = null;
+            // Buscar bankAccountId prioritário (do cartão ou da assinatura)
+            let finalBankAccountId = resolvedBankAccountId;
             if (cardId) {
                 const linkedCard = await CreditCard.findByPk(cardId, { attributes: ['bankAccountId'] });
-                resolvedBankAccountId = linkedCard?.bankAccountId || null;
+                if (linkedCard?.bankAccountId) {
+                    finalBankAccountId = linkedCard.bankAccountId;
+                }
             }
 
             if (cardId) {
@@ -177,8 +184,8 @@ const createSubscription = async (userId, profileId, data) => {
                     description: name,
                     amount: parseFloat(amount),
                     date: startDate || new Date().toISOString().split('T')[0],
-                    category: category || 'OTHER',
-                    categoryId: categoryId || null,
+                    category: finalCategory,
+                    categoryId: finalCategoryId,
                     isRecurring: true,
                     recurringFrequency: frequency,
                     status: 'PENDING'
@@ -187,13 +194,13 @@ const createSubscription = async (userId, profileId, data) => {
                 await ManualTransaction.create({
                     userId,
                     profileId, // ✅ PROFILE ISOLATION
-                    bankAccountId: resolvedBankAccountId, // ✅ VINCULA AO BANCO DO CARTÃO
+                    bankAccountId: finalBankAccountId, // ✅ VINCULA AO BANCO (DA ASSINATURA OU DO CARTÃO)
                     type: 'EXPENSE',
                     description: name,
                     amount: parseFloat(amount),
                     date: startDate || new Date().toISOString().split('T')[0],
-                    category: category || 'OTHER',
-                    categoryId: categoryId || null,
+                    category: finalCategory,
+                    categoryId: finalCategoryId,
                     source: 'SUBSCRIPTION',
                     status: 'PENDING',
                     isRecurring: true,
@@ -237,7 +244,7 @@ const updateSubscription = async (userId, profileId, subscriptionId, data) => {
     // Campos atualizáveis
     const updateableFields = [
         'name', 'description', 'amount', 'frequency', 'category', 'categoryId',
-        'cardId', 'autoGenerate', 'alertDaysBefore', 'icon', 'color',
+        'cardId', 'bankAccountId', 'autoGenerate', 'alertDaysBefore', 'icon', 'color',
         'notes', 'endDate', 'status'
     ];
 
@@ -365,11 +372,13 @@ const generatePendingTransactions = async (userId, profileId) => {
         });
 
         if (!existing) {
-            // Resolver bankAccountId do cartão da assinatura
-            let resolvedBankAccountId = null;
+            // Resolver bankAccountId prioritário (do cartão ou da assinatura)
+            let finalBankAccountId = sub.bankAccountId;
             if (sub.cardId) {
                 const linkedCard = await CreditCard.findByPk(sub.cardId, { attributes: ['bankAccountId'] });
-                resolvedBankAccountId = linkedCard?.bankAccountId || null;
+                if (linkedCard?.bankAccountId) {
+                    finalBankAccountId = linkedCard.bankAccountId;
+                }
             }
 
             if (sub.cardId) {
@@ -390,11 +399,11 @@ const generatePendingTransactions = async (userId, profileId) => {
                 });
                 generated.push(transaction);
             } else {
-                // Criar transação manual — SEM banco (não tem cartão vinculado)
+                // Criar transação manual
                 const transaction = await ManualTransaction.create({
                     userId,
                     profileId: sub.profileId, // ✅ HERDA DA ASSINATURA
-                    bankAccountId: resolvedBankAccountId, // ✅ VINCULA AO BANCO
+                    bankAccountId: finalBankAccountId, // ✅ VINCULA AO BANCO (DA ASSINATURA OU DO CARTÃO)
                     type: 'EXPENSE',
                     description: sub.name,
                     amount: sub.amount,
@@ -571,11 +580,13 @@ const markSubscriptionPaid = async (userId, profileId, subscriptionId, date = ne
 
     const payDate = new Date(date).toISOString().split('T')[0];
 
-    // Resolver bankAccountId do cartão
-    let resolvedBankAccountId = null;
+    // Resolver bankAccountId prioritário (do cartão ou da assinatura)
+    let finalBankAccountId = subscription.bankAccountId;
     if (subscription.cardId) {
         const linkedCard = await CreditCard.findByPk(subscription.cardId, { attributes: ['bankAccountId'] });
-        resolvedBankAccountId = linkedCard?.bankAccountId || null;
+        if (linkedCard?.bankAccountId) {
+            finalBankAccountId = linkedCard.bankAccountId;
+        }
     }
 
     let transaction;
@@ -598,7 +609,7 @@ const markSubscriptionPaid = async (userId, profileId, subscriptionId, date = ne
         transaction = await ManualTransaction.create({
             userId,
             profileId: subscription.profileId, // ✅ HERDA DA ASSINATURA
-            bankAccountId: resolvedBankAccountId, // ✅ VINCULA AO BANCO
+            bankAccountId: finalBankAccountId, // ✅ VINCULA AO BANCO (DA ASSINATURA OU DO CARTÃO)
             type: 'EXPENSE',
             status: 'COMPLETED',
             source: 'SUBSCRIPTION',
