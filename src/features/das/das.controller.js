@@ -123,10 +123,36 @@ const ensureGuides = async (req, res) => {
     }
 };
 
+/**
+ * POST /das/mark-overdue
+ * Marca guias como atrasadas (primeiro acesso)
+ */
+const markOverdue = async (req, res) => {
+    try {
+        const { overdueMonths } = req.body;
+        const profileId = req.headers['x-profile-id'];
+
+        if (!profileId) {
+            return res.status(400).json({ error: 'Profile ID é obrigatório' });
+        }
+
+        if (!Array.isArray(overdueMonths) || overdueMonths.length === 0) {
+            return res.status(400).json({ error: 'overdueMonths deve ser um array com pelo menos 1 item' });
+        }
+
+        const result = await dasService.markGuidesOverdue(profileId, overdueMonths);
+        res.json({ success: true, results: result });
+    } catch (error) {
+        console.error('Erro ao marcar guias como atrasadas:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
 module.exports = {
     generateGuides,
     listGuides,
     payGuide,
     getSummary,
-    ensureGuides
+    ensureGuides,
+    markOverdue
 };

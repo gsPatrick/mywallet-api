@@ -28,4 +28,7 @@ router.get('/summary', dasController.getSummary);
 // Garantir guias do ano atual
 router.post('/ensure', dasController.ensureGuides);
 
+// Marcar guias como atrasadas (primeiro acesso)
+router.post('/mark-overdue', dasController.markOverdue);
+
 module.exports = router;

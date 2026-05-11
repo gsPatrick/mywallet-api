@@ -334,10 +334,71 @@ const ensureCurrentYearGuides = async (profileId) => {
     }
 };
 
+/**
+ * Marca guias como atrasadas com valores customizados
+ * Usado no primeiro acesso para declarar pendências
+ * @param {string} profileId - ID do perfil
+ * @param {Array} overdueMonths - [{ month, year, amount }]
+ */
+const markGuidesOverdue = async (profileId, overdueMonths) => {
+    try {
+        const results = [];
+
+        for (const item of overdueMonths) {
+            const { month, year, amount } = item;
+
+            // Buscar guia existente
+            let guide = await DasGuide.findOne({
+                where: { profileId, month, year }
+            });
+
+            if (guide) {
+                // Atualizar valor e status
+                if (guide.status !== 'PAID') {
+                    guide.baseValue = parseFloat(amount);
+                    guide.status = 'OVERDUE';
+                    await guide.save();
+                    results.push({ month, year, status: 'UPDATED' });
+                } else {
+                    results.push({ month, year, status: 'ALREADY_PAID' });
+                }
+            } else {
+                // Criar guia com status OVERDUE
+                const profile = await Profile.findByPk(profileId);
+                const dasDueDay = parseInt(profile?.settings?.dasDueDay) || 20;
+
+                let dueMonth = month + 1;
+                let dueYear = year;
+                if (dueMonth > 12) { dueMonth = 1; dueYear = year + 1; }
+                const lastDay = new Date(dueYear, dueMonth, 0).getDate();
+                const adjustedDay = Math.min(dasDueDay, lastDay);
+                const dueDate = new Date(dueYear, dueMonth - 1, adjustedDay);
+
+                await DasGuide.create({
+                    profileId,
+                    month,
+                    year,
+                    baseValue: parseFloat(amount),
+                    dueDate,
+                    status: 'OVERDUE'
+                });
+                results.push({ month, year, status: 'CREATED_OVERDUE' });
+            }
+        }
+
+        console.log(`✅ ${results.length} guias DAS marcadas como atrasadas`);
+        return results;
+    } catch (error) {
+        console.error('Erro ao marcar guias como atrasadas:', error);
+        throw error;
+    }
+};
+
 module.exports = {
     generateYearlyGuides,
     listGuides,
     payDas,
     getDasSummary,
-    ensureCurrentYearGuides
+    ensureCurrentYearGuides,
+    markGuidesOverdue
 };
