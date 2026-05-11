@@ -31,9 +31,18 @@ const getMonthlyStatement = async (userId, year, month, bankAccountId = null, ca
         ofWhere.relatedAccountId = bankAccountId;
     }
 
+    const ofInclude = [{
+        model: BankAccount,
+        as: 'bankAccount',
+        attributes: ['id', 'profileId'],
+        where: profileId ? { profileId } : undefined,
+        required: true // Força o isolamento por perfil
+    }];
+
     openFinanceTransactions = await OpenFinanceTransaction.findAll({
         where: ofWhere,
-        attributes: ['id', 'description', 'amount', 'type', 'date', 'createdAt']
+        include: ofInclude,
+        attributes: ['id', 'description', 'amount', 'type', 'date', 'createdAt', 'relatedAccountId']
     });
 
     // 3. Buscar transações de cartão

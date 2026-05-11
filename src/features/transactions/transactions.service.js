@@ -394,7 +394,7 @@ const listTransactions = async (userId, profileId, filters = {}) => {
         bankAccountId,
         cardIds,
         page = 1,
-        limit = 50
+        limit = 1000
     } = filters;
 
     const offset = (page - 1) * limit;
@@ -665,7 +665,7 @@ const listCategories = async (userId, profileId) => {
     });
 
     const metadataWhere = { userId, category: { [Op.not]: null } };
-    if (profileId) metadataWhere.profileId = profileId;
+    // TransactionMetadata não tem profileId diretamente
 
     const metadataCategories = await TransactionMetadata.findAll({
         attributes: [

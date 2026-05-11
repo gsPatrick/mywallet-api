@@ -153,7 +153,7 @@ const getInvoice = async (userId, profileId, invoiceId) => {
                 include: [{
                     model: BankAccount,
                     as: 'bankAccount',
-                    attributes: ['id', 'bankName', 'name']
+                    attributes: ['id', 'bankName', 'nickname']
                 }],
                 order: [['paymentDate', 'DESC']]
             }
