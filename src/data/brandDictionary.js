@@ -91,6 +91,8 @@ const BRAND_LIBRARY = [
     { name: 'Microsoft', brandKey: 'microsoft_365', category: 'SOFTWARE', keywords: ['microsoft', 'xbox', 'office 365', 'microsoft 365', 'onedrive'] },
     { name: 'ChatGPT', brandKey: 'chatgpt', category: 'SOFTWARE', keywords: ['chatgpt', 'openai', 'gpt'] },
     { name: 'Claude', brandKey: 'claude', category: 'SOFTWARE', keywords: ['claude', 'anthropic'] },
+    { name: 'Hostinger', brandKey: 'hostinger', category: 'SOFTWARE', keywords: ['hostinger', 'hostinger*', 'servidor hostinger'] },
+    { name: '99Freelas', brandKey: '99freelas', category: 'SOFTWARE', keywords: ['99freelas', '99 freelas', 'novenofreelas'] },
 
     // ========================================
     // TELECOM
