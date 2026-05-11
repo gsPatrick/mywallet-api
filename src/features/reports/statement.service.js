@@ -41,7 +41,7 @@ const getMonthlyStatement = async (userId, year, month, bankAccountId = null, ca
     const cardWhere = { userId, date: periodFilter };
     
     // Filtro inteligente: Prioridade ao bankAccountId, mas permite cartões órfãos se IDs forem fornecidos
-    let cardIncludeWhere = {};
+    let cardIncludeWhere = profileId ? { profileId } : {};
     if (bankAccountId) {
         const orConditions = [{ bankAccountId: bankAccountId }];
         if (cardIds && Array.isArray(cardIds) && cardIds.length > 0) {
@@ -64,7 +64,7 @@ const getMonthlyStatement = async (userId, year, month, bankAccountId = null, ca
             as: 'card',
             attributes: ['id', 'name', 'bankAccountId', 'bankName', 'lastFourDigits'],
             where: Object.keys(cardIncludeWhere).length > 0 ? cardIncludeWhere : undefined,
-            required: !!(bankAccountId || cardIds)
+            required: true // OBRIGATÓRIO para garantir isolamento de perfil
         }],
         attributes: ['id', 'description', 'amount', 'date', 'createdAt']
     });

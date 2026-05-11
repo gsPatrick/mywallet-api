@@ -420,26 +420,31 @@ const listTransactions = async (userId, profileId, filters = {}) => {
         baseWhere.bankAccountId = bankAccountId;
     }
 
-    // Buscar transações Open Finance
+    // 1. Buscar transações Open Finance ✅ PROFILE ISOLATION via Join
     const ofWhere = { userId };
     if (Object.keys(dateFilter).length) ofWhere.date = dateFilter;
     if (Object.keys(amountFilter).length) ofWhere.amount = amountFilter;
     if (type === 'CREDIT' || type === 'DEBIT') ofWhere.type = type;
     
-    // ✅ Se bankAccountId foi passado, a trava é OBRIGATÓRIA
     if (bankAccountId) {
         ofWhere.relatedAccountId = bankAccountId;
     }
-    // Removido profileId pois a coluna não existe em OpenFinanceTransaction
 
     const openFinanceTransactions = await OpenFinanceTransaction.findAll({
         where: ofWhere,
+        include: [{
+            model: BankAccount,
+            as: 'bankAccount',
+            attributes: ['id', 'profileId'],
+            where: profileId ? { profileId } : undefined,
+            required: true // Força o isolamento por perfil
+        }],
         order: [['date', 'DESC']],
         limit,
         offset
     });
 
-    // Buscar transações manuais ✅ PROFILE ISOLATION
+    // 2. Buscar transações manuais ✅ PROFILE ISOLATION
     const manualWhere = { ...baseWhere };
     if (Object.keys(dateFilter).length) manualWhere.date = dateFilter;
     if (Object.keys(amountFilter).length) manualWhere.amount = amountFilter;
@@ -466,35 +471,16 @@ const listTransactions = async (userId, profileId, filters = {}) => {
     if (Object.keys(dateFilter).length) cardWhere.date = dateFilter;
     if (Object.keys(amountFilter).length) cardWhere.amount = amountFilter;
 
-    // Filtro inteligente: Prioridade total ao bankAccountId, mas permite cartões se fornecidos pelo frontend
+    // Filtro cumulativo: Sempre respeitar o profileId se fornecido
     let cardIncludeWhere = {};
+    if (profileId) {
+        cardIncludeWhere.profileId = profileId;
+    }
+
     if (bankAccountId) {
-        const orConditions = [
-            // 1. Cartões explicitamente vinculados a este banco
-            { bankAccountId: bankAccountId }
-        ];
-
-        // 2. Se o frontend nos enviou IDs de cartões específicos (porque ele detectou que pertencem a este banco)
-        if (cardIds && Array.isArray(cardIds) && cardIds.length > 0) {
-            orConditions.push({
-                [Op.and]: [
-                    { id: { [Op.in]: cardIds } },
-                    // SÓ permitimos se o cartão for "órfão" OU se o ID do banco for o mesmo
-                    {
-                        [Op.or]: [
-                            { bankAccountId: null },
-                            { bankAccountId: bankAccountId }
-                        ]
-                    }
-                ]
-            });
-        }
-
-        cardIncludeWhere[Op.or] = orConditions;
+        cardIncludeWhere.bankAccountId = bankAccountId;
     } else if (cardIds && Array.isArray(cardIds) && cardIds.length > 0) {
         cardIncludeWhere.id = { [Op.in]: cardIds };
-    } else if (profileId) {
-        cardIncludeWhere.profileId = profileId;
     }
 
     if (!type || type === 'EXPENSE') {
@@ -511,7 +497,7 @@ const listTransactions = async (userId, profileId, filters = {}) => {
                     as: 'card',
                     attributes: ['id', 'name', 'bankAccountId', 'bankName'],
                     where: Object.keys(cardIncludeWhere).length > 0 ? cardIncludeWhere : undefined,
-                    required: !!(bankAccountId || cardIds)
+                    required: true // OBRIGATÓRIO para garantir isolamento de perfil
                 }
             ],
             order: [['date', 'DESC']],
