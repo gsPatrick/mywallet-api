@@ -296,9 +296,14 @@ class ProfileService {
             }
         }
 
-        // Marcar onboarding como completo
+        // Marcar onboarding como completo e salvar a preferência do assistente de voz
+        const updateData = { onboardingComplete: true, onboardingStep: 4 };
+        if (setupData.audioAssistantEnabled !== undefined) {
+            updateData.audioAssistantEnabled = setupData.audioAssistantEnabled;
+        }
+
         await User.update(
-            { onboardingComplete: true, onboardingStep: 4 },
+            updateData,
             { where: { id: userId } }
         );
 

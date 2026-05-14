@@ -137,6 +137,15 @@ module.exports = (sequelize) => {
             comment: 'Permite cookies de terceiros'
         },
         // ========================================
+        // AI & ASSISTANTS
+        // ========================================
+        audioAssistantEnabled: {
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: false,
+            comment: 'Habilita o assistente de áudio (MyWallet) no navegador'
+        },
+        // ========================================
         // SECURITY TRACKING
         // ========================================
         passwordChangedAt: {
@@ -209,6 +218,8 @@ module.exports = (sequelize) => {
             // Onboarding
             onboardingComplete: this.onboardingComplete,
             onboardingStep: this.onboardingStep,
+            // Assistants
+            audioAssistantEnabled: this.audioAssistantEnabled,
             createdAt: this.createdAt,
             updatedAt: this.updatedAt
         };

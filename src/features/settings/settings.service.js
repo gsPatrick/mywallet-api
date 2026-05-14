@@ -47,7 +47,7 @@ const updateProfile = async (userId, data) => {
     const user = await User.findByPk(userId);
     if (!user) throw new Error('Usuário não encontrado');
 
-    const { name, email, cpf, phone, avatar } = data;
+    const { name, email, cpf, phone, avatar, audioAssistantEnabled } = data;
 
     if (name) user.name = name;
     if (email && email !== user.email) {
@@ -59,6 +59,7 @@ const updateProfile = async (userId, data) => {
     if (cpf !== undefined) user.cpf = cpf;
     if (phone !== undefined) user.phone = phone;
     if (avatar !== undefined) user.avatar = avatar;
+    if (audioAssistantEnabled !== undefined) user.audioAssistantEnabled = audioAssistantEnabled;
 
     await user.save();
     return user.toSafeObject();
